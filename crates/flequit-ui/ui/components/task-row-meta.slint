@@ -1,0 +1,33 @@
+import { Theme } from "../globals/theme.slint";
+import { TaskItem } from "../globals/types.slint";
+import { TagChip } from "tag-chip.slint";
+
+// The second line of a task row: due date, subtask progress and tags.
+//
+// Every part is optional. The caller decides whether the line exists at all,
+// because an id inside an `if` cannot be read from outside it.
+export component TaskRowMeta inherits HorizontalLayout {
+    in property <TaskItem> task;
+
+    spacing: Theme.space-sm;
+    // Sized to its content; stretching would spread the tag chips across the row.
+    alignment: start;
+
+    if root.task.has-due: Text {
+        text: root.task.due-label;
+        color: root.task.overdue ? Theme.danger : Theme.text-muted;
+        font-size: Theme.font-size-sm;
+        vertical-alignment: center;
+    }
+
+    if root.task.subtask-count > 0: Text {
+        text: root.task.subtask-done-count + " / " + root.task.subtask-count;
+        color: Theme.text-muted;
+        font-size: Theme.font-size-sm;
+        vertical-alignment: center;
+    }
+
+    for tag in root.task.tag-labels: TagChip {
+        label: tag;
+    }
+}

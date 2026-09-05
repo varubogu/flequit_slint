@@ -1,0 +1,56 @@
+import { Theme } from "../globals/theme.slint";
+import { Layout } from "../globals/layout.slint";
+import { AppState } from "../globals/app-state.slint";
+
+// Swatches for the project palette, plus "no colour".
+//
+// The palette comes from the ViewModel: `.slint` cannot turn the stored hex
+// text into a colour, so both forms are published together.
+export component ColorPicker inherits HorizontalLayout {
+    in property <string> value;
+    callback picked(string /* value */);
+
+    spacing: Theme.space-sm;
+    alignment: start;
+
+    Rectangle {
+        width: Layout.touch-target;
+        height: Layout.touch-target;
+        border-radius: Theme.radius-sm;
+        border-width: root.value == "" ? 2px : 1px;
+        border-color: root.value == "" ? Theme.accent : Theme.border;
+
+        Text {
+            text: "∅";
+            color: Theme.text-muted;
+            font-size: Theme.font-size-base;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            width: 100%;
+            height: 100%;
+        }
+
+        TouchArea {
+            clicked => { root.picked(""); }
+        }
+        accessible-role: button;
+        accessible-label: @tr("Editor" => "No colour");
+        accessible-action-default => { root.picked(""); }
+    }
+
+    for option in AppState.project-colors: Rectangle {
+        width: Layout.touch-target;
+        height: Layout.touch-target;
+        border-radius: Theme.radius-sm;
+        border-width: root.value == option.value ? 2px : 0px;
+        border-color: Theme.text;
+        background: option.swatch;
+
+        TouchArea {
+            clicked => { root.picked(option.value); }
+        }
+        accessible-role: button;
+        accessible-label: @tr("Editor" => "Colour {0}", option.value);
+        accessible-action-default => { root.picked(option.value); }
+    }
+}

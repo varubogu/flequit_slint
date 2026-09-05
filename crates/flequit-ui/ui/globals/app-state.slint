@@ -1,4 +1,6 @@
-import { TaskItem, ProjectItem, DueFilterItem, Pane } from "types.slint";
+import { TaskItem, SubTaskItem, ProjectItem, DueFilterItem, Pane, TaskSort, ColorOption,
+         EditorState, TagItem, BookmarkedTagItem, RecurrenceState,
+         SearchSuggestion } from "types.slint";
 
 // Application state shared across views.
 //
@@ -11,6 +13,13 @@ export global AppState {
     in-out property <[ProjectItem]> projects;
     in-out property <[TaskItem]> tasks;
     in-out property <[DueFilterItem]> due-filters;
+    // The palette the project editor offers. Published once at startup.
+    in-out property <[ColorOption]> project-colors;
+    in-out property <[TagItem]> tags;
+    in-out property <[BookmarkedTagItem]> bookmarked-tags;
+    // Whether archived projects are listed. Owned by the ViewModel because the
+    // project model is rebuilt when it changes.
+    in-out property <bool> show-archived-projects: false;
 
     // --- Selection ---
     in-out property <string> selected-project-id;
@@ -22,14 +31,54 @@ export global AppState {
     // bindings are declarative expressions, and searching a model is logic.
     in-out property <TaskItem> selected-task;
     in-out property <bool> has-selected-task: false;
+    // The subtask the detail pane shows instead of its parent, resolved the
+    // same way. `selected-task` stays filled in so the pane can go back to it.
+    in-out property <SubTaskItem> selected-subtask;
+    in-out property <bool> has-selected-subtask: false;
 
     // --- Navigation (compact layout only) ---
     in-out property <Pane> active-pane: Pane.list;
     // Transient: views may toggle this directly.
     in-out property <bool> sidebar-open: false;
 
+    in-out property <bool> sidebar-collapsed: false;
+
     // --- Search ---
     in-out property <string> search-query;
+    in-out property <[SearchSuggestion]> search-suggestions;
+
+    // --- Ordering ---
+    // Applied by the ViewModel when it rebuilds `tasks`.
+    in-out property <TaskSort> task-sort: TaskSort.manual;
+
+    // --- Drag and drop ---
+    // Transient: views write these directly while a row is being dragged, and
+    // the drop is reported through Actions when the pointer is released.
+    in-out property <string> dragging-task-id;
+    // The dragged task's project, so only lists that can receive it light up.
+    in-out property <string> dragging-project-id;
+    // Pointer position in window coordinates. A drop target anywhere in the
+    // window can compare it against its own `absolute-position`.
+    in-out property <length> drag-x;
+    in-out property <length> drag-y;
+    // The task list under the pointer, empty when there is none.
+    in-out property <string> drop-list-id;
+    out property <bool> is-dragging: root.dragging-task-id != "";
+
+    // --- Sidebar editor ---
+    // Transient: the sidebar opens the editor by filling these in.
+    in-out property <bool> editor-open: false;
+    in-out property <EditorState> editor;
+    in-out property <bool> tag-manager-open: false;
+
+    // --- Recurrence editor ---
+    // Transient: the detail pane opens the editor through Actions, which fills
+    // in the working copy and the preview before showing it.
+    in-out property <bool> recurrence-open: false;
+    in-out property <RecurrenceState> recurrence;
+    // The next few dates the current draft would fire on, already formatted in
+    // the user's timezone. Empty when the draft repeats nothing.
+    in-out property <[string]> recurrence-preview;
 
     // --- Async status ---
     in-out property <bool> loading: false;

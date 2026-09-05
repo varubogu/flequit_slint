@@ -1,0 +1,82 @@
+import { Theme } from "../../globals/theme.slint";
+import { Layout } from "../../globals/layout.slint";
+import { AppState } from "../../globals/app-state.slint";
+import { Actions } from "../../globals/actions.slint";
+import { TaskSort } from "../../globals/types.slint";
+
+component SortButton inherits Rectangle {
+    in property <string> label;
+    in property <string> action-label;
+    in property <bool> selected: false;
+    callback clicked();
+
+    height: Layout.touch-target;
+    horizontal-stretch: 1;
+    background: root.selected ? Theme.surface-selected
+        : sort-touch.has-hover ? Theme.surface-hover
+        : transparent;
+    border-radius: Theme.radius-sm;
+
+    Text {
+        text: root.label;
+        color: root.selected ? Theme.text : Theme.text-muted;
+        font-size: Theme.font-size-sm;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        width: 100%;
+        height: 100%;
+        overflow: elide;
+    }
+
+    sort-touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+    accessible-role: button;
+    accessible-label: root.action-label;
+    accessible-action-default => { root.clicked(); }
+}
+
+// Ordering control above the task list.
+//
+// "Manual" is the stored order and the only one drag and drop can rearrange;
+// the others are derived views of the same tasks.
+export component TaskSortBar inherits Rectangle {
+    height: Layout.touch-target + 2 * Theme.space-xs;
+    background: Theme.surface;
+
+    HorizontalLayout {
+        padding-left: Theme.space-sm;
+        padding-right: Theme.space-sm;
+        padding-top: Theme.space-xs;
+        padding-bottom: Theme.space-xs;
+        spacing: Theme.space-xs;
+
+        SortButton {
+            label: @tr("Sort" => "Manual");
+            action-label: @tr("Sort" => "Sort by {0}", self.label);
+            selected: AppState.task-sort == TaskSort.manual;
+            clicked => { Actions.change-task-sort(TaskSort.manual); }
+        }
+
+        SortButton {
+            label: @tr("Sort" => "Due date");
+            action-label: @tr("Sort" => "Sort by {0}", self.label);
+            selected: AppState.task-sort == TaskSort.due;
+            clicked => { Actions.change-task-sort(TaskSort.due); }
+        }
+
+        SortButton {
+            label: @tr("Sort" => "Priority");
+            action-label: @tr("Sort" => "Sort by {0}", self.label);
+            selected: AppState.task-sort == TaskSort.priority;
+            clicked => { Actions.change-task-sort(TaskSort.priority); }
+        }
+
+        SortButton {
+            label: @tr("Sort" => "Name");
+            action-label: @tr("Sort" => "Sort by {0}", self.label);
+            selected: AppState.task-sort == TaskSort.title;
+            clicked => { Actions.change-task-sort(TaskSort.title); }
+        }
+    }
+}

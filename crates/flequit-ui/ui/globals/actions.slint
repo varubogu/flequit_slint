@@ -3,6 +3,10 @@
 // Any interaction that persists data or runs domain logic goes through here.
 // Views must not mutate AppState for those cases.
 
+import { DueUnit, RecurrenceState, RecurrenceUnit, SettingsCategory, TaskPriority, TaskSort,
+         TaskStatus } from "types.slint";
+import { ThemeMode } from "theme.slint";
+
 export global Actions {
     // --- Navigation ---
     callback select-project(string /* project_id */);
@@ -16,20 +20,109 @@ export global Actions {
     // --- Search and filters ---
     callback search-changed(string /* query */);
     callback due-filter-clicked(string /* filter_key */);
+    callback change-task-sort(TaskSort /* sort */);
 
     // --- Task mutations ---
     callback add-task(string /* list_id */, string /* title */);
     callback toggle-task-completed(string /* task_id */);
     callback update-task-title(string /* task_id */, string /* title */);
     callback update-task-notes(string /* task_id */, string /* notes */);
+    callback update-task-status(string /* task_id */, TaskStatus /* status */);
+    callback update-task-priority(string /* task_id */, TaskPriority /* priority */);
+    callback update-task-due(string /* task_id */, int /* year */, int /* month */,
+                             int /* day */, int /* hour */, int /* minute */);
+    callback clear-task-due(string /* task_id */);
+    // A range task keeps both ends; toggling it off drops the start date.
+    callback set-task-range(string /* task_id */, bool /* is_range */);
+    callback update-task-start(string /* task_id */, int /* year */, int /* month */,
+                               int /* day */, int /* hour */, int /* minute */);
+    callback clear-task-start(string /* task_id */);
     callback delete-task(string /* task_id */);
+    // Moves a task to `target_index` in the currently visible order.
+    callback reorder-task(string /* task_id */, int /* target_index */);
+    // Moves a task to the end of another list in the same project.
+    callback move-task-to-list(string /* task_id */, string /* list_id */);
+
+    // --- Recurrence ---
+    // Fills in `AppState.recurrence` from the task's rule and opens the editor.
+    callback open-recurrence(string /* task_id */);
+    // Recomputes `AppState.recurrence-preview` for a draft being edited.
+    // Expanding a rule into dates is domain logic, so the view only renders the
+    // strings this produces.
+    callback preview-recurrence(RecurrenceState /* draft */);
+    callback save-recurrence(RecurrenceState /* draft */);
+    callback clear-recurrence(string /* task_id */);
+
+    // --- Reminders ---
+    callback add-reminder(string /* task_id */, int /* year */, int /* month */,
+                          int /* day */, int /* hour */, int /* minute */);
+    callback remove-reminder(string /* task_id */, string /* reminder_key */);
+    callback request-notification-permission();
 
     // --- Subtask mutations ---
     callback add-subtask(string /* task_id */, string /* title */);
     callback toggle-subtask-completed(string /* subtask_id */);
+    callback update-subtask-title(string /* subtask_id */, string /* title */);
+    callback update-subtask-notes(string /* subtask_id */, string /* notes */);
+    callback update-subtask-status(string /* subtask_id */, TaskStatus /* status */);
+    callback update-subtask-priority(string /* subtask_id */, TaskPriority /* priority */);
+    callback update-subtask-due(string /* subtask_id */, int /* year */, int /* month */,
+                                int /* day */, int /* hour */, int /* minute */);
+    callback clear-subtask-due(string /* subtask_id */);
+    callback delete-subtask(string /* subtask_id */);
+
+    // --- Project and task list mutations ---
+    callback create-project(string /* name */, string /* color */);
+    callback update-project(string /* project_id */, string /* name */, string /* color */);
+    callback archive-project(string /* project_id */, bool /* archived */);
+    callback delete-project(string /* project_id */);
+    callback toggle-archived-projects();
+    callback create-task-list(string /* project_id */, string /* name */);
+    callback update-task-list(string /* list_id */, string /* name */);
+    callback delete-task-list(string /* list_id */);
+
+    // --- Tag mutations ---
+    callback create-tag(string /* project_id */, string /* name */, string /* color */);
+    callback update-tag(string /* project_id */, string /* tag_id */, string /* name */,
+                        string /* color */);
+    callback delete-tag(string /* project_id */, string /* tag_id */);
+    callback add-task-tag(string /* task_id */, string /* name */);
+    callback set-task-tag(string /* task_id */, string /* tag_id */, bool /* assigned */);
+    callback set-tag-bookmarked(string /* project_id */, string /* tag_id */, bool /* bookmarked */);
+    callback select-tag-bookmark(string /* project_id */, string /* tag_name */);
 
     // --- Shell ---
+    callback open-help();
     callback open-settings();
+    callback close-settings();
+    callback select-settings-category(SettingsCategory /* category */);
+    callback search-settings(string /* query */, string /* basic_haystack */,
+                             string /* datetime_haystack */, string /* appearance_haystack */,
+                             string /* account_haystack */);
+    // Switches the UI language and persists the choice.
+    callback update-language(string /* locale tag */);
+    callback update-week-start(string /* week_start */);
+    callback update-due-button(string /* key */, bool /* visible */);
+    callback add-custom-due-filter(int /* value */, DueUnit /* unit */);
+    callback remove-custom-due-filter(int /* value */, DueUnit /* unit */);
+    callback add-recurrence-preset(int /* interval */, RecurrenceUnit /* unit */);
+    callback remove-recurrence-preset(int /* interval */, RecurrenceUnit /* unit */);
+    callback filter-timezones(string /* query */);
+    callback filter-fonts(string /* query */);
+    callback update-timezone(string /* timezone */);
+    callback update-datetime-format(string /* format */);
+    callback add-datetime-format(string /* name */, string /* format */);
+    callback overwrite-datetime-format(string /* id */, string /* name */, string /* format */);
+    callback delete-datetime-format(string /* id */);
+    pure callback datetime-format-index(string /* format */) -> int;
+    pure callback preview-datetime(string /* format */, int /* year */, int /* month */,
+                                   int /* day */, int /* hour */, int /* minute */) -> string;
+    callback refresh-datetime-display();
+    callback update-theme-mode(ThemeMode /* mode */);
+    callback update-font(string /* font */);
+    callback update-font-size(int /* size */);
+    callback update-font-color(string /* color */);
+    callback update-background-color(string /* color */);
     callback dismiss-error();
     callback retry-last-action();
 }

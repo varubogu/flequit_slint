@@ -95,6 +95,7 @@
 | 予定終了日時 | plan_end_date | Option\<DateTime\<Utc\>\> | - | NULL | - | - |
 | 実開始日時 | do_start_date | Option\<DateTime\<Utc\>\> | - | NULL | - | - |
 | 実終了日時 | do_end_date | Option\<DateTime\<Utc\>\> | - | NULL | - | - |
+| リマインダー日時 | reminders | Vec\<DateTime\<Utc\>\> | NN | [] | - | UTC の日時を任意数保持。SQLite は JSON 配列 |
 | 表示順序 | order_index | i32 | NN | 0 | - | - |
 | アーカイブ状態 | is_archived | bool | NN | false | - | - |
 | 作成日時 | created_at | DateTime\<Utc\> | NN | - | - | - |
@@ -104,7 +105,7 @@
 
 - PRIMARY KEY: `id`
 - FOREIGN KEY: `project_id → projects.id`, `task_list_id → task_lists.id`
-- NOT NULL: `id, project_id, title, status, priority, importance, order_index, is_archived, created_at, updated_at`
+- NOT NULL: `id, project_id, title, status, priority, importance, reminders, order_index, is_archived, created_at, updated_at`
 
 ### インデックス対象カラム
 

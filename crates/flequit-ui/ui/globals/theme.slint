@@ -5,23 +5,36 @@ export enum ThemeMode { system, light, dark }
 
 export global Theme {
     in-out property <ThemeMode> mode: ThemeMode.system;
-    in-out property <bool> dark: false;
+
+    // What the operating system asks for. `AppWindow.init` supplies an immediate
+    // fallback and the platform-backed ViewModel keeps it current afterwards.
+    in-out property <bool> system-dark: false;
+    in-out property <string> font-color-choice: "default";
+    in-out property <string> background-color-choice: "default";
+
+    // The single switch every colour below branches on.
+    out property <bool> dark: root.mode == ThemeMode.dark
+        || (root.mode == ThemeMode.system && root.system-dark);
 
     // Surfaces
-    out property <brush> background: root-dark ? #1a1b1e : #ffffff;
-    out property <brush> surface: root-dark ? #25262b : #f8f9fa;
-    out property <brush> surface-raised: root-dark ? #2c2e33 : #ffffff;
-    out property <brush> surface-hover: root-dark ? #33353b : #f1f3f5;
-    out property <brush> surface-selected: root-dark ? #364fc7 : #dbe4ff;
+    out property <brush> background: root.background-color-choice == "white" ? #ffffff
+        : root.background-color-choice == "black" ? #000000
+        : root.dark ? #1a1b1e : #ffffff;
+    out property <brush> surface: root.dark ? #25262b : #f8f9fa;
+    out property <brush> surface-raised: root.dark ? #2c2e33 : #ffffff;
+    out property <brush> surface-hover: root.dark ? #33353b : #f1f3f5;
+    out property <brush> surface-selected: root.dark ? #364fc7 : #dbe4ff;
 
     // Content
-    out property <brush> text: root-dark ? #e9ecef : #212529;
-    out property <brush> text-muted: root-dark ? #909296 : #868e96;
+    out property <brush> text: root.font-color-choice == "white" ? #ffffff
+        : root.font-color-choice == "black" ? #000000
+        : root.dark ? #e9ecef : #212529;
+    out property <brush> text-muted: root.dark ? #909296 : #868e96;
     out property <brush> text-on-accent: #ffffff;
 
     // Accent and status
     out property <brush> accent: #4c6ef5;
-    out property <brush> border: root-dark ? #373a40 : #dee2e6;
+    out property <brush> border: root.dark ? #373a40 : #dee2e6;
     out property <brush> danger: #fa5252;
     out property <brush> warning: #fd7e14;
     out property <brush> success: #40c057;
@@ -44,11 +57,15 @@ export global Theme {
     out property <length> radius-lg: 12px;
 
     // Typography
+    // The chosen font family, or empty for whatever Slint picks. "default" and
+    // "system" both mean "do not override": Slint already falls back to the
+    // platform's UI font.
+    in-out property <string> font-choice: "default";
+    out property <string> font-family: root.font-choice == "default"
+        || root.font-choice == "system" ? "" : root.font-choice;
+
     in-out property <length> font-size-base: 13px;
     out property <length> font-size-sm: root.font-size-base - 2px;
     out property <length> font-size-lg: root.font-size-base + 3px;
     out property <length> font-size-title: root.font-size-base + 7px;
-
-    // Internal alias so bindings above stay readable.
-    private property <bool> root-dark: root.dark;
 }

@@ -1,0 +1,59 @@
+import { Theme } from "../../globals/theme.slint";
+import { Layout } from "../../globals/layout.slint";
+import { AppState } from "../../globals/app-state.slint";
+import { Actions } from "../../globals/actions.slint";
+import { Icon, IconName } from "../../components/icon.slint";
+
+export component TagBookmarkList inherits VerticalLayout {
+    in property <bool> collapsed: false;
+
+    spacing: 2px;
+
+    if !root.collapsed && AppState.bookmarked-tags.length > 0: Text {
+        text: @tr("Sidebar" => "Pinned tags");
+        color: Theme.text-muted;
+        font-size: Theme.font-size-sm;
+    }
+
+    for tag in AppState.bookmarked-tags: Rectangle {
+        height: Layout.touch-target;
+        border-radius: Theme.radius-sm;
+        background: tag-touch.has-hover ? Theme.surface-hover : transparent;
+
+        HorizontalLayout {
+            padding-left: root.collapsed ? 0px : Theme.space-sm;
+            padding-right: root.collapsed ? 0px : Theme.space-sm;
+            spacing: Theme.space-sm;
+
+            Rectangle {
+                width: 8px;
+                height: 8px;
+                border-radius: 4px;
+                background: tag.has-color ? tag.color-brush : Theme.accent;
+                y: (parent.height - self.height) / 2;
+            }
+
+            if root.collapsed: Icon {
+                name: IconName.tag;
+                horizontal-stretch: 1;
+                y: (parent.height - self.height) / 2;
+            }
+
+            if !root.collapsed: Text {
+                text: "#" + tag.name;
+                color: Theme.text;
+                font-size: Theme.font-size-base;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+                overflow: elide;
+            }
+        }
+
+        tag-touch := TouchArea {
+            clicked => { Actions.select-tag-bookmark(tag.project-id, tag.name); }
+        }
+        accessible-role: button;
+        accessible-label: @tr("Sidebar" => "Filter by tag {0}", tag.name);
+        accessible-action-default => { Actions.select-tag-bookmark(tag.project-id, tag.name); }
+    }
+}

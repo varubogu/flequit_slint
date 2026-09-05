@@ -3,8 +3,8 @@
 設定画面で日時フォーマットをカスタマイズする UI の仕様。
 
 > 実装の正本: `crates/flequit-settings/src/models/datetime_format.rs` (ドメイン型)。
-> UI 側 (`crates/flequit-ui/src/viewmodels/settings/datetime_format.rs`) は
-> **未実装**。本書はその設計を定義する。
+> UI 側の実装: `crates/flequit-ui/src/viewmodels/settings/datetime_format.rs` と
+> `crates/flequit-ui/ui/views/settings/datetime-settings.slint`。
 
 ## 適用先
 
@@ -30,7 +30,9 @@
 ## アプリ提供データ
 
 - **デフォルト**: `id=-1`, `name`=言語に応じた「デフォルト」相当, `format=""`, `group=デフォルト`
-- **プリセット**: 例 `id=jp-0` (日本・西暦・24h `yyyy年MM月dd日 HH:mm:ss`), `id=jp-1` (和暦・12h), `id=en-1` (America `MM/dd/yyyy HH:mm:ss`) 等
+- **プリセット**: `jp-0` (日本・24h `%Y年%m月%d日 %H:%M:%S`)、
+  `en-0` (America・24h `%m/%d/%Y %H:%M:%S`)、
+  `iso-0` (ISO 8601 `%Y-%m-%dT%H:%M:%S%:z`)
 - **カスタム**: `id=-2`, `name`=言語に応じた「カスタム」相当, `format=""`, `group=カスタム`
 
 ## UI コンポーネント
@@ -106,3 +108,10 @@
   Rust 側で識別子を渡し `.slint` 側で `@tr()` にマップする
   (詳細は [i18n システム](../../i18n-system.md) 参照)
 - フォーマット文字列そのものは翻訳対象外 (ユーザー入力値のため)
+
+## タイムゾーン
+
+- `system` は OS のローカルタイムゾーンを使用する
+- `UTC` / `GMT` は UTC として扱う
+- その他は IANA タイムゾーン名として解決し、解決できない値は `system` にフォールバックする
+- 設定変更時はタスク一覧と詳細ペインを再生成し、日時表示・日時入力・期限フィルタへ即時反映する

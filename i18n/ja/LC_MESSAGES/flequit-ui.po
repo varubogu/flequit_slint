@@ -2,215 +2,1780 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: flequit\n"
-"POT-Creation-Date: 2026-09-05 15:39+0000\n"
+"POT-Creation-Date: 2026-09-06 10:49+0000\n"
 "Language: ja\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
+#: crates/flequit-ui/ui/main.slint:105
+msgctxt "Shell"
+msgid "Open menu"
+msgstr "メニューを開く"
+
+#: crates/flequit-ui/ui/main.slint:201
+msgctxt "Shell"
+msgid "Loading…"
+msgstr "読み込み中…"
+
+#: crates/flequit-ui/ui/components/task-row.slint:53
+msgctxt "TaskList"
+msgid "Reorder {0}"
+msgstr "{0}を並び替え"
+
+#: crates/flequit-ui/ui/components/search-combo-box.slint:17
+msgctxt "SearchComboBox"
+msgid "No matches"
+msgstr "該当なし"
+
+#: crates/flequit-ui/ui/components/search-combo-box.slint:73
+msgctxt "SearchComboBox"
+msgid "Hide {0} options"
+msgstr "{0}の候補を隠す"
+
+#: crates/flequit-ui/ui/components/search-combo-box.slint:74
+msgctxt "SearchComboBox"
+msgid "Show {0} options"
+msgstr "{0}の候補を表示"
+
 #: crates/flequit-ui/ui/components/error-banner.slint:36
 msgctxt "ErrorBanner"
 msgid "Retry"
 msgstr "再試行"
 
-#: crates/flequit-ui/ui/globals/i18n.slint:20
+#: crates/flequit-ui/ui/components/color-picker.slint:37
+msgctxt "Editor"
+msgid "No colour"
+msgstr "色なし"
+
+#: crates/flequit-ui/ui/components/color-picker.slint:53
+msgctxt "Editor"
+msgid "Colour {0}"
+msgstr "色 {0}"
+
+#: crates/flequit-ui/ui/components/date-time-picker.slint:17
+msgctxt "DateTimePicker"
+msgid "Edit due date"
+msgstr "期限を編集"
+
+#: crates/flequit-ui/ui/components/date-time-picker.slint:18
+msgctxt "DateTimePicker"
+msgid "Clear due date"
+msgstr "期限をクリア"
+
+#: crates/flequit-ui/ui/components/date-time-picker.slint:19
+msgctxt "DateTimePicker"
+msgid "Select due date"
+msgstr "期限日を選択"
+
+#: crates/flequit-ui/ui/components/date-time-picker.slint:20
+msgctxt "DateTimePicker"
+msgid "Select due time"
+msgstr "期限時刻を選択"
+
+#: crates/flequit-ui/ui/components/date-time-picker.slint:47
+msgctxt "DateTimePicker"
+msgid "Not set"
+msgstr "未設定"
+
+#: crates/flequit-ui/ui/components/subtask-row.slint:45
+msgctxt "TaskList"
+msgid "Complete {0}"
+msgstr "{0} を完了にする"
+
+#: crates/flequit-ui/ui/components/subtask-row.slint:64
+msgctxt "TaskList"
+msgid "Open subtask {0}"
+msgstr "サブタスク {0} を開く"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:23
+msgctxt "DueFilter"
+msgid "Within {0} minutes"
+msgstr "{0}分以内"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:24
+msgctxt "DueFilter"
+msgid "Within {0} hours"
+msgstr "{0}時間以内"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:25
+msgctxt "DueFilter"
+msgid "Next {0} days"
+msgstr "{0}日以内"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:31
 msgctxt "DueFilter"
 msgid "Overdue"
 msgstr "期限切れ"
 
-#: crates/flequit-ui/ui/globals/i18n.slint:21
+#: crates/flequit-ui/ui/globals/i18n.slint:32
 msgctxt "DueFilter"
 msgid "Today"
 msgstr "今日"
 
-#: crates/flequit-ui/ui/globals/i18n.slint:22
+#: crates/flequit-ui/ui/globals/i18n.slint:33
 msgctxt "DueFilter"
 msgid "Tomorrow"
 msgstr "明日"
 
-#: crates/flequit-ui/ui/globals/i18n.slint:23
+#: crates/flequit-ui/ui/globals/i18n.slint:34
 msgctxt "DueFilter"
 msgid "Next 3 days"
 msgstr "3日"
 
-#: crates/flequit-ui/ui/globals/i18n.slint:24
+#: crates/flequit-ui/ui/globals/i18n.slint:35
 msgctxt "DueFilter"
 msgid "This week"
 msgstr "今週"
 
-#: crates/flequit-ui/ui/globals/i18n.slint:25
+#: crates/flequit-ui/ui/globals/i18n.slint:36
 msgctxt "DueFilter"
 msgid "This month"
 msgstr "今月"
 
-#: crates/flequit-ui/ui/globals/i18n.slint:26
+#: crates/flequit-ui/ui/globals/i18n.slint:37
 msgctxt "DueFilter"
 msgid "This quarter"
 msgstr "今期"
 
-#: crates/flequit-ui/ui/globals/i18n.slint:27
+#: crates/flequit-ui/ui/globals/i18n.slint:38
 msgctxt "DueFilter"
 msgid "This year"
 msgstr "今年"
 
-#: crates/flequit-ui/ui/globals/i18n.slint:28
+#: crates/flequit-ui/ui/globals/i18n.slint:39
 msgctxt "DueFilter"
 msgid "This fiscal year"
 msgstr "今年度"
 
-#: crates/flequit-ui/ui/globals/i18n.slint:34
+#: crates/flequit-ui/ui/globals/i18n.slint:44
+msgctxt "DateTimeFormat"
+msgid "Default"
+msgstr "デフォルト"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:45
+msgctxt "DateTimeFormat"
+msgid "Japan (24-hour)"
+msgstr "日本（24時間）"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:46
+msgctxt "DateTimeFormat"
+msgid "United States (24-hour)"
+msgstr "アメリカ（24時間）"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:47
+msgctxt "DateTimeFormat"
+msgid "ISO 8601"
+msgstr "ISO 8601"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:48
+msgctxt "DateTimeFormat"
+msgid "Custom"
+msgstr "カスタム"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:54
+msgctxt "Recurrence"
+msgid "Minute"
+msgstr "分"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:55
+msgctxt "Recurrence"
+msgid "Hour"
+msgstr "時間"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:56
+msgctxt "Recurrence"
+msgid "Day"
+msgstr "日"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:57
+msgctxt "Recurrence"
+msgid "Week"
+msgstr "週"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:58
+msgctxt "Recurrence"
+msgid "Month"
+msgstr "月"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:59
+msgctxt "Recurrence"
+msgid "Quarter"
+msgstr "四半期"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:60
+msgctxt "Recurrence"
+msgid "Half-year"
+msgstr "半年"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:61
+msgctxt "Recurrence"
+msgid "Year"
+msgstr "年"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:69
+msgctxt "Recurrence"
+msgid "Every minute"
+msgstr "毎分"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:70
+msgctxt "Recurrence"
+msgid "Every hour"
+msgstr "毎時"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:71
+msgctxt "Recurrence"
+msgid "Every day"
+msgstr "毎日"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:72
+msgctxt "Recurrence"
+msgid "Every week"
+msgstr "毎週"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:73
+msgctxt "Recurrence"
+msgid "Every month"
+msgstr "毎月"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:74
+msgctxt "Recurrence"
+msgid "Every quarter"
+msgstr "四半期ごと"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:75
+msgctxt "Recurrence"
+msgid "Every half-year"
+msgstr "半年ごと"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:76
+msgctxt "Recurrence"
+msgid "Every year"
+msgstr "毎年"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:77
+msgctxt "Recurrence"
+msgid "Every {0} minutes"
+msgstr "{0}分ごと"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:78
+msgctxt "Recurrence"
+msgid "Every {0} hours"
+msgstr "{0}時間ごと"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:79
+msgctxt "Recurrence"
+msgid "Every {0} days"
+msgstr "{0}日ごと"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:80
+msgctxt "Recurrence"
+msgid "Every {0} weeks"
+msgstr "{0}週間ごと"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:81
+msgctxt "Recurrence"
+msgid "Every {0} months"
+msgstr "{0}か月ごと"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:82
+msgctxt "Recurrence"
+msgid "Every {0} quarters"
+msgstr "{0}四半期ごと"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:83
+msgctxt "Recurrence"
+msgid "Every {0} half-years"
+msgstr "{0}半期ごと"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:84
+msgctxt "Recurrence"
+msgid "Every {0} years"
+msgstr "{0}年ごと"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:89
+msgctxt "Weekday"
+msgid "Sunday"
+msgstr "日曜日"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:90
+msgctxt "Weekday"
+msgid "Monday"
+msgstr "月曜日"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:91
+msgctxt "Weekday"
+msgid "Tuesday"
+msgstr "火曜日"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:92
+msgctxt "Weekday"
+msgid "Wednesday"
+msgstr "水曜日"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:93
+msgctxt "Weekday"
+msgid "Thursday"
+msgstr "木曜日"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:94
+msgctxt "Weekday"
+msgid "Friday"
+msgstr "金曜日"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:95
+msgctxt "Weekday"
+msgid "Saturday"
+msgstr "土曜日"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:101
+msgctxt "WeekdayShort"
+msgid "Sun"
+msgstr "日"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:102
+msgctxt "WeekdayShort"
+msgid "Mon"
+msgstr "月"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:103
+msgctxt "WeekdayShort"
+msgid "Tue"
+msgstr "火"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:104
+msgctxt "WeekdayShort"
+msgid "Wed"
+msgstr "水"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:105
+msgctxt "WeekdayShort"
+msgid "Thu"
+msgstr "木"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:106
+msgctxt "WeekdayShort"
+msgid "Fri"
+msgstr "金"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:107
+msgctxt "WeekdayShort"
+msgid "Sat"
+msgstr "土"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:111
+msgctxt "Recurrence"
+msgid "First week"
+msgstr "第1週"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:112
+msgctxt "Recurrence"
+msgid "Second week"
+msgstr "第2週"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:113
+msgctxt "Recurrence"
+msgid "Third week"
+msgstr "第3週"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:114
+msgctxt "Recurrence"
+msgid "Fourth week"
+msgstr "第4週"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:115
+msgctxt "Recurrence"
+msgid "Last week"
+msgstr "最終週"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:120
 msgctxt "Error"
 msgid "Could not save the task."
 msgstr "タスクを保存できませんでした。"
 
-#: crates/flequit-ui/ui/globals/i18n.slint:35
+#: crates/flequit-ui/ui/globals/i18n.slint:121
 msgctxt "Error"
 msgid "Could not delete the task."
 msgstr "タスクを削除できませんでした。"
 
-#: crates/flequit-ui/ui/globals/i18n.slint:36
+#: crates/flequit-ui/ui/globals/i18n.slint:122
 msgctxt "Error"
 msgid "Could not load projects."
 msgstr "プロジェクトを読み込めませんでした。"
 
-#: crates/flequit-ui/ui/globals/i18n.slint:37
+#: crates/flequit-ui/ui/globals/i18n.slint:123
 msgctxt "Error"
 msgid "Local storage is unavailable."
 msgstr "ローカルストレージを利用できません。"
 
-#: crates/flequit-ui/ui/globals/i18n.slint:38
+#: crates/flequit-ui/ui/globals/i18n.slint:124
+msgctxt "Error"
+msgid "The requested item could not be found."
+msgstr "対象の項目が見つかりませんでした。"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:125
+msgctxt "Error"
+msgid "Please check the entered values."
+msgstr "入力内容を確認してください。"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:126
+msgctxt "Error"
+msgid "Could not access local storage."
+msgstr "ローカルストレージにアクセスできませんでした。"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:127
+msgctxt "Error"
+msgid "You do not have permission to perform this operation."
+msgstr "この操作を行う権限がありません。"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:128
+msgctxt "Error"
+msgid "An internal error occurred."
+msgstr "内部エラーが発生しました。"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:129
 msgctxt "Error"
 msgid "The item could not be identified."
 msgstr "対象を特定できませんでした。"
 
-#: crates/flequit-ui/ui/globals/i18n.slint:39
+#: crates/flequit-ui/ui/globals/i18n.slint:130
 msgctxt "Error"
 msgid "The operation is not available on this device."
 msgstr "この端末では利用できない操作です。"
 
-#: crates/flequit-ui/ui/globals/i18n.slint:41
+#: crates/flequit-ui/ui/globals/i18n.slint:131
+msgctxt "Error"
+msgid "Could not save settings."
+msgstr "設定を保存できませんでした。"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:132
+msgctxt "Error"
+msgid "Could not save the repeat schedule."
+msgstr "繰り返し設定を保存できませんでした。"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:133
+msgctxt "Error"
+msgid "Could not remove the repeat schedule."
+msgstr "繰り返し設定を解除できませんでした。"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:134
+msgctxt "Error"
+msgid "Could not save the reminder."
+msgstr "リマインダーを保存できませんでした。"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:135
+msgctxt "Error"
+msgid "Choose a future time for the reminder."
+msgstr "リマインダーには未来の日時を指定してください。"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:136
+msgctxt "Error"
+msgid "Notification permission is required for reminders."
+msgstr "リマインダーには通知の許可が必要です。"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:137
+msgctxt "Error"
+msgid "Could not request notification permission."
+msgstr "通知の許可を要求できませんでした。"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:138
+msgctxt "Error"
+msgid "The reminder was saved, but the notification could not be scheduled."
+msgstr "リマインダーは保存されましたが、通知を予約できませんでした。"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:140
 msgctxt "Error"
 msgid "Something went wrong."
 msgstr "問題が発生しました。"
 
-#: crates/flequit-ui/ui/main.slint:74
-msgctxt "Shell"
-msgid "Open menu"
-msgstr "メニューを開く"
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:194
+msgctxt "Recurrence"
+msgid "Repeat"
+msgstr "繰り返し"
 
-#: crates/flequit-ui/ui/main.slint:158
-msgctxt "Shell"
-msgid "Loading…"
-msgstr "読み込み中…"
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:207
+msgctxt "Recurrence"
+msgid "Repeat this task"
+msgstr "このタスクを繰り返す"
 
-#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:31
-msgctxt "Sidebar"
-msgid "Toggle sidebar"
-msgstr "サイドバーを開閉"
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:221
+msgctxt "Recurrence"
+msgid "Presets"
+msgstr "プリセット"
 
-#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:37
-msgctxt "Sidebar"
-msgid "🔍 Search"
-msgstr "🔍 検索"
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:222
+msgctxt "Recurrence"
+msgid "How often"
+msgstr "繰り返す間隔"
 
-#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:148
-msgctxt "Sidebar"
-msgid "Expand {0}"
-msgstr "{0} を展開"
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:233
+msgctxt "Recurrence"
+msgid "Repeat interval"
+msgstr "繰り返しの間隔"
 
-#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:243
-msgctxt "Sidebar"
-msgid "Settings"
-msgstr "設定"
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:302
+msgctxt "Recurrence"
+msgid "On these days"
+msgstr "繰り返す曜日"
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:24
-msgctxt "TaskDetail"
-msgid "Select a task to see its details."
-msgstr "タスクを選択すると詳細が表示されます。"
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:321
+msgctxt "Recurrence"
+msgid "Which day"
+msgstr "繰り返す日"
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:45
-msgctxt "TaskDetail"
-msgid "Back to list"
-msgstr "一覧へ戻る"
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:327
+msgctxt "Recurrence"
+msgid "Same day as the due date"
+msgstr "期限と同じ日"
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:50
-msgctxt "TaskDetail"
-msgid "Task"
-msgstr "タスク"
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:337
+msgctxt "Recurrence"
+msgid "Day of the month"
+msgstr "日付を指定"
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:59
-msgctxt "TaskDetail"
-msgid "Delete task"
-msgstr "タスクを削除"
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:348
+msgctxt "Recurrence"
+msgid "Which day of the month"
+msgstr "何日に繰り返すか"
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:75
-msgctxt "TaskDetail"
-msgid "Task title"
-msgstr "タスク名"
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:357
+msgctxt "Recurrence"
+msgid "A weekday of a given week"
+msgstr "第何週の曜日を指定"
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:86
-msgctxt "TaskDetail"
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:421
+msgctxt "Recurrence"
+msgid "Ends"
+msgstr "終了条件"
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:429
+msgctxt "Recurrence"
+msgid "Never"
+msgstr "終了しない"
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:434
+msgctxt "Recurrence"
+msgid "On a date"
+msgstr "指定日まで"
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:439
+msgctxt "Recurrence"
+msgid "After a number of times"
+msgstr "指定回数まで"
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:468
+msgctxt "Recurrence"
+msgid "Choose the last date"
+msgstr "最終日を選択"
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:476
+msgctxt "Recurrence"
+msgid "Number of times"
+msgstr "繰り返す回数"
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:488
+msgctxt "Recurrence"
+msgid "Next dates"
+msgstr "次回以降の日時"
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:494
+msgctxt "Recurrence"
+msgid "This schedule has no upcoming dates."
+msgstr "この設定では次回以降の日時がありません。"
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:515
+msgctxt "Recurrence"
+msgid "Stop repeating"
+msgstr "繰り返しをやめる"
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:524
+msgctxt "Recurrence"
+msgid "Cancel"
+msgstr "キャンセル"
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:529
+msgctxt "Recurrence"
+msgid "Save"
+msgstr "保存"
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:541
+msgctxt "Recurrence"
+msgid "Select the last date"
+msgstr "最終日を選択"
+
+#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:37
+msgctxt "SubTaskDetail"
+msgid "Back to {0}"
+msgstr "{0} に戻る"
+
+#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:42
+msgctxt "SubTaskDetail"
+msgid "Subtask of {0}"
+msgstr "{0} のサブタスク"
+
+#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:52
+msgctxt "SubTaskDetail"
+msgid "Delete subtask"
+msgstr "サブタスクを削除"
+
+#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:67
+msgctxt "SubTaskDetail"
+msgid "Subtask title"
+msgstr "サブタスク名"
+
+#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:74
+msgctxt "SubTaskDetail"
 msgid "Due"
 msgstr "期限"
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:93
-msgctxt "TaskDetail"
-msgid "Not set"
-msgstr "未設定"
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:102
-msgctxt "TaskDetail"
+#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:99
+msgctxt "SubTaskDetail"
 msgid "Status"
 msgstr "ステータス"
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:108
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:262
 msgctxt "Status"
 msgid "Not started"
 msgstr "未着手"
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:109
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:263
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:263
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:263
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:263
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:263
+msgctxt "Status"
+msgid "Set status to {0}"
+msgstr "ステータスを「{0}」に設定"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:269
 msgctxt "Status"
 msgid "In progress"
 msgstr "実行中"
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:110
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:281
 msgctxt "Status"
 msgid "Waiting"
 msgstr "待機中"
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:111
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:288
 msgctxt "Status"
 msgid "Completed"
 msgstr "完了"
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:112
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:295
 msgctxt "Status"
 msgid "Cancelled"
 msgstr "中止"
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:121
+#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:163
+msgctxt "SubTaskDetail"
+msgid "Priority"
+msgstr "優先度"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:315
+msgctxt "Priority"
+msgid "None"
+msgstr "なし"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:316
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:316
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:316
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:316
+msgctxt "Priority"
+msgid "Set priority to {0}"
+msgstr "優先度を「{0}」に設定"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:322
+msgctxt "Priority"
+msgid "Low"
+msgstr "低"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:329
+msgctxt "Priority"
+msgid "Medium"
+msgstr "中"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:336
+msgctxt "Priority"
+msgid "High"
+msgstr "高"
+
+#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:210
+msgctxt "SubTaskDetail"
+msgid "Notes"
+msgstr "ノート"
+
+#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:219
+msgctxt "SubTaskDetail"
+msgid "Subtask notes"
+msgstr "サブタスクのノート"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:75
+msgctxt "TaskDetail"
+msgid "Select a task to see its details."
+msgstr "タスクを選択すると詳細が表示されます。"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:96
+msgctxt "TaskDetail"
+msgid "Back to list"
+msgstr "一覧へ戻る"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:101
+msgctxt "TaskDetail"
+msgid "Task"
+msgstr "タスク"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:110
+msgctxt "TaskDetail"
+msgid "Delete task"
+msgstr "タスクを削除"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:126
+msgctxt "TaskDetail"
+msgid "Task title"
+msgstr "タスク名"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:94
+msgctxt "TaskDetail"
+msgid "Period"
+msgstr "期間"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:115
+msgctxt "TaskDetail"
+msgid "Start and due date"
+msgstr "開始日時と終了日時"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:116
+msgctxt "TaskDetail"
+msgid "Due date only"
+msgstr "期限のみ"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:131
+msgctxt "TaskDetail"
+msgid "Use a start and due date"
+msgstr "開始日時と終了日時を使う"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:141
+msgctxt "TaskDetail"
+msgid "Start"
+msgstr "開始"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:155
+msgctxt "TaskDetail"
+msgid "Edit start date"
+msgstr "開始日時を編集"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:156
+msgctxt "TaskDetail"
+msgid "Clear start date"
+msgstr "開始日時をクリア"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:157
+msgctxt "TaskDetail"
+msgid "Select start date"
+msgstr "開始日を選択"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:158
+msgctxt "TaskDetail"
+msgid "Select start time"
+msgstr "開始時刻を選択"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:170
+msgctxt "TaskDetail"
+msgid "End"
+msgstr "終了"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:137
+msgctxt "TaskDetail"
+msgid "Due"
+msgstr "期限"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:162
+msgctxt "TaskDetail"
+msgid "Repeat"
+msgstr "繰り返し"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:183
+msgctxt "TaskDetail"
+msgid "Does not repeat"
+msgstr "繰り返さない"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:194
+msgctxt "TaskDetail"
+msgid "Edit the repeat schedule"
+msgstr "繰り返し設定を編集"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:203
+msgctxt "TaskDetail"
+msgid "Reminders"
+msgstr "リマインダー"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:226
+msgctxt "TaskDetail"
+msgid "Remove reminder {0}"
+msgstr "リマインダー「{0}」を削除"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:241
+msgctxt "TaskDetail"
+msgid "Add a reminder"
+msgstr "リマインダーを追加"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:242
+msgctxt "TaskDetail"
+msgid "Select reminder date"
+msgstr "リマインダーの日付を選択"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:243
+msgctxt "TaskDetail"
+msgid "Select reminder time"
+msgstr "リマインダーの時刻を選択"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:253
+msgctxt "TaskDetail"
+msgid "Status"
+msgstr "ステータス"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:307
+msgctxt "TaskDetail"
+msgid "Priority"
+msgstr "優先度"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:348
 msgctxt "TaskDetail"
 msgid "Notes"
 msgstr "ノート"
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:135
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:361
+msgctxt "TaskDetail"
+msgid "Tags"
+msgstr "タグ"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:413
+msgctxt "TaskDetail"
+msgid "Remove tag {0} from {1}"
+msgstr "{1}からタグ「{0}」を外す"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:414
+msgctxt "TaskDetail"
+msgid "Add tag {0} to {1}"
+msgstr "{1}にタグ「{0}」を付ける"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:430
+msgctxt "TaskDetail"
+msgid "Add a tag"
+msgstr "タグを追加"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:431
+msgctxt "TaskDetail"
+msgid "New tag name"
+msgstr "新しいタグ名"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:465
+msgctxt "TaskDetail"
+msgid "Add tag"
+msgstr "タグを追加"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:479
 msgctxt "TaskDetail"
 msgid "Subtasks"
 msgstr "サブタスク"
 
-#: crates/flequit-ui/ui/views/task-list/task-list.slint:34
-msgctxt "TaskList"
-msgid "No tasks here yet."
-msgstr "タスクはまだありません。"
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:547
+msgctxt "TaskDetail"
+msgid "Complete {0}"
+msgstr "{0} を完了にする"
 
-#: crates/flequit-ui/ui/views/task-list/task-list.slint:58
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:569
+msgctxt "TaskDetail"
+msgid "Delete subtask {0}"
+msgstr "サブタスク {0} を削除"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:575
+msgctxt "TaskDetail"
+msgid "Open subtask {0}"
+msgstr "サブタスク {0} を開く"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:523
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:523
+msgctxt "TaskDetail"
+msgid "Add a subtask"
+msgstr "サブタスクを追加"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:524
+msgctxt "TaskDetail"
+msgid "New subtask title"
+msgstr "新しいサブタスク名"
+
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:145
+msgctxt "TaskList"
+msgid "No tasks match your search."
+msgstr "検索条件に一致するタスクはありません。"
+
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:147
+msgctxt "TaskList"
+msgid "Create a project to get started."
+msgstr "まずプロジェクトを作成しましょう。"
+
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:149
+msgctxt "TaskList"
+msgid "Select a project from the sidebar."
+msgstr "サイドバーからプロジェクトを選択してください。"
+
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:151
+msgctxt "TaskList"
+msgid "Select a task list, or create a new one."
+msgstr "タスクリストを選択するか、新しく作成してください。"
+
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:152
+msgctxt "TaskList"
+msgid "Add your first task to this list."
+msgstr "このリストに最初のタスクを追加しましょう。"
+
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:160
+msgctxt "TaskList"
+msgid "Clear search"
+msgstr "検索をクリア"
+
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:165
+msgctxt "TaskList"
+msgid "Create project"
+msgstr "プロジェクトを作成"
+
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:174
+msgctxt "TaskList"
+msgid "Create task list"
+msgstr "タスクリストを作成"
+
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:180
+msgctxt "TaskList"
+msgid "Add your first task"
+msgstr "最初のタスクを追加"
+
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:137
 msgctxt "TaskList"
 msgid "Select a list to add a task"
 msgstr "リストを選択するとタスクを追加できます"
 
-#: crates/flequit-ui/ui/views/task-list/task-list.slint:59
-#: crates/flequit-ui/ui/views/task-list/task-list.slint:59
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:138
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:138
 msgctxt "TaskList"
 msgid "Add a task"
 msgstr "タスクを追加"
+
+#: crates/flequit-ui/ui/views/task-list/task-sort-bar.slint:55
+msgctxt "Sort"
+msgid "Manual"
+msgstr "手動"
+
+#: crates/flequit-ui/ui/views/task-list/task-sort-bar.slint:56
+#: crates/flequit-ui/ui/views/task-list/task-sort-bar.slint:56
+#: crates/flequit-ui/ui/views/task-list/task-sort-bar.slint:56
+#: crates/flequit-ui/ui/views/task-list/task-sort-bar.slint:56
+msgctxt "Sort"
+msgid "Sort by {0}"
+msgstr "{0}で並び替え"
+
+#: crates/flequit-ui/ui/views/task-list/task-sort-bar.slint:62
+msgctxt "Sort"
+msgid "Due date"
+msgstr "期限"
+
+#: crates/flequit-ui/ui/views/task-list/task-sort-bar.slint:69
+msgctxt "Sort"
+msgid "Priority"
+msgstr "優先度"
+
+#: crates/flequit-ui/ui/views/task-list/task-sort-bar.slint:76
+msgctxt "Sort"
+msgid "Name"
+msgstr "名前"
+
+#: crates/flequit-ui/ui/views/settings/account-settings.slint:12
+msgctxt "Settings"
+msgid "Account settings"
+msgstr "アカウント設定"
+
+#: crates/flequit-ui/ui/views/settings/account-settings.slint:15
+msgctxt "Settings"
+msgid "Account type"
+msgstr "アカウント種別"
+
+#: crates/flequit-ui/ui/views/settings/account-settings.slint:25
+#: crates/flequit-ui/ui/views/settings/account-settings.slint:25
+msgctxt "Settings"
+msgid "Local account"
+msgstr "ローカルアカウント"
+
+#: crates/flequit-ui/ui/views/settings/account-settings.slint:26
+msgctxt "Settings"
+msgid "Connected account"
+msgstr "接続済みアカウント"
+
+#: crates/flequit-ui/ui/views/settings/account-settings.slint:52
+msgctxt "Settings"
+msgid "Account information is stored only on this device."
+msgstr "アカウント情報はこの端末内にのみ保存されます。"
+
+#: crates/flequit-ui/ui/views/settings/account-settings.slint:57
+msgctxt "Settings"
+msgid "Provider: {0}"
+msgstr "プロバイダー: {0}"
+
+#: crates/flequit-ui/ui/views/settings/account-settings.slint:64
+msgctxt "Settings"
+msgid "Cloud accounts will be available in a future version."
+msgstr "クラウドアカウントは今後のバージョンで利用可能になります。"
+
+#: crates/flequit-ui/ui/views/settings/settings-dialog.slint:72
+msgctxt "Settings"
+msgid "Back to settings categories"
+msgstr "設定カテゴリへ戻る"
+
+#: crates/flequit-ui/ui/views/settings/settings-dialog.slint:73
+msgctxt "Settings"
+msgid "Close settings"
+msgstr "設定を閉じる"
+
+#: crates/flequit-ui/ui/views/settings/settings-dialog.slint:86
+msgctxt "Settings"
+msgid "Settings"
+msgstr "設定"
+
+#: crates/flequit-ui/ui/views/settings/settings-dialog.slint:92
+msgctxt "Settings"
+msgid "Configure Flequit preferences"
+msgstr "Flequit の設定を変更します"
+
+#: crates/flequit-ui/ui/views/settings/settings-controls.slint:60
+msgctxt "Settings"
+msgid "Available"
+msgstr "利用可能"
+
+#: crates/flequit-ui/ui/views/settings/appearance-settings.slint:14
+msgctxt "Settings"
+msgid "Appearance settings"
+msgstr "外観設定"
+
+#: crates/flequit-ui/ui/views/settings/appearance-settings.slint:18
+msgctxt "Settings"
+msgid "Theme"
+msgstr "テーマ"
+
+#: crates/flequit-ui/ui/views/settings/appearance-settings.slint:22
+msgctxt "Settings"
+msgid "Use System theme"
+msgstr "システムテーマを使用"
+
+#: crates/flequit-ui/ui/views/settings/appearance-settings.slint:27
+msgctxt "Settings"
+msgid "Use Light theme"
+msgstr "ライトテーマを使用"
+
+#: crates/flequit-ui/ui/views/settings/appearance-settings.slint:32
+msgctxt "Settings"
+msgid "Use Dark theme"
+msgstr "ダークテーマを使用"
+
+#: crates/flequit-ui/ui/views/settings/appearance-settings.slint:41
+msgctxt "Settings"
+msgid "Font"
+msgstr "フォント"
+
+#: crates/flequit-ui/ui/views/settings/appearance-settings.slint:45
+msgctxt "Settings"
+msgid "Default font"
+msgstr "デフォルトフォント"
+
+#: crates/flequit-ui/ui/views/settings/appearance-settings.slint:64
+#: crates/flequit-ui/ui/views/settings/appearance-settings.slint:64
+msgctxt "Settings"
+msgid "Font size"
+msgstr "フォントサイズ"
+
+#: crates/flequit-ui/ui/views/settings/appearance-settings.slint:76
+msgctxt "Settings"
+msgid "Font color"
+msgstr "フォント色"
+
+#: crates/flequit-ui/ui/views/settings/appearance-settings.slint:80
+msgctxt "Settings"
+msgid "Default font color"
+msgstr "デフォルトのフォント色"
+
+#: crates/flequit-ui/ui/views/settings/appearance-settings.slint:85
+msgctxt "Settings"
+msgid "Black font color"
+msgstr "黒のフォント色"
+
+#: crates/flequit-ui/ui/views/settings/appearance-settings.slint:90
+msgctxt "Settings"
+msgid "White font color"
+msgstr "白のフォント色"
+
+#: crates/flequit-ui/ui/views/settings/appearance-settings.slint:99
+msgctxt "Settings"
+msgid "Background color"
+msgstr "背景色"
+
+#: crates/flequit-ui/ui/views/settings/appearance-settings.slint:103
+msgctxt "Settings"
+msgid "Default background color"
+msgstr "デフォルトの背景色"
+
+#: crates/flequit-ui/ui/views/settings/appearance-settings.slint:108
+msgctxt "Settings"
+msgid "White background color"
+msgstr "白の背景色"
+
+#: crates/flequit-ui/ui/views/settings/appearance-settings.slint:113
+msgctxt "Settings"
+msgid "Black background color"
+msgstr "黒の背景色"
+
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:44
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:44
+msgctxt "Settings"
+msgid "Date and time"
+msgstr "日時"
+
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:48
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:48
+msgctxt "Settings"
+msgid "Timezone"
+msgstr "タイムゾーン"
+
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:58
+msgctxt "Settings"
+msgid "Type to narrow the list, then pick an IANA timezone, UTC, or system."
+msgstr "入力して絞り込み、IANA タイムゾーン・UTC・system のいずれかを選択します。"
+
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:67
+msgctxt "Settings"
+msgid "Preview date and time"
+msgstr "プレビュー日時"
+
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:77
+msgctxt "Settings"
+msgid "Edit preview date and time"
+msgstr "プレビュー日時を編集"
+
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:78
+msgctxt "Settings"
+msgid "Select preview date"
+msgstr "プレビュー日付を選択"
+
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:79
+msgctxt "Settings"
+msgid "Select preview time"
+msgstr "プレビュー時刻を選択"
+
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:92
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:92
+msgctxt "Settings"
+msgid "Current date and time format"
+msgstr "現在の日時フォーマット"
+
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:101
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:101
+msgctxt "Settings"
+msgid "Unable to preview this format"
+msgstr "このフォーマットはプレビューできません"
+
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:106
+msgctxt "Settings"
+msgid "Copy current format to test"
+msgstr "現在のフォーマットをテストへコピー"
+
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:116
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:116
+msgctxt "Settings"
+msgid "Test format preset"
+msgstr "テスト用プリセット"
+
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:131
+msgctxt "Settings"
+msgid "Test date and time format"
+msgstr "テスト用日時フォーマット"
+
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:144
+msgctxt "Settings"
+msgid "Use test format"
+msgstr "テスト用フォーマットを適用"
+
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:154
+msgctxt "Settings"
+msgid "Rename custom format"
+msgstr "カスタムフォーマット名を変更"
+
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:155
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:155
+msgctxt "Settings"
+msgid "Custom format name"
+msgstr "カスタムフォーマット名"
+
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:164
+msgctxt "Settings"
+msgid "Add custom format"
+msgstr "カスタムフォーマットを追加"
+
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:173
+msgctxt "Settings"
+msgid "Overwrite custom format"
+msgstr "カスタムフォーマットを上書き"
+
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:180
+msgctxt "Settings"
+msgid "Delete custom format"
+msgstr "カスタムフォーマットを削除"
+
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:185
+msgctxt "Settings"
+msgid "Delete custom format for good"
+msgstr "カスタムフォーマットを完全に削除"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:21
+msgctxt "Settings"
+msgid "Basic settings"
+msgstr "基本設定"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:27
+msgctxt "Settings"
+msgid "Language"
+msgstr "言語"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:25
+msgctxt "Settings"
+msgid "Week starts on"
+msgstr "週の開始曜日"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:29
+msgctxt "Settings"
+msgid "Sunday"
+msgstr "日曜日"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:34
+msgctxt "Settings"
+msgid "Monday"
+msgstr "月曜日"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:43
+msgctxt "Settings"
+msgid "Due filter buttons"
+msgstr "期限フィルターボタン"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:45
+msgctxt "Settings"
+msgid "Show Overdue due filter"
+msgstr "期限切れフィルターを表示"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:46
+msgctxt "Settings"
+msgid "Show Today due filter"
+msgstr "今日フィルターを表示"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:47
+msgctxt "Settings"
+msgid "Show Tomorrow due filter"
+msgstr "明日フィルターを表示"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:48
+msgctxt "Settings"
+msgid "Show Next 3 days due filter"
+msgstr "3日以内フィルターを表示"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:49
+msgctxt "Settings"
+msgid "Show This week due filter"
+msgstr "今週フィルターを表示"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:50
+msgctxt "Settings"
+msgid "Show This month due filter"
+msgstr "今月フィルターを表示"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:51
+msgctxt "Settings"
+msgid "Show This quarter due filter"
+msgstr "今期フィルターを表示"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:52
+msgctxt "Settings"
+msgid "Show This year due filter"
+msgstr "今年フィルターを表示"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:53
+msgctxt "Settings"
+msgid "Show This fiscal year due filter"
+msgstr "今年度フィルターを表示"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:61
+msgctxt "Settings"
+msgid "Custom due filters"
+msgstr "カスタム期限フィルタ"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:73
+msgctxt "Settings"
+msgid "Remove the {0} filter"
+msgstr "「{0}」フィルタを削除"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:82
+msgctxt "Settings"
+msgid "Minutes"
+msgstr "分"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:87
+msgctxt "Settings"
+msgid "Hours"
+msgstr "時間"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:92
+msgctxt "Settings"
+msgid "Days"
+msgstr "日"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:105
+msgctxt "Settings"
+msgid "Due filter amount"
+msgstr "期限フィルタの値"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:108
+msgctxt "Settings"
+msgid "Add due filter"
+msgstr "期限フィルターを追加"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:136
+msgctxt "Settings"
+msgid "Custom recurrence presets"
+msgstr "繰り返しのカスタム項目"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:148
+msgctxt "Settings"
+msgid "Remove the {0} preset"
+msgstr "「{0}」の項目を削除"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:159
+msgctxt "Recurrence"
+msgid "Days"
+msgstr "日"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:164
+msgctxt "Recurrence"
+msgid "Weeks"
+msgstr "週"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:169
+msgctxt "Recurrence"
+msgid "Months"
+msgstr "月"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:174
+msgctxt "Recurrence"
+msgid "Years"
+msgstr "年"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:185
+msgctxt "Settings"
+msgid "Recurrence interval"
+msgstr "繰り返しの間隔"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:188
+msgctxt "Settings"
+msgid "Add recurrence preset"
+msgstr "繰り返し項目を追加"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:117
+msgctxt "Settings"
+msgid "Reminder notifications"
+msgstr "リマインダー通知"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:120
+msgctxt "Settings"
+msgid "Notification permission is granted."
+msgstr "通知は許可されています。"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:122
+msgctxt "Settings"
+msgid "Notification permission was denied. You can request it again here."
+msgstr "通知が拒否されました。ここからもう一度許可を要求できます。"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:123
+msgctxt "Settings"
+msgid "Allow notifications to receive task reminders."
+msgstr "タスクのリマインダーを受け取るには通知を許可してください。"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:131
+msgctxt "Settings"
+msgid "Requesting notification permission…"
+msgstr "通知の許可を要求しています…"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:132
+msgctxt "Settings"
+msgid "Allow notifications"
+msgstr "通知を許可"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:142
+msgctxt "Settings"
+msgid "Platform features"
+msgstr "プラットフォーム機能"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:144
+msgctxt "Settings"
+msgid "System tray"
+msgstr "システムトレイ"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:145
+msgctxt "Settings"
+msgid "This device supports keeping Flequit in the system tray."
+msgstr "この端末では Flequit をシステムトレイに常駐できます。"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:148
+msgctxt "Settings"
+msgid "Global shortcuts"
+msgstr "グローバルショートカット"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:149
+msgctxt "Settings"
+msgid "This device supports shortcuts outside the app."
+msgstr "この端末ではアプリ外からショートカットを使用できます。"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:152
+msgctxt "Settings"
+msgid "Automatic updates"
+msgstr "自動アップデート"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:153
+msgctxt "Settings"
+msgid "This installation supports in-app updates."
+msgstr "このインストールではアプリ内アップデートを利用できます。"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:156
+msgctxt "Settings"
+msgid "Custom export location"
+msgstr "エクスポート先の指定"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:157
+msgctxt "Settings"
+msgid "This device supports choosing any export folder."
+msgstr "この端末では任意のエクスポート先を選択できます。"
+
+#: crates/flequit-ui/ui/views/settings/settings-categories.slint:50
+#: crates/flequit-ui/ui/views/settings/settings-categories.slint:50
+msgctxt "Settings"
+msgid "Search settings"
+msgstr "設定を検索"
+
+#: crates/flequit-ui/ui/views/settings/settings-categories.slint:56
+msgctxt "Settings"
+msgid ""
+"Basic Language Week start Due filters Custom due days Recurrence Platform "
+"features"
+msgstr "基本 言語 週の開始 期限フィルタ カスタム期限 繰り返し プラットフォーム機能"
+
+#: crates/flequit-ui/ui/views/settings/settings-categories.slint:57
+msgctxt "Settings"
+msgid "Date time Timezone Format Preset Preview Custom"
+msgstr "日時 タイムゾーン フォーマット プリセット プレビュー カスタム"
+
+#: crates/flequit-ui/ui/views/settings/settings-categories.slint:58
+msgctxt "Settings"
+msgid "Appearance Theme Font Font size Font color Background color"
+msgstr "外観 テーマ フォント フォントサイズ フォント色 背景色"
+
+#: crates/flequit-ui/ui/views/settings/settings-categories.slint:59
+msgctxt "Settings"
+msgid "Account Local account Email Provider"
+msgstr "アカウント ローカルアカウント メールアドレス プロバイダー"
+
+#: crates/flequit-ui/ui/views/settings/settings-categories.slint:68
+msgctxt "Settings"
+msgid "Basic"
+msgstr "基本"
+
+#: crates/flequit-ui/ui/views/settings/settings-categories.slint:69
+msgctxt "Settings"
+msgid "Dates and platform preferences"
+msgstr "日付とプラットフォームの設定"
+
+#: crates/flequit-ui/ui/views/settings/settings-categories.slint:75
+msgctxt "Settings"
+msgid "Timezone and display formats"
+msgstr "タイムゾーンと表示形式"
+
+#: crates/flequit-ui/ui/views/settings/settings-categories.slint:80
+msgctxt "Settings"
+msgid "Appearance"
+msgstr "外観"
+
+#: crates/flequit-ui/ui/views/settings/settings-categories.slint:81
+msgctxt "Settings"
+msgid "Theme, font, and colors"
+msgstr "テーマ、フォント、配色"
+
+#: crates/flequit-ui/ui/views/settings/settings-categories.slint:86
+msgctxt "Settings"
+msgid "Account"
+msgstr "アカウント"
+
+#: crates/flequit-ui/ui/views/settings/settings-categories.slint:87
+msgctxt "Settings"
+msgid "Current account information"
+msgstr "現在のアカウント情報"
+
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:70
+msgctxt "Tags"
+msgid "Tags"
+msgstr "タグ"
+
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:78
+msgctxt "Tags"
+msgid "New tag"
+msgstr "新しいタグ"
+
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:93
+msgctxt "Tags"
+msgid "No tags in this project."
+msgstr "このプロジェクトにはタグがありません。"
+
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:128
+msgctxt "Tags"
+msgid "Unpin tag {0}"
+msgstr "タグ「{0}」の固定を解除"
+
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:129
+msgctxt "Tags"
+msgid "Pin tag {0}"
+msgstr "タグ「{0}」を固定"
+
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:138
+msgctxt "Tags"
+msgid "Edit tag {0}"
+msgstr "タグ「{0}」を編集"
+
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:157
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:157
+msgctxt "Tags"
+msgid "Tag name"
+msgstr "タグ名"
+
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:169
+msgctxt "Tags"
+msgid "Delete tag {0}? It will be removed from every task."
+msgstr "タグ「{0}」を削除しますか？すべてのタスクから外れます。"
+
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:180
+msgctxt "Tags"
+msgid "Delete"
+msgstr "削除"
+
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:186
+msgctxt "Tags"
+msgid "Cancel"
+msgstr "キャンセル"
+
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:186
+msgctxt "Tags"
+msgid "Close"
+msgstr "閉じる"
+
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:199
+msgctxt "Tags"
+msgid "Delete for good"
+msgstr "完全に削除"
+
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:208
+msgctxt "Tags"
+msgid "Save"
+msgstr "保存"
+
+#: crates/flequit-ui/ui/views/sidebar/account-menu.slint:53
+msgctxt "AccountMenu"
+msgid "Local account"
+msgstr "ローカルアカウント"
+
+#: crates/flequit-ui/ui/views/sidebar/account-menu.slint:92
+msgctxt "AccountMenu"
+msgid "Open account menu"
+msgstr "アカウントメニューを開く"
+
+#: crates/flequit-ui/ui/views/sidebar/account-menu.slint:151
+msgctxt "AccountMenu"
+msgid "Settings"
+msgstr "設定"
+
+#: crates/flequit-ui/ui/views/sidebar/account-menu.slint:160
+msgctxt "AccountMenu"
+msgid "Account settings"
+msgstr "アカウント設定"
+
+#: crates/flequit-ui/ui/views/sidebar/account-menu.slint:170
+msgctxt "AccountMenu"
+msgid "Help"
+msgstr "ヘルプ"
+
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:78
+msgctxt "Editor"
+msgid "New project"
+msgstr "新しいプロジェクト"
+
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:79
+msgctxt "Editor"
+msgid "Edit project"
+msgstr "プロジェクトを編集"
+
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:80
+msgctxt "Editor"
+msgid "New list"
+msgstr "新しいリスト"
+
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:81
+msgctxt "Editor"
+msgid "Edit list"
+msgstr "リストを編集"
+
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:87
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:87
+msgctxt "Editor"
+msgid "Name"
+msgstr "名前"
+
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:101
+msgctxt "Editor"
+msgid "Delete {0} and everything in it?"
+msgstr "{0} とその中のすべてを削除しますか？"
+
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:102
+msgctxt "Editor"
+msgid "Delete {0} and its tasks?"
+msgstr "{0} とそのタスクを削除しますか？"
+
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:113
+msgctxt "Editor"
+msgid "Delete"
+msgstr "削除"
+
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:120
+msgctxt "Editor"
+msgid "Unarchive"
+msgstr "アーカイブを解除"
+
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:121
+msgctxt "Editor"
+msgid "Archive"
+msgstr "アーカイブ"
+
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:130
+msgctxt "Editor"
+msgid "Cancel"
+msgstr "キャンセル"
+
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:141
+msgctxt "Editor"
+msgid "Delete for good"
+msgstr "完全に削除"
+
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:147
+msgctxt "Editor"
+msgid "Save"
+msgstr "保存"
+
+#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:46
+msgctxt "Sidebar"
+msgid "Toggle sidebar"
+msgstr "サイドバーを開閉"
+
+#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:82
+msgctxt "Sidebar"
+msgid "Projects"
+msgstr "プロジェクト"
+
+#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:91
+msgctxt "Sidebar"
+msgid "New project"
+msgstr "新しいプロジェクト"
+
+#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:106
+msgctxt "Sidebar"
+msgid "Tags"
+msgstr "タグ"
+
+#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:115
+msgctxt "Sidebar"
+msgid "Manage tags"
+msgstr "タグを管理"
+
+#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:138
+msgctxt "Sidebar"
+msgid "Hide archived projects"
+msgstr "アーカイブ済みプロジェクトを隠す"
+
+#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:139
+msgctxt "Sidebar"
+msgid "Show archived projects"
+msgstr "アーカイブ済みプロジェクトを表示"
+
+#: crates/flequit-ui/ui/views/sidebar/project-row.slint:53
+msgctxt "Sidebar"
+msgid "Expand {0}"
+msgstr "{0} を展開"
+
+#: crates/flequit-ui/ui/views/sidebar/project-row.slint:99
+#: crates/flequit-ui/ui/views/sidebar/project-row.slint:99
+msgctxt "Sidebar"
+msgid "Edit {0}"
+msgstr "{0}を編集"
+
+#: crates/flequit-ui/ui/views/sidebar/project-row.slint:105
+msgctxt "Sidebar"
+msgid "Add a list to {0}"
+msgstr "{0}にリストを追加"
+
+#: crates/flequit-ui/ui/views/sidebar/tag-bookmark-list.slint:12
+msgctxt "Sidebar"
+msgid "Pinned tags"
+msgstr "固定したタグ"
+
+#: crates/flequit-ui/ui/views/sidebar/tag-bookmark-list.slint:50
+msgctxt "Sidebar"
+msgid "Filter by tag {0}"
+msgstr "タグ「{0}」で絞り込む"
+
+#: crates/flequit-ui/ui/views/sidebar/search-box.slint:23
+msgctxt "SearchSuggestion"
+msgid "Due date"
+msgstr "期限"
+
+#: crates/flequit-ui/ui/views/sidebar/search-box.slint:25
+msgctxt "SearchSuggestion"
+msgid "Project"
+msgstr "プロジェクト"
+
+#: crates/flequit-ui/ui/views/sidebar/search-box.slint:27
+msgctxt "SearchSuggestion"
+msgid "Task list"
+msgstr "タスクリスト"
+
+#: crates/flequit-ui/ui/views/sidebar/search-box.slint:29
+msgctxt "SearchSuggestion"
+msgid "Account"
+msgstr "アカウント"
+
+#: crates/flequit-ui/ui/views/sidebar/search-box.slint:31
+msgctxt "SearchSuggestion"
+msgid "Tag"
+msgstr "タグ"
+
+#: crates/flequit-ui/ui/views/sidebar/search-box.slint:58
+msgctxt "Sidebar"
+msgid "Search"
+msgstr "検索"
+
+#: crates/flequit-ui/ui/views/sidebar/search-box.slint:46
+msgctxt "Sidebar"
+msgid "Search tasks"
+msgstr "タスクを検索"
+
+#: crates/flequit-ui/ui/views/sidebar/search-box.slint:139
+msgctxt "SearchSuggestion"
+msgid "Use search suggestion {0}"
+msgstr "検索候補 {0} を使用"

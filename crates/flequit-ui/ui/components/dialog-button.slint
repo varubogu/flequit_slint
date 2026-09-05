@@ -1,0 +1,50 @@
+import { Theme } from "../globals/theme.slint";
+import { Layout } from "../globals/layout.slint";
+
+// Labelled button for a dialog's action row.
+//
+// One component with three looks rather than three components: the difference
+// is entirely in the colours, and the behaviour has to stay identical.
+export component DialogButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> primary: false;
+    in property <bool> destructive: false;
+    in property <bool> enabled: true;
+    callback clicked();
+
+    height: Layout.touch-target;
+    min-width: 5 * Theme.space-xl;
+    border-radius: Theme.radius-sm;
+    border-width: 1px;
+    border-color: root.destructive ? Theme.danger
+        : root.primary ? Theme.accent
+        : Theme.border;
+    background: !root.enabled ? Theme.surface
+        : root.primary ? Theme.accent
+        : touch.has-hover ? Theme.surface-hover
+        : Theme.surface;
+    opacity: root.enabled ? 1.0 : 0.5;
+
+    Text {
+        text: root.label;
+        color: root.primary ? Theme.text-on-accent
+            : root.destructive ? Theme.danger
+            : Theme.text;
+        font-size: Theme.font-size-base;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        width: 100%;
+        height: 100%;
+    }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => { root.clicked(); }
+    }
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-enabled: root.enabled;
+    accessible-action-default => {
+        if (root.enabled) { root.clicked(); }
+    }
+}

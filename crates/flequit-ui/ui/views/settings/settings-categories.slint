@@ -1,0 +1,93 @@
+import { LineEdit } from "std-widgets.slint";
+import { Theme } from "../../globals/theme.slint";
+import { Layout } from "../../globals/layout.slint";
+import { Actions } from "../../globals/actions.slint";
+import { SettingsState } from "../../globals/settings.slint";
+import { SettingsCategory } from "../../globals/types.slint";
+
+component CategoryButton inherits Rectangle {
+    in property <string> title;
+    in property <string> description;
+    in property <bool> selected: false;
+    callback clicked();
+
+    height: Layout.touch-target + 4 * Theme.space-sm;
+    border-radius: Theme.radius-md;
+    background: root.selected ? Theme.surface-selected
+        : touch.has-hover ? Theme.surface-hover : transparent;
+
+    VerticalLayout {
+        padding: Theme.space-md;
+        spacing: Theme.space-xs;
+        Text {
+            text: root.title;
+            color: Theme.text;
+            font-size: Theme.font-size-base;
+            font-weight: 600;
+            overflow: elide;
+        }
+        Text {
+            text: root.description;
+            color: Theme.text-muted;
+            font-size: Theme.font-size-sm;
+            overflow: elide;
+        }
+    }
+    touch := TouchArea { clicked => { root.clicked(); } }
+    accessible-role: button;
+    accessible-label: root.title;
+    accessible-action-default => { root.clicked(); }
+}
+
+export component SettingsCategories inherits Rectangle {
+    background: Theme.surface;
+
+    VerticalLayout {
+        padding: Theme.space-md;
+        spacing: Theme.space-md;
+
+        LineEdit {
+            placeholder-text: @tr("Settings" => "Search settings");
+            text: SettingsState.search-query;
+            accessible-label: @tr("Settings" => "Search settings");
+            edited(value) => {
+                Actions.search-settings(
+                    value,
+                    @tr("Settings" => "Basic Language Week start Due filters Custom due days Recurrence Platform features"),
+                    @tr("Settings" => "Date time Timezone Format Preset Preview Custom"),
+                    @tr("Settings" => "Appearance Theme Font Font size Font color Background color"),
+                    @tr("Settings" => "Account Local account Email Provider")
+                );
+            }
+        }
+
+        VerticalLayout {
+            spacing: Theme.space-xs;
+            alignment: start;
+            if SettingsState.show-basic: CategoryButton {
+                title: @tr("Settings" => "Basic");
+                description: @tr("Settings" => "Dates and platform preferences");
+                selected: SettingsState.selected-category == SettingsCategory.basic;
+                clicked => { Actions.select-settings-category(SettingsCategory.basic); }
+            }
+            if SettingsState.show-date-time: CategoryButton {
+                title: @tr("Settings" => "Date and time");
+                description: @tr("Settings" => "Timezone and display formats");
+                selected: SettingsState.selected-category == SettingsCategory.date-time;
+                clicked => { Actions.select-settings-category(SettingsCategory.date-time); }
+            }
+            if SettingsState.show-appearance: CategoryButton {
+                title: @tr("Settings" => "Appearance");
+                description: @tr("Settings" => "Theme, font, and colors");
+                selected: SettingsState.selected-category == SettingsCategory.appearance;
+                clicked => { Actions.select-settings-category(SettingsCategory.appearance); }
+            }
+            if SettingsState.show-account: CategoryButton {
+                title: @tr("Settings" => "Account");
+                description: @tr("Settings" => "Current account information");
+                selected: SettingsState.selected-category == SettingsCategory.account;
+                clicked => { Actions.select-settings-category(SettingsCategory.account); }
+            }
+        }
+    }
+}

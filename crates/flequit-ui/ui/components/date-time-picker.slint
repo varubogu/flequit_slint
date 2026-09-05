@@ -1,0 +1,97 @@
+import { DatePickerPopup, TimePickerPopup } from "std-widgets.slint";
+import { Theme } from "../globals/theme.slint";
+import { Layout } from "../globals/layout.slint";
+import { IconButton } from "icon-button.slint";
+import { IconName } from "icon.slint";
+
+// A reusable date-and-time editor backed by Slint's platform-styled pickers.
+export component DateTimePicker inherits Rectangle {
+    in property <string> value-label;
+    in property <bool> has-value: false;
+    in property <int> year;
+    in property <int> month;
+    in property <int> day;
+    in property <int> hour;
+    in property <int> minute;
+    in property <bool> danger: false;
+    in property <bool> allow-clear: true;
+    in property <string> edit-label: @tr("DateTimePicker" => "Edit due date");
+    in property <string> clear-label: @tr("DateTimePicker" => "Clear due date");
+    in property <string> date-title: @tr("DateTimePicker" => "Select due date");
+    in property <string> time-title: @tr("DateTimePicker" => "Select due time");
+
+    callback accepted(int /* year */, int /* month */, int /* day */,
+                      int /* hour */, int /* minute */);
+    callback cleared();
+
+    private property <int> pending-year: root.year;
+    private property <int> pending-month: root.month;
+    private property <int> pending-day: root.day;
+
+    height: Layout.touch-target;
+    background: transparent;
+
+    HorizontalLayout {
+        spacing: Theme.space-sm;
+
+        edit-area := Rectangle {
+            horizontal-stretch: 1;
+            background: edit-touch.has-hover ? Theme.surface-hover : Theme.surface;
+            border-radius: Theme.radius-sm;
+            border-width: 1px;
+            border-color: Theme.border;
+
+            Text {
+                x: Theme.space-sm;
+                width: parent.width - 2 * Theme.space-sm;
+                height: 100%;
+                text: root.has-value ? root.value-label : @tr("DateTimePicker" => "Not set");
+                color: root.danger ? Theme.danger
+                    : root.has-value ? Theme.text : Theme.text-muted;
+                font-size: Theme.font-size-base;
+                vertical-alignment: center;
+            }
+
+            edit-touch := TouchArea {
+                clicked => {
+                    root.pending-year = root.year;
+                    root.pending-month = root.month;
+                    root.pending-day = root.day;
+                    date-popup.show();
+                }
+            }
+            accessible-role: button;
+            accessible-label: root.edit-label;
+            accessible-action-default => { edit-touch.clicked(); }
+        }
+
+        if root.has-value && root.allow-clear: IconButton {
+            icon: IconName.close;
+            tooltip: root.clear-label;
+            clicked => { root.cleared(); }
+        }
+    }
+
+    date-popup := DatePickerPopup {
+        title: root.date-title;
+        date: { year: root.year, month: root.month, day: root.day };
+
+        accepted(date) => {
+            root.pending-year = date.year;
+            root.pending-month = date.month;
+            root.pending-day = date.day;
+            time-popup.show();
+        }
+    }
+
+    time-popup := TimePickerPopup {
+        title: root.time-title;
+        use-24-hour-format: true;
+        time: { hour: root.hour, minute: root.minute, second: 0 };
+
+        accepted(time) => {
+            root.accepted(root.pending-year, root.pending-month, root.pending-day,
+                          time.hour, time.minute);
+        }
+    }
+}

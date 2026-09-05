@@ -1,6 +1,8 @@
 //! 統合テスト
 
-use flequit_settings::{PartialSettings, Settings, SettingsManager};
+use flequit_settings::{
+    CustomDueFilter, CustomDueUnit, PartialSettings, Settings, SettingsManager,
+};
 use flequit_testing::TestPathGenerator;
 use std::env;
 use std::sync::Mutex;
@@ -37,10 +39,11 @@ fn test_default_settings() {
 
     assert_eq!(settings.theme, "system");
     assert_eq!(settings.language, "ja");
-    assert_eq!(settings.font_size, 14);
-    assert_eq!(settings.week_start, "monday");
+    assert_eq!(settings.font_size, 13);
+    assert_eq!(settings.week_start, "sunday");
     assert_eq!(settings.timezone, "Asia/Tokyo");
-    assert_eq!(settings.custom_due_days, vec![1, 3, 7, 14, 30]);
+    assert!(settings.custom_due_filters.is_empty());
+    assert_eq!(settings.due_date_buttons.len(), 9);
 }
 
 #[test]
@@ -81,7 +84,7 @@ async fn test_auto_create_config_file() {
     // デフォルト値が取得できることを確認
     assert_eq!(settings.theme, "system");
     assert_eq!(settings.language, "ja");
-    assert_eq!(settings.font_size, 14);
+    assert_eq!(settings.font_size, 13);
 
     // 設定ファイルが作成されていることを確認
     assert!(
@@ -157,7 +160,7 @@ async fn test_partial_settings_update() {
     let original_settings = settings_manager.load_settings().await.unwrap();
     assert_eq!(original_settings.theme, "system");
     assert_eq!(original_settings.language, "ja");
-    assert_eq!(original_settings.font_size, 14);
+    assert_eq!(original_settings.font_size, 13);
 
     // 部分的な設定更新を実行
     let partial_settings = PartialSettings {
@@ -176,7 +179,7 @@ async fn test_partial_settings_update() {
     assert_eq!(updated_settings.font_size, 16);
     // 更新されていない値はそのまま保持されている
     assert_eq!(updated_settings.language, "ja");
-    assert_eq!(updated_settings.week_start, "monday");
+    assert_eq!(updated_settings.week_start, "sunday");
     assert_eq!(updated_settings.timezone, "Asia/Tokyo");
 
     // ファイルから再読み込みして永続化されていることを確認
@@ -226,11 +229,15 @@ async fn test_partial_settings_array_fields() {
 
     // デフォルト設定をロード
     let original_settings = settings_manager.load_settings().await.unwrap();
-    assert_eq!(original_settings.custom_due_days, vec![1, 3, 7, 14, 30]);
+    assert!(original_settings.custom_due_filters.is_empty());
 
     // 配列フィールドの部分更新
     let partial_settings = PartialSettings {
-        custom_due_days: Some(vec![1, 2, 5, 10]),
+        custom_due_filters: Some(vec![
+            CustomDueFilter::new(10, CustomDueUnit::Minute),
+            CustomDueFilter::new(1, CustomDueUnit::Hour),
+            CustomDueFilter::days(5),
+        ]),
         ..Default::default()
     };
 
@@ -240,7 +247,14 @@ async fn test_partial_settings_array_fields() {
         .unwrap();
 
     // 配列が更新されていることを確認
-    assert_eq!(updated_settings.custom_due_days, vec![1, 2, 5, 10]);
+    assert_eq!(
+        updated_settings.custom_due_filters,
+        vec![
+            CustomDueFilter::new(10, CustomDueUnit::Minute),
+            CustomDueFilter::new(1, CustomDueUnit::Hour),
+            CustomDueFilter::days(5),
+        ]
+    );
     // 他のフィールドは変更されていない
     assert_eq!(updated_settings.theme, original_settings.theme);
     assert_eq!(updated_settings.language, original_settings.language);

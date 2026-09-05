@@ -28,6 +28,11 @@ pub enum Capability {
     BackgroundSync,
     /// In-app self-update. Disabled for store-distributed builds.
     SelfUpdate,
+    /// Listing the fonts installed on the system.
+    ///
+    /// Mobile platforms ship a fixed set, so the picker offers named choices
+    /// there instead of an enumeration.
+    FontEnumeration,
 }
 
 /// The set of features available on the current platform and build.

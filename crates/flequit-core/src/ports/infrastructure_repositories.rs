@@ -361,8 +361,48 @@ pub trait AutomergeRepositoriesPort: Send + Sync {
     fn projects_repo(&self) -> &Self::ProjectsRepository;
 }
 
+/// Storage-agnostic boundary for deletions that must span multiple backends.
+///
+/// Implementations own their concrete transaction and rollback mechanics so
+/// callers never need to name a database-specific transaction type.
 #[async_trait]
-pub trait InfrastructureRepositoriesTrait: Send + Sync + std::fmt::Debug {
+pub trait TransactionalDeletionPort: Send + Sync {
+    async fn delete_project_transactionally(
+        &self,
+        project_id: &ProjectId,
+        user_id: &UserId,
+        timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError>;
+
+    async fn delete_task_transactionally(
+        &self,
+        project_id: &ProjectId,
+        task_id: &TaskId,
+        user_id: &UserId,
+        timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError>;
+
+    async fn delete_task_list_transactionally(
+        &self,
+        project_id: &ProjectId,
+        task_list_id: &TaskListId,
+        user_id: &UserId,
+        timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError>;
+
+    async fn delete_tag_transactionally(
+        &self,
+        project_id: &ProjectId,
+        tag_id: &TagId,
+        user_id: &UserId,
+        timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError>;
+}
+
+#[async_trait]
+pub trait InfrastructureRepositoriesTrait:
+    TransactionalDeletionPort + Send + Sync + std::fmt::Debug
+{
     type AccountsRepository: Repository<Account, AccountId> + Send + Sync;
     type ProjectsRepository: Repository<Project, ProjectId>
         + Patchable<Project, ProjectId>

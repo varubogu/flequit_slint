@@ -1,8 +1,13 @@
 import { Theme } from "../globals/theme.slint";
 import { Layout } from "../globals/layout.slint";
+import { Icon, IconName } from "icon.slint";
 
 // Square, icon-only button sized to the current breakpoint's hit area.
+//
+// `icon` is the normal case; `label` remains for the few glyphs that have no
+// drawn counterpart and for callers that want a character badge.
 export component IconButton inherits Rectangle {
+    in property <IconName> icon: IconName.none;
     in property <string> label;
     in property <string> tooltip;
     in property <bool> active: false;
@@ -18,7 +23,14 @@ export component IconButton inherits Rectangle {
     accessible-label: root.tooltip != "" ? root.tooltip : root.label;
     accessible-action-default => { root.clicked(); }
 
-    Text {
+    if root.icon != IconName.none: Icon {
+        name: root.icon;
+        tint: Theme.text;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+    }
+
+    if root.icon == IconName.none: Text {
         text: root.label;
         color: Theme.text;
         font-size: Theme.font-size-lg;

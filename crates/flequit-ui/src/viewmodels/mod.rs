@@ -7,7 +7,19 @@
 //! See `docs/ja/develop/design/ui/viewmodel-architecture.md`.
 
 pub mod app;
+pub mod ordering;
+pub mod project_editor;
+pub mod recurrence;
+pub mod search;
+pub mod settings;
+pub mod tag_editor;
 pub mod task_list_ui;
 
 pub use app::AppViewModel;
+pub use search::SearchQuery;
+pub use settings::{
+    CustomDueFilter, CustomDueUnit, DateTimeFormatKind, DateTimeFormatPreference,
+    DueButtonPreference, RecurrencePreset, SettingsSaveFuture, SettingsStore, SettingsStoreError,
+    UserSettings, resolve_locale, system_locale,
+};
 pub use task_list_ui::TaskListUiViewModel;

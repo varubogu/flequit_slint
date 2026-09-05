@@ -1,0 +1,79 @@
+import { Theme } from "../../globals/theme.slint";
+import { AppState } from "../../globals/app-state.slint";
+import { Actions } from "../../globals/actions.slint";
+import { ProjectItem, TaskListItem, EditorKind } from "../../globals/types.slint";
+import { ProjectRow } from "project-row.slint";
+import { TaskListRow } from "task-list-row.slint";
+
+// The project and task-list tree.
+//
+// Editing is not done here: the row controls only fill in `AppState.editor` and
+// open it, and the editor is what calls an action.
+export component ProjectTree inherits VerticalLayout {
+    in property <bool> collapsed: false;
+
+    spacing: 2px;
+
+    function edit-project(project: ProjectItem) {
+        AppState.editor = {
+            kind: EditorKind.project,
+            target-id: project.id,
+            project-id: project.id,
+            name: project.name,
+            color: project.color,
+            archived: project.is-archived,
+        };
+        AppState.editor-open = true;
+    }
+
+    function add-task-list(project-id: string) {
+        AppState.editor = {
+            kind: EditorKind.task-list,
+            target-id: "",
+            project-id: project-id,
+            name: "",
+            color: "",
+            archived: false,
+        };
+        AppState.editor-open = true;
+    }
+
+    function edit-task-list(list: TaskListItem) {
+        AppState.editor = {
+            kind: EditorKind.task-list,
+            target-id: list.id,
+            project-id: list.project-id,
+            name: list.name,
+            color: "",
+            archived: false,
+        };
+        AppState.editor-open = true;
+    }
+
+    for project in AppState.projects: VerticalLayout {
+        spacing: 0px;
+
+        ProjectRow {
+            project: project;
+            collapsed: root.collapsed;
+            selected: AppState.selected-project-id == project.id
+                && AppState.selected-list-id == "";
+            toggle-expansion => { Actions.toggle-project-expansion(project.id); }
+            chosen => { Actions.select-project(project.id); }
+            edit => { root.edit-project(project); }
+            add-list => { root.add-task-list(project.id); }
+        }
+
+        if !root.collapsed && project.expanded: VerticalLayout {
+            padding-left: Theme.space-lg;
+            spacing: 0px;
+
+            for list in project.task-lists: TaskListRow {
+                list: list;
+                selected: AppState.selected-list-id == list.id;
+                chosen => { Actions.select-task-list(project.id, list.id); }
+                edit => { root.edit-task-list(list); }
+            }
+        }
+    }
+}

@@ -3,6 +3,7 @@
 //! このモジュールは設定値の妥当性を検証します。
 
 use crate::errors::{SettingsError, SettingsResult};
+use crate::models::custom_due_filter::CustomDueFilter;
 use crate::models::settings::Settings;
 
 /// 設定値検証器
@@ -16,7 +17,7 @@ impl SettingsValidator {
         Self::validate_font_size(settings.font_size)?;
         Self::validate_week_start(&settings.week_start)?;
         Self::validate_timezone(&settings.timezone)?;
-        Self::validate_custom_due_days(&settings.custom_due_days)?;
+        Self::validate_custom_due_filters(&settings.custom_due_filters)?;
 
         Ok(())
     }
@@ -98,28 +99,34 @@ impl SettingsValidator {
         Ok(())
     }
 
-    /// カスタム期日日数の検証
-    fn validate_custom_due_days(custom_due_days: &[i32]) -> SettingsResult<()> {
-        for &days in custom_due_days {
-            if days < 0 {
+    /// カスタム期限フィルタの検証
+    fn validate_custom_due_filters(filters: &[CustomDueFilter]) -> SettingsResult<()> {
+        for filter in filters {
+            if filter.value < 1 {
                 return Err(SettingsError::ValidationError {
-                    message: format!("期日日数は正の値である必要があります: {}", days),
+                    message: format!(
+                        "期限フィルタの値は1以上である必要があります: {}",
+                        filter.value
+                    ),
                 });
             }
 
-            if days > 3650 {
-                // 約10年
+            let max = filter.unit.max_value();
+            if filter.value > max {
                 return Err(SettingsError::ValidationError {
-                    message: format!("期日日数が大きすぎます（最大3650日）: {}", days),
+                    message: format!(
+                        "期限フィルタの値が大きすぎます（{:?} の最大は {}）: {}",
+                        filter.unit, max, filter.value
+                    ),
                 });
             }
         }
 
-        if custom_due_days.len() > 20 {
+        if filters.len() > 20 {
             return Err(SettingsError::ValidationError {
                 message: format!(
-                    "カスタム期日日数の設定数が多すぎます（最大20個）: {}",
-                    custom_due_days.len()
+                    "カスタム期限フィルタの設定数が多すぎます（最大20個）: {}",
+                    filters.len()
                 ),
             });
         }

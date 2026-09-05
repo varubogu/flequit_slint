@@ -1,25 +1,43 @@
+import { Palette } from "std-widgets.slint";
 import { Theme, ThemeMode } from "globals/theme.slint";
 import { Layout, Breakpoint } from "globals/layout.slint";
 import { AppState } from "globals/app-state.slint";
 import { Actions } from "globals/actions.slint";
 import { Capabilities } from "globals/capabilities.slint";
 import { I18n } from "globals/i18n.slint";
+import { SettingsState } from "globals/settings.slint";
 import { TaskItem, ProjectItem, TaskListItem, SubTaskItem, DueFilterItem, LocaleItem,
-         TaskStatus, TaskPriority, Pane } from "globals/types.slint";
+         ColorOption, DateTimeFormatSetting, DueButtonSetting, ReminderItem, EditorState, SettingsCategory, TaskStatus,
+         TaskPriority, TaskSort, EditorKind, Pane, TagItem, BookmarkedTagItem, RecurrenceState,
+         RecurrenceUnit, RecurrenceMonthlyMode, RecurrenceWeekOfMonth, RecurrenceEnd,
+         SearchSuggestion, SearchSuggestionKind } from "globals/types.slint";
 import { Sidebar } from "views/sidebar/sidebar.slint";
+import { ItemEditor } from "views/sidebar/item-editor.slint";
+import { TagManager } from "views/tags/tag-manager.slint";
 import { TaskListView } from "views/task-list/task-list.slint";
 import { TaskDetailView } from "views/task-detail/task-detail.slint";
+import { SubTaskDetailView } from "views/task-detail/subtask-detail.slint";
+import { RecurrenceEditor } from "views/task-detail/recurrence-editor.slint";
 import { ErrorBanner } from "components/error-banner.slint";
 import { IconButton } from "components/icon-button.slint";
+import { IconName } from "components/icon.slint";
+import { SettingsDialog } from "views/settings/settings-dialog.slint";
 
 // Re-export globals so Rust can reach them through the generated bindings.
-export { Theme, Layout, AppState, Actions, Capabilities, I18n }
+export { Theme, Layout, AppState, Actions, Capabilities, I18n, SettingsState }
 export { TaskItem, ProjectItem, TaskListItem, SubTaskItem, DueFilterItem, LocaleItem,
-         TaskStatus, TaskPriority, Pane, ThemeMode, Breakpoint }
+         ColorOption, DateTimeFormatSetting, DueButtonSetting, ReminderItem, EditorState, SettingsCategory, TaskStatus,
+         TaskPriority, TaskSort, EditorKind, Pane, TagItem, BookmarkedTagItem, ThemeMode, Breakpoint,
+         SearchSuggestion, SearchSuggestionKind }
+export { RecurrenceState, RecurrenceUnit, RecurrenceMonthlyMode, RecurrenceWeekOfMonth, RecurrenceEnd }
 
 export component AppWindow inherits Window {
     title: "Flequit";
     background: Theme.background;
+    // Applying the font choice here rather than on every Text keeps one place
+    // to change and lets std-widgets pick it up too.
+    default-font-family: Theme.font-family;
+    default-font-size: Theme.font-size-base;
     preferred-width: 1200px;
     preferred-height: 800px;
     min-width: 320px;
@@ -29,23 +47,43 @@ export component AppWindow inherits Window {
     // Assigning here means a narrow desktop window behaves exactly like a phone.
     changed width => { Layout.window-width = self.width; }
 
+    // Capture Slint's startup value as an immediate fallback. The platform-backed
+    // ViewModel updates `Theme.system-dark` when the OS changes afterwards.
+    private property <bool> dark-scheme: Theme.dark;
+
+    init => {
+        Theme.system-dark = Palette.color-scheme == ColorScheme.dark;
+        Palette.color-scheme = Theme.dark ? ColorScheme.dark : ColorScheme.light;
+    }
+
+    changed dark-scheme => {
+        Palette.color-scheme = self.dark-scheme ? ColorScheme.dark : ColorScheme.light;
+    }
+
     // In compact the panes are exclusive; elsewhere both are visible.
     private property <bool> show-list:
         Layout.is-compact ? AppState.active-pane == Pane.list : true;
     private property <bool> show-detail:
         Layout.is-compact ? AppState.active-pane == Pane.detail : true;
+    private property <bool> inline-sidebar-collapsed:
+        Layout.is-medium || AppState.sidebar-collapsed;
 
     HorizontalLayout {
         spacing: 0px;
 
         // --- Inline sidebar: expanded and medium only ---
         if !Layout.is-compact: Rectangle {
-            width: Layout.sidebar-width;
+            width: root.inline-sidebar-collapsed
+                ? Layout.sidebar-collapsed-width
+                : Layout.sidebar-width;
             Sidebar {
                 width: 100%;
                 height: 100%;
-                collapsed: Layout.is-medium;
-                collapse-toggled => { AppState.sidebar-open = !AppState.sidebar-open; }
+                collapsed: root.inline-sidebar-collapsed;
+                collapse-enabled: Layout.is-expanded;
+                collapse-toggled => {
+                    AppState.sidebar-collapsed = !AppState.sidebar-collapsed;
+                }
             }
         }
 
@@ -70,7 +108,7 @@ export component AppWindow inherits Window {
                     spacing: Theme.space-sm;
 
                     IconButton {
-                        label: "☰";
+                        icon: IconName.menu;
                         tooltip: @tr("Shell" => "Open menu");
                         clicked => { AppState.sidebar-open = true; }
                     }
@@ -110,7 +148,15 @@ export component AppWindow inherits Window {
                     background: Theme.border;
                 }
 
-                if root.show-detail: TaskDetailView {
+                // A selected subtask takes over the detail pane; its own back
+                // button returns to the parent task rather than to the list.
+                if root.show-detail && AppState.has-selected-subtask: SubTaskDetailView {
+                    horizontal-stretch: 1;
+                    subtask: AppState.selected-subtask;
+                    parent-title: AppState.selected-task.title;
+                }
+
+                if root.show-detail && !AppState.has-selected-subtask: TaskDetailView {
                     horizontal-stretch: 1;
                     show-back: Layout.is-compact;
                     has-task: AppState.has-selected-task;
@@ -144,6 +190,18 @@ export component AppWindow inherits Window {
             }
         }
     }
+
+    // --- Project and list editor ---
+    // Above the sidebar overlay: it can be opened from there.
+    if AppState.editor-open: ItemEditor { }
+
+    if AppState.tag-manager-open: TagManager { }
+
+    // --- Repeat schedule editor ---
+    if AppState.recurrence-open: RecurrenceEditor { }
+
+    // --- Settings modal ---
+    if SettingsState.open: SettingsDialog { }
 
     // --- Loading veil ---
     if AppState.loading: Rectangle {

@@ -33,6 +33,7 @@ pub mod lifecycle;
 pub mod notification;
 pub mod paths;
 pub mod platform;
+pub mod theme;
 
 pub use capability::{Capabilities, Capability, FormFactor};
 pub use error::{PlatformError, PlatformResult};
@@ -40,6 +41,9 @@ pub use file_dialog::{FileFilter, FileHandle};
 pub use lifecycle::{LifecycleEvent, LifecycleObserver};
 pub use notification::{NotificationId, NotificationRequest, PermissionState};
 pub use paths::AppPaths;
+pub use theme::{SystemTheme, SystemThemeWatcher};
+
+use chrono::{DateTime, Utc};
 
 /// The platform-independent interface every backend implements.
 ///
@@ -56,6 +60,24 @@ pub trait Platform: Send + Sync {
     /// Application directories.
     fn paths(&self) -> &AppPaths;
 
+    /// Returns the operating system's current colour scheme.
+    fn system_theme(&self) -> PlatformResult<SystemTheme> {
+        Err(PlatformError::Unsupported("system theme"))
+    }
+
+    /// Subscribes to operating-system colour scheme changes.
+    fn subscribe_system_theme(&self) -> PlatformResult<Box<dyn SystemThemeWatcher>> {
+        Err(PlatformError::Unsupported("system theme notifications"))
+    }
+
+    /// Font families installed on the system, sorted and deduplicated.
+    ///
+    /// Enumerating them touches the filesystem, so callers must treat this as
+    /// slow and run it off the UI thread.
+    fn available_fonts(&self) -> PlatformResult<Vec<String>> {
+        Err(PlatformError::Unsupported("font enumeration"))
+    }
+
     /// Current notification permission state.
     async fn notification_permission(&self) -> PlatformResult<PermissionState>;
 
@@ -67,6 +89,16 @@ pub trait Platform: Send + Sync {
 
     /// Shows a local notification.
     async fn notify(&self, request: NotificationRequest) -> PlatformResult<NotificationId>;
+
+    /// Registers a notification for a future UTC timestamp.
+    async fn schedule_notification(
+        &self,
+        request: NotificationRequest,
+        scheduled_at: DateTime<Utc>,
+    ) -> PlatformResult<NotificationId>;
+
+    /// Cancels a previously scheduled notification.
+    async fn cancel_notification(&self, id: &NotificationId) -> PlatformResult<()>;
 
     /// Opens a file picker.
     ///

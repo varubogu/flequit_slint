@@ -1,0 +1,60 @@
+import { CustomDueFilterSetting, DateTimeFormatSetting, DueButtonSetting, RecurrencePresetSetting,
+         SettingsCategory } from "types.slint";
+import { ThemeMode } from "theme.slint";
+
+// Persisted application preferences plus transient settings-dialog state.
+// Rust owns persisted values; views may change only the navigation fields.
+export global SettingsState {
+    // --- Dialog navigation ---
+    in-out property <bool> open: false;
+    in-out property <SettingsCategory> selected-category: SettingsCategory.basic;
+    in-out property <bool> compact-detail-open: false;
+    in-out property <string> search-query;
+    in-out property <bool> show-basic: true;
+    in-out property <bool> show-date-time: true;
+    in-out property <bool> show-appearance: true;
+    in-out property <bool> show-account: true;
+
+    // --- Basic ---
+    in-out property <string> week-start: "sunday";
+    in-out property <[DueButtonSetting]> due-buttons;
+    in-out property <[CustomDueFilterSetting]> custom-due-filters;
+    // Repeat patterns the user saved; the repeat editor offers them as presets.
+    in-out property <[RecurrencePresetSetting]> recurrence-presets;
+    // "granted", "denied", or "not-determined".
+    in-out property <string> notification-permission: "not-determined";
+    in-out property <bool> notification-permission-loading: false;
+
+    in-out property <string> timezone: "system";
+    // IANA names matching what was typed into the timezone combo box, plus the
+    // `system` and `UTC` shorthands. Refilled by the settings ViewModel.
+    in-out property <[string]> timezone-options;
+    in-out property <string> current-datetime-format;
+    in-out property <[DateTimeFormatSetting]> datetime-formats;
+    in-out property <[string]> datetime-format-names;
+    in-out property <[string]> datetime-format-ids;
+    in-out property <[string]> datetime-format-values;
+    in-out property <[string]> datetime-format-kinds;
+    in-out property <int> preview-year: 2026;
+    in-out property <int> preview-month: 1;
+    in-out property <int> preview-day: 1;
+    in-out property <int> preview-hour: 12;
+    in-out property <int> preview-minute: 0;
+    in-out property <bool> preview-initialized: false;
+
+    // --- Appearance ---
+    in-out property <ThemeMode> theme-mode: ThemeMode.system;
+    in-out property <string> font: "system";
+    // Font families installed on the system, filled in off the UI thread.
+    // Empty until the scan finishes, or when the platform cannot enumerate.
+    in-out property <[string]> font-options;
+    in-out property <int> font-size: 14;
+    in-out property <string> font-color: "#000000";
+    in-out property <string> background-color: "#FFFFFF";
+
+    // --- Current account (read-only in version 1.0) ---
+    in-out property <string> account-name;
+    in-out property <string> account-email;
+    in-out property <string> account-provider: "local";
+    in-out property <bool> local-account: true;
+}

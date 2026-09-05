@@ -1,0 +1,70 @@
+import { Theme } from "../../globals/theme.slint";
+import { Layout } from "../../globals/layout.slint";
+import { SettingsState } from "../../globals/settings.slint";
+import { FieldLabel, SectionTitle } from "settings-controls.slint";
+
+export component AccountSettings inherits Rectangle {
+    background: Theme.background;
+    VerticalLayout {
+        padding: Layout.content-padding;
+        spacing: Theme.space-xl;
+        alignment: start;
+        SectionTitle { text: @tr("Settings" => "Account settings"); }
+        VerticalLayout {
+            spacing: Theme.space-sm;
+            FieldLabel { text: @tr("Settings" => "Account type"); }
+            Rectangle {
+                height: Layout.touch-target;
+                min-width: 4 * Theme.space-xl;
+                border-radius: Theme.radius-sm;
+                border-width: 1px;
+                border-color: Theme.accent;
+                background: Theme.surface-selected;
+                Text {
+                    text: SettingsState.local-account
+                        ? @tr("Settings" => "Local account")
+                        : @tr("Settings" => "Connected account");
+                    color: Theme.text;
+                    font-size: Theme.font-size-base;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+        }
+        Rectangle {
+            height: 6 * Theme.space-xl;
+            border-radius: Theme.radius-md;
+            background: Theme.surface;
+            VerticalLayout {
+                padding: Theme.space-lg;
+                spacing: Theme.space-sm;
+                Text {
+                    text: SettingsState.account-name != ""
+                        ? SettingsState.account-name
+                        : @tr("Settings" => "Local account");
+                    color: Theme.text;
+                    font-size: Theme.font-size-lg;
+                    font-weight: 600;
+                }
+                Text {
+                    text: SettingsState.account-email != ""
+                        ? SettingsState.account-email
+                        : @tr("Settings" => "Account information is stored only on this device.");
+                    color: Theme.text-muted;
+                    font-size: Theme.font-size-base;
+                }
+                Text {
+                    text: @tr("Settings" => "Provider: {0}", SettingsState.account-provider);
+                    color: Theme.text-muted;
+                    font-size: Theme.font-size-sm;
+                }
+            }
+        }
+        Text {
+            text: @tr("Settings" => "Cloud accounts will be available in a future version.");
+            color: Theme.text-muted;
+            font-size: Theme.font-size-base;
+            wrap: word-wrap;
+        }
+    }
+}

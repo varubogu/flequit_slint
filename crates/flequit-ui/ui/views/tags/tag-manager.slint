@@ -1,0 +1,217 @@
+import { LineEdit, ScrollView } from "std-widgets.slint";
+import { Theme } from "../../globals/theme.slint";
+import { Layout } from "../../globals/layout.slint";
+import { AppState } from "../../globals/app-state.slint";
+import { Actions } from "../../globals/actions.slint";
+import { DialogButton } from "../../components/dialog-button.slint";
+import { ColorPicker } from "../../components/color-picker.slint";
+import { RowButton } from "../../components/row-button.slint";
+import { IconName } from "../../components/icon.slint";
+
+export component TagManager inherits Rectangle {
+    property <bool> editing: false;
+    property <bool> confirming-delete: false;
+    property <string> editing-tag-id;
+    property <string> name;
+    property <string> selected-color;
+
+    function close-editor() {
+        root.editing = false;
+        root.confirming-delete = false;
+        root.editing-tag-id = "";
+        root.name = "";
+        root.selected-color = "";
+    }
+
+    function begin-new() {
+        root.editing-tag-id = "";
+        root.name = "";
+        root.selected-color = "";
+        root.confirming-delete = false;
+        root.editing = true;
+    }
+
+    function save() {
+        if (root.name == "") {
+            return;
+        }
+        if (root.editing-tag-id == "") {
+            Actions.create-tag(AppState.selected-project-id, root.name, root.selected-color);
+        } else {
+            Actions.update-tag(AppState.selected-project-id, root.editing-tag-id,
+                               root.name, root.selected-color);
+        }
+        root.close-editor();
+    }
+
+    width: 100%;
+    height: 100%;
+    background: #00000080;
+
+    TouchArea { }
+
+    Rectangle {
+        width: min(parent.width - 2 * Theme.space-lg, 42 * Theme.space-xl);
+        height: min(parent.height - 2 * Theme.space-lg, 34 * Theme.space-xl);
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        background: Theme.surface-raised;
+        border-radius: Theme.radius-md;
+        border-width: 1px;
+        border-color: Theme.border;
+
+        VerticalLayout {
+            padding: Theme.space-lg;
+            spacing: Theme.space-md;
+
+            HorizontalLayout {
+                spacing: Theme.space-sm;
+
+                Text {
+                    text: @tr("Tags" => "Tags");
+                    color: Theme.text;
+                    font-size: Theme.font-size-lg;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+
+                if !root.editing: DialogButton {
+                    label: @tr("Tags" => "New tag");
+                    primary: true;
+                    enabled: AppState.selected-project-id != "";
+                    clicked => { root.begin-new(); }
+                }
+            }
+
+            if !root.editing: ScrollView {
+                vertical-stretch: 1;
+
+                VerticalLayout {
+                    spacing: 2px;
+                    alignment: start;
+
+                    if AppState.tags.length == 0: Text {
+                        text: @tr("Tags" => "No tags in this project.");
+                        color: Theme.text-muted;
+                        font-size: Theme.font-size-base;
+                        wrap: word-wrap;
+                    }
+
+                    for tag in AppState.tags: Rectangle {
+                        height: Layout.touch-target;
+                        border-radius: Theme.radius-sm;
+                        background: Theme.surface;
+
+                        HorizontalLayout {
+                            padding-left: Theme.space-sm;
+                            spacing: Theme.space-sm;
+
+                            Rectangle {
+                                width: 10px;
+                                height: 10px;
+                                border-radius: 5px;
+                                background: tag.has-color ? tag.color-brush : Theme.accent;
+                                y: (parent.height - self.height) / 2;
+                            }
+
+                            Text {
+                                text: "#" + tag.name;
+                                color: Theme.text;
+                                font-size: Theme.font-size-base;
+                                vertical-alignment: center;
+                                horizontal-stretch: 1;
+                                overflow: elide;
+                            }
+
+                            RowButton {
+                                label: tag.bookmarked ? "★" : "☆";
+                                action-label: tag.bookmarked
+                                    ? @tr("Tags" => "Unpin tag {0}", tag.name)
+                                    : @tr("Tags" => "Pin tag {0}", tag.name);
+                                clicked => {
+                                    Actions.set-tag-bookmarked(tag.project-id, tag.id,
+                                                               !tag.bookmarked);
+                                }
+                            }
+
+                            RowButton {
+                                icon: IconName.edit;
+                                action-label: @tr("Tags" => "Edit tag {0}", tag.name);
+                                clicked => {
+                                    root.editing-tag-id = tag.id;
+                                    root.name = tag.name;
+                                    root.selected-color = tag.color;
+                                    root.confirming-delete = false;
+                                    root.editing = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if root.editing && !root.confirming-delete: VerticalLayout {
+                spacing: Theme.space-md;
+
+                LineEdit {
+                    text <=> root.name;
+                    placeholder-text: @tr("Tags" => "Tag name");
+                    accessible-label: @tr("Tags" => "Tag name");
+                    accepted => { root.save(); }
+                }
+
+                ColorPicker {
+                    value: root.selected-color;
+                    picked(value) => { root.selected-color = value; }
+                }
+            }
+
+            if root.confirming-delete: Text {
+                text: @tr("Tags" => "Delete tag {0}? It will be removed from every task.", root.name);
+                color: Theme.text;
+                font-size: Theme.font-size-base;
+                wrap: word-wrap;
+            }
+
+            HorizontalLayout {
+                spacing: Theme.space-sm;
+                alignment: end;
+
+                if root.editing && !root.confirming-delete && root.editing-tag-id != "": DialogButton {
+                    label: @tr("Tags" => "Delete");
+                    destructive: true;
+                    clicked => { root.confirming-delete = true; }
+                }
+
+                DialogButton {
+                    label: root.editing ? @tr("Tags" => "Cancel") : @tr("Tags" => "Close");
+                    clicked => {
+                        if (root.confirming-delete) {
+                            root.confirming-delete = false;
+                        } else if (root.editing) {
+                            root.close-editor();
+                        } else {
+                            AppState.tag-manager-open = false;
+                        }
+                    }
+                }
+
+                if root.confirming-delete: DialogButton {
+                    label: @tr("Tags" => "Delete for good");
+                    destructive: true;
+                    clicked => {
+                        Actions.delete-tag(AppState.selected-project-id, root.editing-tag-id);
+                        root.close-editor();
+                    }
+                }
+
+                if root.editing && !root.confirming-delete: DialogButton {
+                    label: @tr("Tags" => "Save");
+                    primary: true;
+                    enabled: root.name != "";
+                    clicked => { root.save(); }
+                }
+            }
+        }
+    }
+}

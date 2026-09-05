@@ -190,8 +190,11 @@ impl SettingsManager {
         if let Some(timezone) = &partial.timezone {
             target.timezone = timezone.clone();
         }
-        if let Some(custom_due_days) = &partial.custom_due_days {
-            target.custom_due_days = custom_due_days.clone();
+        if let Some(custom_due_filters) = &partial.custom_due_filters {
+            target.custom_due_filters = custom_due_filters.clone();
+        }
+        if let Some(custom_recurrence_presets) = &partial.custom_recurrence_presets {
+            target.custom_recurrence_presets = custom_recurrence_presets.clone();
         }
         if let Some(datetime_format) = &partial.datetime_format {
             target.datetime_format = datetime_format.clone();

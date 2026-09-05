@@ -1,0 +1,54 @@
+import { Theme } from "../globals/theme.slint";
+import { Layout } from "../globals/layout.slint";
+
+// One option in an exclusive row of choices, e.g. a task's status or priority.
+//
+// The colour bar carries the meaning that the label spells out, so the row
+// stays readable at a glance without relying on colour alone.
+export component ChoiceButton inherits Rectangle {
+    in property <string> label;
+    in property <string> action-label;
+    in property <brush> indicator-color;
+    in property <bool> selected: false;
+    callback clicked();
+
+    height: Layout.touch-target;
+    horizontal-stretch: 1;
+    background: root.selected ? Theme.surface-selected
+        : choice-touch.has-hover ? Theme.surface-hover
+        : Theme.surface;
+    border-width: 1px;
+    border-color: root.selected ? Theme.accent : Theme.border;
+    border-radius: Theme.radius-sm;
+
+    HorizontalLayout {
+        padding-left: Theme.space-xs;
+        padding-right: Theme.space-xs;
+        spacing: Theme.space-xs;
+        alignment: center;
+
+        Rectangle {
+            width: 4px;
+            height: 16px;
+            border-radius: 2px;
+            background: root.indicator-color;
+        }
+
+        Text {
+            text: root.label;
+            color: Theme.text;
+            font-size: Theme.font-size-sm;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            overflow: elide;
+            horizontal-stretch: 1;
+        }
+    }
+
+    choice-touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+    accessible-role: button;
+    accessible-label: root.action-label;
+    accessible-action-default => { root.clicked(); }
+}

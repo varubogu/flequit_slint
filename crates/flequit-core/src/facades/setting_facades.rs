@@ -4,6 +4,7 @@
 
 use flequit_settings::models::datetime_format::DateTimeFormat;
 use flequit_settings::models::settings::Settings;
+use flequit_types::errors::service_error::ServiceError;
 
 #[derive(Debug, Clone)]
 pub struct LocalSettings {
@@ -14,7 +15,7 @@ pub struct LocalSettings {
 pub async fn get_custom_date_format(
     settings: &Settings,
     id: &str,
-) -> Result<Option<DateTimeFormat>, String> {
+) -> Result<Option<DateTimeFormat>, ServiceError> {
     Ok(settings
         .datetime_formats
         .iter()
@@ -24,23 +25,26 @@ pub async fn get_custom_date_format(
 
 pub async fn get_all_custom_date_formats(
     settings: &Settings,
-) -> Result<Vec<DateTimeFormat>, String> {
+) -> Result<Vec<DateTimeFormat>, ServiceError> {
     Ok(settings.datetime_formats.clone())
 }
 
 pub async fn add_custom_date_format(
     settings: &mut Settings,
     format: DateTimeFormat,
-) -> Result<DateTimeFormat, String> {
+) -> Result<DateTimeFormat, ServiceError> {
     if settings.datetime_formats.iter().any(|f| f.id == format.id) {
-        return Err(format!("datetime_format id already exists: {}", format.id));
+        return Err(ServiceError::ValidationError(format!(
+            "datetime_format id already exists: {}",
+            format.id
+        )));
     }
 
     settings.datetime_formats.push(format.clone());
     Ok(format)
 }
 
-pub async fn load_local_settings(settings: &Settings) -> Result<LocalSettings, String> {
+pub async fn load_local_settings(settings: &Settings) -> Result<LocalSettings, ServiceError> {
     Ok(LocalSettings {
         theme: settings.theme.clone(),
         language: settings.language.clone(),

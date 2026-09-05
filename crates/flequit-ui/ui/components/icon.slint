@@ -1,0 +1,68 @@
+import { Theme } from "../globals/theme.slint";
+
+// The glyphs the shell uses.
+//
+// A closed set rather than a free-form path, because `@image-url` resolves at
+// compile time: an icon has to be named here to be embedded in the binary.
+export enum IconName {
+    none,
+    search,
+    chevron-left,
+    chevron-right,
+    chevron-down,
+    chevron-up,
+    clock,
+    folder,
+    list,
+    tag,
+    help,
+    settings,
+    account,
+    plus,
+    trash,
+    close,
+    menu,
+    edit,
+    archive,
+    grip,
+}
+
+// A recoloured SVG glyph.
+//
+// The source files are drawn in a single stroke colour and tinted here, so one
+// asset serves both themes instead of shipping a light and a dark copy.
+export component Icon inherits Image {
+    in property <IconName> name;
+    in property <brush> tint: Theme.text-muted;
+    // Sized in points so the glyph tracks the font-size setting.
+    in property <length> size: Theme.font-size-base + 4px;
+
+    width: root.size;
+    height: root.size;
+    image-fit: contain;
+    colorize: root.tint;
+    accessible-role: none;
+
+    source: root.name == IconName.search ? @image-url("../assets/icons/search.svg")
+        : root.name == IconName.chevron-left ? @image-url("../assets/icons/chevron-left.svg")
+        : root.name == IconName.chevron-right ? @image-url("../assets/icons/chevron-right.svg")
+        : root.name == IconName.chevron-down ? @image-url("../assets/icons/chevron-down.svg")
+        : root.name == IconName.chevron-up ? @image-url("../assets/icons/chevron-up.svg")
+        : root.name == IconName.clock ? @image-url("../assets/icons/clock.svg")
+        : root.name == IconName.folder ? @image-url("../assets/icons/folder.svg")
+        : root.name == IconName.list ? @image-url("../assets/icons/list.svg")
+        : root.name == IconName.tag ? @image-url("../assets/icons/tag.svg")
+        : root.name == IconName.help ? @image-url("../assets/icons/help.svg")
+        : root.name == IconName.settings ? @image-url("../assets/icons/settings.svg")
+        : root.name == IconName.account ? @image-url("../assets/icons/account.svg")
+        : root.name == IconName.plus ? @image-url("../assets/icons/plus.svg")
+        : root.name == IconName.trash ? @image-url("../assets/icons/trash.svg")
+        : root.name == IconName.close ? @image-url("../assets/icons/close.svg")
+        : root.name == IconName.menu ? @image-url("../assets/icons/menu.svg")
+        : root.name == IconName.edit ? @image-url("../assets/icons/edit.svg")
+        : root.name == IconName.archive ? @image-url("../assets/icons/archive.svg")
+        : root.name == IconName.grip ? @image-url("../assets/icons/grip.svg")
+        : @image-url("../assets/icons/plus.svg");
+
+    visible: root.name != IconName.none;
+}

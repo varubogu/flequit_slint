@@ -25,7 +25,11 @@ jobs:
       # existing translation, so the extracted template must stay committed.
       - name: Check the extraction template is current
         run: |
+          # sort keeps the entry order independent of the filesystem's
+          # directory order, so the committed template is reproducible here
+          # and on any other machine. Matches docs/ja/develop/commands.md.
           find crates/flequit-ui/ui -name '*.slint' \
+            | sort \
             | xargs slint-tr-extractor -o /tmp/flequit-ui.pot
           if ! diff -q <(grep -v '^"POT-Creation-Date' i18n/flequit-ui.pot) \
                        <(grep -v '^"POT-Creation-Date' /tmp/flequit-ui.pot); then

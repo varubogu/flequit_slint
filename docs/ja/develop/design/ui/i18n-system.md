@@ -113,27 +113,35 @@ View             →  I18n.error-message(AppState.error-code) を表示
 
 | プロパティ / 関数 | 内容 |
 | --- | --- |
-| `current-locale` | 現在の言語タグ（`"en"` / `"ja"`） |
+| `current-locale` | 現在の言語タグ（`"en"` / `"ja"`）。Rust が書き込む |
 | `available-locales` | 選択肢の一覧（タグと表示名） |
-| `locale-changed(locale)` | 言語変更を Rust へ通知する callback |
 | `error-message(code)` | エラーコード → 翻訳済み文言 |
 | `status-label(status)` | ステータス → 翻訳済み表示名 |
 
+言語切替は永続化を伴うため、他の設定と同じく `Actions.update-language(tag)` を通す。
+`I18n` 側に変更通知の callback は置かない。
+
 ### Rust 側の処理
 
-言語切替時の処理順序:
+言語切替時の処理順序（`viewmodels/settings/mutations.rs`）:
 
-1. `I18n.locale-changed` コールバックを受け取る
+1. `Actions.update-language` を受け取り、`locale::supported()` で対応言語か判定する
 2. `slint::select_bundled_translation(&locale)` を呼ぶ
-3. 設定を永続化する（`flequit-settings`）
-4. `I18n.current-locale` を更新する
+3. 設定キューへ流し、`flequit-settings` へ永続化する
+4. 保存後の publish が `I18n.current-locale` を書き戻す
+   （保存に失敗した場合はロールバック後の値が反映される）
 
-起動時:
+起動時（`viewmodels/settings/publisher.rs` の `publish_locale`）:
 
 1. 設定から保存済みロケールを読む
-2. 未設定ならシステムロケールから判定し、未対応言語なら `en` にフォールバックする
+2. `resolve_locale()` で解決する。保存値が空または未対応なら
+   システムロケール（`LC_ALL` / `LC_MESSAGES` / `LANG` / `LANGUAGE`）を見て、
+   それも未対応なら `en` にフォールバックする
 3. **最初のコンポーネントを生成した後** に `select_bundled_translation()` を呼ぶ
    （Slint の制約。生成前に呼んでも反映されない）
+
+地域・エンコーディングの接尾辞は無視し、言語サブタグだけで照合する
+（`ja_JP.UTF-8` → `ja`）。カタログは言語単位で持つため。
 
 ## ワークフロー
 
@@ -148,6 +156,8 @@ View             →  I18n.error-message(AppState.error-code) を表示
    ```sh
    msgmerge --update i18n/ja/LC_MESSAGES/flequit-ui.po i18n/flequit-ui.pot
    ```
+   `msgmerge`（gettext）が無い環境では、`.pot` の msgid を基準に
+   既存訳を引き継ぐ形で `.po` を書き直す
 4. `.po` を翻訳する
 5. `cargo build` で再バンドルされる
 

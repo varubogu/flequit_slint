@@ -11,13 +11,17 @@ flequit-types.workspace = true
 async-trait.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+chrono.workspace = true
 
 [target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))'.dependencies]
+dark-light.workspace = true
+fontdb.workspace = true
 directories.workspace = true
 rfd.workspace = true
 notify-rust.workspace = true
 opener.workspace = true
 trash.workspace = true
+tokio = { workspace = true, features = ["rt", "time"] }
 
 [dev-dependencies]
 tempfile.workspace = true

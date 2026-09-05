@@ -100,6 +100,9 @@ pub struct Task {
     pub is_range_date: Option<bool>,
     /// 繰り返しルール（定期タスク用）
     pub recurrence_rule: Option<RecurrenceRule>,
+    /// 通知する日時（UTC、任意数）
+    #[serde(default)]
+    pub reminders: Vec<DateTime<Utc>>,
     /// 表示順序（昇順ソート用）
     pub order_index: i32,
     /// アーカイブ状態フラグ
@@ -171,6 +174,7 @@ pub struct Task {
 ///     do_end_date: None,
 ///     is_range_date: Some(false),
 ///     recurrence_rule: None,
+///     reminders: vec![],
 ///     assigned_user_ids: vec![],
 ///     order_index: 1,
 ///     is_archived: false,
@@ -210,6 +214,9 @@ pub struct TaskTree {
     pub is_range_date: Option<bool>, // 追加
     /// 繰り返しルール（定期タスク用）
     pub recurrence_rule: Option<RecurrenceRule>, // 追加
+    /// 通知する日時（UTC、任意数）
+    #[serde(default)]
+    pub reminders: Vec<DateTime<Utc>>,
     /// アサインされたユーザーIDリスト
     pub assigned_user_ids: Vec<UserId>, // アサインされたユーザーIDの配列
     /// 表示順序（昇順ソート用）
@@ -248,6 +255,7 @@ impl ModelConverter<Task> for TaskTree {
             do_end_date: self.do_end_date,
             is_range_date: self.is_range_date,
             recurrence_rule: self.recurrence_rule.clone(),
+            reminders: self.reminders.clone(),
             assigned_user_ids: self.assigned_user_ids.clone(),
             tag_ids: self.tag_ids.clone(), // タグIDリストをそのまま使用
             order_index: self.order_index,

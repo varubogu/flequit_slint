@@ -1,0 +1,121 @@
+import { Theme } from "../../globals/theme.slint";
+import { Layout } from "../../globals/layout.slint";
+import { ProjectItem } from "../../globals/types.slint";
+import { RowButton } from "../../components/row-button.slint";
+import { Icon, IconName } from "../../components/icon.slint";
+
+// The header row of a project in the sidebar.
+//
+// Expanding and selecting are separate targets: a single click on the chevron
+// opens the list of task lists, a click on the name selects the project.
+export component ProjectRow inherits Rectangle {
+    in property <ProjectItem> project;
+    in property <bool> collapsed: false;
+    in property <bool> selected: false;
+
+    callback toggle-expansion();
+    callback chosen();
+    callback edit();
+    callback add-list();
+
+    height: Layout.touch-target;
+    border-radius: Theme.radius-sm;
+    // An archived project stays listed while archived ones are shown, but reads
+    // as set aside.
+    opacity: root.project.is-archived ? 0.5 : 1.0;
+    // Hover is rendered by the inner targets: an id declared inside an `if` is
+    // not visible here.
+    background: root.selected ? Theme.surface-selected : transparent;
+
+    HorizontalLayout {
+        padding-right: Theme.space-sm;
+        spacing: 0px;
+
+        Rectangle {
+            width: Layout.touch-target;
+            background: chevron-touch.has-hover ? Theme.surface-hover : transparent;
+            border-radius: Theme.radius-sm;
+
+            if root.collapsed: Text {
+                text: root.project.short-label;
+                color: Theme.text-muted;
+                font-size: Theme.font-size-base;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                width: 100%;
+                height: 100%;
+            }
+
+            if !root.collapsed: Icon {
+                name: root.project.expanded ? IconName.chevron-down : IconName.chevron-right;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+            }
+
+            chevron-touch := TouchArea {
+                clicked => { root.toggle-expansion(); }
+            }
+            accessible-role: button;
+            accessible-label: @tr("Sidebar" => "Expand {0}", root.project.name);
+            accessible-expandable: true;
+            accessible-expanded: root.project.expanded;
+            accessible-action-default => { root.toggle-expansion(); }
+        }
+
+        if root.project.has-color: Rectangle {
+            width: Theme.space-sm;
+            height: 100%;
+
+            Rectangle {
+                width: Theme.space-sm - 2px;
+                height: self.width;
+                x: 0px;
+                y: (parent.height - self.height) / 2;
+                border-radius: self.width / 2;
+                background: root.project.color-brush;
+            }
+        }
+
+        if !root.collapsed: Rectangle {
+            horizontal-stretch: 1;
+            border-radius: Theme.radius-sm;
+            background: name-touch.has-hover ? Theme.surface-hover : transparent;
+
+            folder := Icon {
+                name: IconName.folder;
+                x: Theme.space-xs;
+                y: (parent.height - self.height) / 2;
+            }
+
+            Text {
+                x: folder.x + folder.width + Theme.space-xs;
+                width: parent.width - self.x;
+                text: root.project.name;
+                color: Theme.text;
+                font-size: Theme.font-size-base;
+                vertical-alignment: center;
+                height: 100%;
+                overflow: elide;
+            }
+
+            name-touch := TouchArea {
+                clicked => { root.chosen(); }
+            }
+            accessible-role: button;
+            accessible-label: root.project.name;
+            accessible-action-default => { root.chosen(); }
+        }
+
+        if !root.collapsed: RowButton {
+            icon: IconName.edit;
+            action-label: @tr("Sidebar" => "Edit {0}", root.project.name);
+            clicked => { root.edit(); }
+        }
+
+        if !root.collapsed: RowButton {
+            icon: IconName.plus;
+            action-label: @tr("Sidebar" => "Add a list to {0}", root.project.name);
+            clicked => { root.add-list(); }
+        }
+    }
+}

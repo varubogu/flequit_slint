@@ -1,6 +1,8 @@
 //! Errors surfaced to the user by the UI layer.
 
 use flequit_platform::PlatformError;
+use flequit_types::errors::repository_error::RepositoryError;
+use flequit_types::errors::service_error::ServiceError;
 
 /// A failure that reached the UI and must be shown to the user.
 ///
@@ -52,4 +54,74 @@ impl UiError {
     }
 }
 
+impl From<ServiceError> for UiError {
+    fn from(error: ServiceError) -> Self {
+        let code = match &error {
+            ServiceError::ValidationError(_) | ServiceError::InvalidArgument(_) => {
+                "input.validation-failed"
+            }
+            ServiceError::NotFound(_) => "entity.not-found",
+            ServiceError::Forbidden(_) => "permission.denied",
+            ServiceError::InternalError(_) => "internal.failed",
+            ServiceError::Repository(repository_error) => match repository_error {
+                RepositoryError::NotFound(_) | RepositoryError::UserNotFound(_) => {
+                    "entity.not-found"
+                }
+                RepositoryError::EmailConflict(_)
+                | RepositoryError::InvalidOperation(_)
+                | RepositoryError::ValidationError(_)
+                | RepositoryError::ConstraintViolation(_) => "input.validation-failed",
+                _ => "storage.failed",
+            },
+        };
+
+        Self::domain(code, error.to_string())
+    }
+}
+
 pub type UiResult<T> = Result<T, UiError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn maps_service_errors_to_stable_ui_codes() {
+        let cases = [
+            (
+                ServiceError::NotFound("task".to_string()),
+                "entity.not-found",
+            ),
+            (
+                ServiceError::ValidationError("title".to_string()),
+                "input.validation-failed",
+            ),
+            (
+                ServiceError::Repository(RepositoryError::DatabaseError("write".to_string())),
+                "storage.failed",
+            ),
+        ];
+
+        for (error, expected_code) in cases {
+            assert_eq!(UiError::from(error).code(), expected_code);
+        }
+    }
+
+    #[test]
+    fn preserves_repository_error_categories() {
+        assert_eq!(
+            UiError::from(ServiceError::Repository(RepositoryError::NotFound(
+                "task".to_string()
+            )))
+            .code(),
+            "entity.not-found"
+        );
+        assert_eq!(
+            UiError::from(ServiceError::Repository(
+                RepositoryError::ConstraintViolation("title".to_string())
+            ))
+            .code(),
+            "input.validation-failed"
+        );
+    }
+}

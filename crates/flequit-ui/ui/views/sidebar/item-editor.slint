@@ -1,0 +1,155 @@
+import { LineEdit } from "std-widgets.slint";
+import { Theme } from "../../globals/theme.slint";
+import { AppState } from "../../globals/app-state.slint";
+import { Actions } from "../../globals/actions.slint";
+import { EditorKind } from "../../globals/types.slint";
+import { DialogButton } from "../../components/dialog-button.slint";
+import { ColorPicker } from "../../components/color-picker.slint";
+
+// Modal editor for a project or a task list.
+//
+// Created when it opens, so its working copy of the name and colour starts from
+// `AppState.editor` and is thrown away on close. Only Save calls an action.
+export component ItemEditor inherits Rectangle {
+    private property <bool> is-project: AppState.editor.kind == EditorKind.project;
+    private property <bool> is-new: AppState.editor.target-id == "";
+    // Initialised from the editor state at creation; edited in place after.
+    property <string> name: AppState.editor.name;
+    // Named for the value, not the element: `color` is taken by Rectangle.
+    property <string> selected-color: AppState.editor.color;
+    // Deleting a project takes its lists and tasks with it, so it is confirmed.
+    property <bool> confirming-delete: false;
+
+    function close() {
+        AppState.editor-open = false;
+    }
+
+    function save() {
+        if (root.name == "") {
+            return;
+        }
+        if (root.is-project) {
+            if (root.is-new) {
+                Actions.create-project(root.name, root.selected-color);
+            } else {
+                Actions.update-project(AppState.editor.target-id, root.name, root.selected-color);
+            }
+        } else if (root.is-new) {
+            Actions.create-task-list(AppState.editor.project-id, root.name);
+        } else {
+            Actions.update-task-list(AppState.editor.target-id, root.name);
+        }
+        root.close();
+    }
+
+    function remove() {
+        if (root.is-project) {
+            Actions.delete-project(AppState.editor.target-id);
+        } else {
+            Actions.delete-task-list(AppState.editor.target-id);
+        }
+        root.close();
+    }
+
+    width: 100%;
+    height: 100%;
+    background: #00000080;
+
+    // Swallow clicks outside the dialog rather than closing it: the dialog
+    // holds unsaved text.
+    TouchArea { }
+
+    Rectangle {
+        width: min(parent.width - 2 * Theme.space-lg, 22 * Theme.space-xl);
+        height: dialog.preferred-height;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        background: Theme.surface-raised;
+        border-radius: Theme.radius-md;
+        border-width: 1px;
+        border-color: Theme.border;
+
+        dialog := VerticalLayout {
+            padding: Theme.space-lg;
+            spacing: Theme.space-md;
+
+            Text {
+                text: root.is-project
+                    ? (root.is-new ? @tr("Editor" => "New project")
+                                   : @tr("Editor" => "Edit project"))
+                    : (root.is-new ? @tr("Editor" => "New list")
+                                   : @tr("Editor" => "Edit list"));
+                color: Theme.text;
+                font-size: Theme.font-size-lg;
+            }
+
+            if !root.confirming-delete: LineEdit {
+                placeholder-text: @tr("Editor" => "Name");
+                accessible-label: @tr("Editor" => "Name");
+                text <=> root.name;
+                accepted => { root.save(); }
+            }
+
+            // Colour is a project-only attribute; lists inherit their look.
+            if !root.confirming-delete && root.is-project: ColorPicker {
+                value: root.selected-color;
+                picked(value) => { root.selected-color = value; }
+            }
+
+            if root.confirming-delete: Text {
+                text: root.is-project
+                    ? @tr("Editor" => "Delete {0} and everything in it?", root.name)
+                    : @tr("Editor" => "Delete {0} and its tasks?", root.name);
+                color: Theme.text;
+                font-size: Theme.font-size-base;
+                wrap: word-wrap;
+            }
+
+            HorizontalLayout {
+                spacing: Theme.space-sm;
+                alignment: end;
+
+                if !root.confirming-delete && !root.is-new: DialogButton {
+                    label: @tr("Editor" => "Delete");
+                    destructive: true;
+                    clicked => { root.confirming-delete = true; }
+                }
+
+                if !root.confirming-delete && root.is-project && !root.is-new: DialogButton {
+                    label: AppState.editor.archived
+                        ? @tr("Editor" => "Unarchive")
+                        : @tr("Editor" => "Archive");
+                    clicked => {
+                        Actions.archive-project(AppState.editor.target-id,
+                                                !AppState.editor.archived);
+                        root.close();
+                    }
+                }
+
+                DialogButton {
+                    label: @tr("Editor" => "Cancel");
+                    clicked => {
+                        if (root.confirming-delete) {
+                            root.confirming-delete = false;
+                        } else {
+                            root.close();
+                        }
+                    }
+                }
+
+                if root.confirming-delete: DialogButton {
+                    label: @tr("Editor" => "Delete for good");
+                    destructive: true;
+                    clicked => { root.remove(); }
+                }
+
+                if !root.confirming-delete: DialogButton {
+                    label: @tr("Editor" => "Save");
+                    primary: true;
+                    enabled: root.name != "";
+                    clicked => { root.save(); }
+                }
+            }
+        }
+    }
+}

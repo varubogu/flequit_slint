@@ -1,4 +1,4 @@
-import { LocaleItem } from "types.slint";
+import { DueUnit, LocaleItem, RecurrenceUnit, RecurrenceWeekOfMonth } from "types.slint";
 
 // Translation surface.
 //
@@ -13,11 +13,24 @@ export global I18n {
         { tag: "ja", display-name: "日本語" },
     ];
 
-    callback locale-changed(string);
+    // Switching language is persisted, so it goes through
+    // `Actions.update-language` like every other setting. Rust writes back
+    // `current-locale` once the bundled translation has been selected.
+
+    // Names a user-defined due filter, e.g. "Within 10 minutes".
+    //
+    // Whole sentences per unit rather than a number plus a unit word, because
+    // the word order and the counting word differ between languages.
+    pure public function custom-due-label(value: int, unit: DueUnit) -> string {
+        return unit == DueUnit.minute ? @tr("DueFilter" => "Within {0} minutes", value)
+            : unit == DueUnit.hour ? @tr("DueFilter" => "Within {0} hours", value)
+            : @tr("DueFilter" => "Next {0} days", value);
+    }
 
     // Maps a due-filter key to its translated label.
-    pure public function due-filter-label(key: string) -> string {
-        return key == "overdue" ? @tr("DueFilter" => "Overdue")
+    pure public function due-filter-label(key: string, custom-value: int, custom-unit: DueUnit) -> string {
+        return custom-value > 0 ? root.custom-due-label(custom-value, custom-unit)
+            : key == "overdue" ? @tr("DueFilter" => "Overdue")
             : key == "today" ? @tr("DueFilter" => "Today")
             : key == "tomorrow" ? @tr("DueFilter" => "Tomorrow")
             : key == "three-days" ? @tr("DueFilter" => "Next 3 days")
@@ -29,14 +42,102 @@ export global I18n {
             : key;
     }
 
+    pure public function datetime-format-name(key: string, custom-name: string) -> string {
+        return key == "default" ? @tr("DateTimeFormat" => "Default")
+            : key == "japanese" ? @tr("DateTimeFormat" => "Japan (24-hour)")
+            : key == "american" ? @tr("DateTimeFormat" => "United States (24-hour)")
+            : key == "iso" ? @tr("DateTimeFormat" => "ISO 8601")
+            : key == "custom" ? @tr("DateTimeFormat" => "Custom")
+            : custom-name;
+    }
+
+    // Names the period a recurrence rule steps by, for the unit picker.
+    pure public function recurrence-unit-label(unit: RecurrenceUnit) -> string {
+        return unit == RecurrenceUnit.minute ? @tr("Recurrence" => "Minute")
+            : unit == RecurrenceUnit.hour ? @tr("Recurrence" => "Hour")
+            : unit == RecurrenceUnit.day ? @tr("Recurrence" => "Day")
+            : unit == RecurrenceUnit.week ? @tr("Recurrence" => "Week")
+            : unit == RecurrenceUnit.month ? @tr("Recurrence" => "Month")
+            : unit == RecurrenceUnit.quarter ? @tr("Recurrence" => "Quarter")
+            : unit == RecurrenceUnit.half-year ? @tr("Recurrence" => "Half-year")
+            : @tr("Recurrence" => "Year");
+    }
+
+    // One-line description of a rule, shown wherever a task's recurrence is
+    // summarised. Whole sentences rather than "every" + a unit, because the
+    // word order differs between languages.
+    pure public function recurrence-summary(unit: RecurrenceUnit, interval: int) -> string {
+        return interval <= 1
+            ? (unit == RecurrenceUnit.minute ? @tr("Recurrence" => "Every minute")
+                : unit == RecurrenceUnit.hour ? @tr("Recurrence" => "Every hour")
+                : unit == RecurrenceUnit.day ? @tr("Recurrence" => "Every day")
+                : unit == RecurrenceUnit.week ? @tr("Recurrence" => "Every week")
+                : unit == RecurrenceUnit.month ? @tr("Recurrence" => "Every month")
+                : unit == RecurrenceUnit.quarter ? @tr("Recurrence" => "Every quarter")
+                : unit == RecurrenceUnit.half-year ? @tr("Recurrence" => "Every half-year")
+                : @tr("Recurrence" => "Every year"))
+            : (unit == RecurrenceUnit.minute ? @tr("Recurrence" => "Every {0} minutes", interval)
+                : unit == RecurrenceUnit.hour ? @tr("Recurrence" => "Every {0} hours", interval)
+                : unit == RecurrenceUnit.day ? @tr("Recurrence" => "Every {0} days", interval)
+                : unit == RecurrenceUnit.week ? @tr("Recurrence" => "Every {0} weeks", interval)
+                : unit == RecurrenceUnit.month ? @tr("Recurrence" => "Every {0} months", interval)
+                : unit == RecurrenceUnit.quarter ? @tr("Recurrence" => "Every {0} quarters", interval)
+                : unit == RecurrenceUnit.half-year ? @tr("Recurrence" => "Every {0} half-years", interval)
+                : @tr("Recurrence" => "Every {0} years", interval));
+    }
+
+    // Weekday name for a zero-based index, Sunday first.
+    pure public function weekday-label(index: int) -> string {
+        return index == 0 ? @tr("Weekday" => "Sunday")
+            : index == 1 ? @tr("Weekday" => "Monday")
+            : index == 2 ? @tr("Weekday" => "Tuesday")
+            : index == 3 ? @tr("Weekday" => "Wednesday")
+            : index == 4 ? @tr("Weekday" => "Thursday")
+            : index == 5 ? @tr("Weekday" => "Friday")
+            : @tr("Weekday" => "Saturday");
+    }
+
+    // Abbreviated weekday, for buttons too narrow for the full name. The full
+    // name is still what assistive technology reads.
+    pure public function weekday-abbreviation(index: int) -> string {
+        return index == 0 ? @tr("WeekdayShort" => "Sun")
+            : index == 1 ? @tr("WeekdayShort" => "Mon")
+            : index == 2 ? @tr("WeekdayShort" => "Tue")
+            : index == 3 ? @tr("WeekdayShort" => "Wed")
+            : index == 4 ? @tr("WeekdayShort" => "Thu")
+            : index == 5 ? @tr("WeekdayShort" => "Fri")
+            : @tr("WeekdayShort" => "Sat");
+    }
+
+    pure public function week-of-month-label(week: RecurrenceWeekOfMonth) -> string {
+        return week == RecurrenceWeekOfMonth.first ? @tr("Recurrence" => "First week")
+            : week == RecurrenceWeekOfMonth.second ? @tr("Recurrence" => "Second week")
+            : week == RecurrenceWeekOfMonth.third ? @tr("Recurrence" => "Third week")
+            : week == RecurrenceWeekOfMonth.fourth ? @tr("Recurrence" => "Fourth week")
+            : @tr("Recurrence" => "Last week");
+    }
+
     // Maps an error code emitted by a ViewModel to translated text.
     pure public function error-message(code: string) -> string {
         return code == "task.save-failed" ? @tr("Error" => "Could not save the task.")
             : code == "task.delete-failed" ? @tr("Error" => "Could not delete the task.")
             : code == "project.load-failed" ? @tr("Error" => "Could not load projects.")
             : code == "storage.unavailable" ? @tr("Error" => "Local storage is unavailable.")
+            : code == "entity.not-found" ? @tr("Error" => "The requested item could not be found.")
+            : code == "input.validation-failed" ? @tr("Error" => "Please check the entered values.")
+            : code == "storage.failed" ? @tr("Error" => "Could not access local storage.")
+            : code == "permission.denied" ? @tr("Error" => "You do not have permission to perform this operation.")
+            : code == "internal.failed" ? @tr("Error" => "An internal error occurred.")
             : code == "input.malformed-id" ? @tr("Error" => "The item could not be identified.")
             : code == "platform.failed" ? @tr("Error" => "The operation is not available on this device.")
+            : code == "settings.save-failed" ? @tr("Error" => "Could not save settings.")
+            : code == "recurrence.save-failed" ? @tr("Error" => "Could not save the repeat schedule.")
+            : code == "recurrence.delete-failed" ? @tr("Error" => "Could not remove the repeat schedule.")
+            : code == "reminder.save-failed" ? @tr("Error" => "Could not save the reminder.")
+            : code == "reminder.must-be-future" ? @tr("Error" => "Choose a future time for the reminder.")
+            : code == "notification.permission-denied" ? @tr("Error" => "Notification permission is required for reminders.")
+            : code == "notification.permission-failed" ? @tr("Error" => "Could not request notification permission.")
+            : code == "notification.schedule-failed" ? @tr("Error" => "The reminder was saved, but the notification could not be scheduled.")
             : code == "" ? ""
             : @tr("Error" => "Something went wrong.");
     }

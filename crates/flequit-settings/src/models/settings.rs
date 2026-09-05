@@ -5,8 +5,10 @@
 use partially::Partial;
 use serde::{Deserialize, Serialize};
 
+use super::custom_due_filter::CustomDueFilter;
 use super::datetime_format::DateTimeFormat;
 use super::due_date_buttons::DueDateButtons;
+use super::recurrence_preset::RecurrencePreset;
 use super::time_label::TimeLabel;
 use super::view_item::ViewItem;
 
@@ -36,8 +38,12 @@ pub struct Settings {
     pub week_start: String,
     /// タイムゾーン
     pub timezone: String,
-    /// カスタム期日日数
-    pub custom_due_days: Vec<i32>,
+    /// カスタム期限フィルタ（値と単位。旧形式の日数配列も読み込める）
+    #[serde(default, alias = "custom_due_days")]
+    pub custom_due_filters: Vec<CustomDueFilter>,
+    /// 繰り返し設定のカスタム項目
+    #[serde(default)]
+    pub custom_recurrence_presets: Vec<RecurrencePreset>,
     /// 選択した日時フォーマット
     pub datetime_format: DateTimeFormat,
     /// 日時フォーマット一覧
@@ -58,16 +64,32 @@ impl Default for Settings {
             theme: "system".to_string(),
             language: "ja".to_string(),
             font: "system".to_string(),
-            font_size: 14,
+            font_size: 13,
             font_color: "#000000".to_string(),
             background_color: "#FFFFFF".to_string(),
-            week_start: "monday".to_string(),
+            week_start: "sunday".to_string(),
             timezone: "Asia/Tokyo".to_string(),
-            custom_due_days: vec![1, 3, 7, 14, 30],
+            custom_due_filters: vec![],
+            custom_recurrence_presets: vec![],
             datetime_format: DateTimeFormat::default(),
             datetime_formats: vec![],
             time_labels: vec![],
-            due_date_buttons: vec![],
+            due_date_buttons: vec![
+                DueDateButtons::new("overdue".into(), "overdue".into(), false, 0),
+                DueDateButtons::new("today".into(), "today".into(), true, 1),
+                DueDateButtons::new("tomorrow".into(), "tomorrow".into(), true, 2),
+                DueDateButtons::new("three-days".into(), "three-days".into(), false, 3),
+                DueDateButtons::new("this-week".into(), "this-week".into(), true, 4),
+                DueDateButtons::new("this-month".into(), "this-month".into(), false, 5),
+                DueDateButtons::new("this-quarter".into(), "this-quarter".into(), false, 6),
+                DueDateButtons::new("this-year".into(), "this-year".into(), false, 7),
+                DueDateButtons::new(
+                    "this-fiscal-year".into(),
+                    "this-fiscal-year".into(),
+                    false,
+                    8,
+                ),
+            ],
             view_items: vec![],
         }
     }

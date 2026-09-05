@@ -5,12 +5,17 @@
 
 use crate::unified::*;
 use async_trait::async_trait;
-use flequit_core::ports::infrastructure_repositories::InfrastructureRepositoriesTrait;
+use chrono::{DateTime, Utc};
+use flequit_core::ports::infrastructure_repositories::{
+    InfrastructureRepositoriesTrait, TransactionalDeletionPort,
+};
 use flequit_infrastructure_automerge::infrastructure::local_automerge_repositories::LocalAutomergeRepositories;
 use flequit_infrastructure_automerge::infrastructure::user_preferences::tag_bookmark::TagBookmarkLocalAutomergeRepository;
 use flequit_infrastructure_sqlite::infrastructure::database_manager::DatabaseManager;
 use flequit_infrastructure_sqlite::infrastructure::local_sqlite_repositories::LocalSqliteRepositories;
 use flequit_infrastructure_sqlite::infrastructure::user_preferences::tag_bookmark::TagBookmarkLocalSqliteRepository;
+use flequit_model::types::id_types::{ProjectId, TagId, TaskId, TaskListId, UserId};
+use flequit_types::errors::repository_error::RepositoryError;
 use std::sync::{Arc, Mutex};
 use tokio::sync::RwLock;
 
@@ -92,6 +97,52 @@ impl MockInfrastructureRepositories {
         if let Ok(mut log) = self.call_log.lock() {
             log.clear();
         }
+    }
+}
+
+#[async_trait]
+impl TransactionalDeletionPort for MockInfrastructureRepositories {
+    async fn delete_project_transactionally(
+        &self,
+        _project_id: &ProjectId,
+        _user_id: &UserId,
+        _timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError> {
+        self.log_call("delete_project_transactionally");
+        Ok(())
+    }
+
+    async fn delete_task_transactionally(
+        &self,
+        _project_id: &ProjectId,
+        _task_id: &TaskId,
+        _user_id: &UserId,
+        _timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError> {
+        self.log_call("delete_task_transactionally");
+        Ok(())
+    }
+
+    async fn delete_task_list_transactionally(
+        &self,
+        _project_id: &ProjectId,
+        _task_list_id: &TaskListId,
+        _user_id: &UserId,
+        _timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError> {
+        self.log_call("delete_task_list_transactionally");
+        Ok(())
+    }
+
+    async fn delete_tag_transactionally(
+        &self,
+        _project_id: &ProjectId,
+        _tag_id: &TagId,
+        _user_id: &UserId,
+        _timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError> {
+        self.log_call("delete_tag_transactionally");
+        Ok(())
     }
 }
 

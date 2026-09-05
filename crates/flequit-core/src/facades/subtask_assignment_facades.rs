@@ -10,7 +10,7 @@ pub async fn add<R>(
     subtask_id: &SubTaskId,
     assigned_user_id: &UserId,
     user_id: &UserId,
-) -> Result<bool, String>
+) -> Result<bool, ServiceError>
 where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
@@ -24,8 +24,8 @@ where
     .await
     {
         Ok(_) => Ok(true),
-        Err(ServiceError::ValidationError(msg)) => Err(msg),
-        Err(e) => Err(format!("Failed to add subtask assignment: {:?}", e)),
+        Err(ServiceError::ValidationError(message)) => Err(ServiceError::ValidationError(message)),
+        Err(error) => Err(error),
     }
 }
 
@@ -34,14 +34,14 @@ pub async fn remove<R>(
     project_id: &ProjectId,
     subtask_id: &SubTaskId,
     user_id: &UserId,
-) -> Result<bool, String>
+) -> Result<bool, ServiceError>
 where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
     match service::remove_subtask_assignment(repositories, project_id, subtask_id, user_id).await {
         Ok(_) => Ok(true),
-        Err(ServiceError::ValidationError(msg)) => Err(msg),
-        Err(e) => Err(format!("Failed to remove subtask assignment: {:?}", e)),
+        Err(ServiceError::ValidationError(message)) => Err(ServiceError::ValidationError(message)),
+        Err(error) => Err(error),
     }
 }
 
@@ -49,14 +49,14 @@ pub async fn get_user_ids_by_subtask_id<R>(
     repositories: &R,
     project_id: &ProjectId,
     subtask_id: &SubTaskId,
-) -> Result<Vec<UserId>, String>
+) -> Result<Vec<UserId>, ServiceError>
 where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
     match service::get_user_ids_by_subtask_id(repositories, project_id, subtask_id).await {
         Ok(user_ids) => Ok(user_ids),
-        Err(ServiceError::ValidationError(msg)) => Err(msg),
-        Err(e) => Err(format!("Failed to get user IDs by subtask ID: {:?}", e)),
+        Err(ServiceError::ValidationError(message)) => Err(ServiceError::ValidationError(message)),
+        Err(error) => Err(error),
     }
 }
 
@@ -64,14 +64,14 @@ pub async fn get_subtask_ids_by_user_id<R>(
     repositories: &R,
     project_id: &ProjectId,
     user_id: &UserId,
-) -> Result<Vec<SubTaskId>, String>
+) -> Result<Vec<SubTaskId>, ServiceError>
 where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
     match service::get_subtask_ids_by_user_id(repositories, project_id, user_id).await {
         Ok(subtask_ids) => Ok(subtask_ids),
-        Err(ServiceError::ValidationError(msg)) => Err(msg),
-        Err(e) => Err(format!("Failed to get subtask IDs by user ID: {:?}", e)),
+        Err(ServiceError::ValidationError(message)) => Err(ServiceError::ValidationError(message)),
+        Err(error) => Err(error),
     }
 }
 
@@ -81,7 +81,7 @@ pub async fn update<R>(
     subtask_id: &SubTaskId,
     user_ids: &[UserId],
     user_id: &UserId,
-) -> Result<bool, String>
+) -> Result<bool, ServiceError>
 where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
@@ -95,8 +95,8 @@ where
     .await
     {
         Ok(_) => Ok(true),
-        Err(ServiceError::ValidationError(msg)) => Err(msg),
-        Err(e) => Err(format!("Failed to update subtask assignments: {:?}", e)),
+        Err(ServiceError::ValidationError(message)) => Err(ServiceError::ValidationError(message)),
+        Err(error) => Err(error),
     }
 }
 
@@ -104,7 +104,7 @@ pub async fn remove_all_by_subtask_id<R>(
     repositories: &R,
     project_id: &ProjectId,
     subtask_id: &SubTaskId,
-) -> Result<bool, String>
+) -> Result<bool, ServiceError>
 where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
@@ -116,11 +116,8 @@ where
     .await
     {
         Ok(_) => Ok(true),
-        Err(ServiceError::ValidationError(msg)) => Err(msg),
-        Err(e) => Err(format!(
-            "Failed to remove all subtask assignments by subtask ID: {:?}",
-            e
-        )),
+        Err(ServiceError::ValidationError(message)) => Err(ServiceError::ValidationError(message)),
+        Err(error) => Err(error),
     }
 }
 
@@ -128,7 +125,7 @@ pub async fn remove_all_by_user_id<R>(
     repositories: &R,
     project_id: &ProjectId,
     user_id: &UserId,
-) -> Result<bool, String>
+) -> Result<bool, ServiceError>
 where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
@@ -136,24 +133,21 @@ where
         .await
     {
         Ok(_) => Ok(true),
-        Err(ServiceError::ValidationError(msg)) => Err(msg),
-        Err(e) => Err(format!(
-            "Failed to remove all subtask assignments by user ID: {:?}",
-            e
-        )),
+        Err(ServiceError::ValidationError(message)) => Err(ServiceError::ValidationError(message)),
+        Err(error) => Err(error),
     }
 }
 
 pub async fn get_all<R>(
     repositories: &R,
     project_id: &ProjectId,
-) -> Result<Vec<SubTaskAssignment>, String>
+) -> Result<Vec<SubTaskAssignment>, ServiceError>
 where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
     match service::get_all_subtask_assignments(repositories, project_id).await {
         Ok(assignments) => Ok(assignments),
-        Err(ServiceError::ValidationError(msg)) => Err(msg),
-        Err(e) => Err(format!("Failed to get all subtask assignments: {:?}", e)),
+        Err(ServiceError::ValidationError(message)) => Err(ServiceError::ValidationError(message)),
+        Err(error) => Err(error),
     }
 }

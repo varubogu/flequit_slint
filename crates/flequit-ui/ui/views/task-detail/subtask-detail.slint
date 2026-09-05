@@ -1,0 +1,226 @@
+import { ScrollView, LineEdit, TextEdit } from "std-widgets.slint";
+import { Theme } from "../../globals/theme.slint";
+import { Layout } from "../../globals/layout.slint";
+import { AppState } from "../../globals/app-state.slint";
+import { Actions } from "../../globals/actions.slint";
+import { SubTaskItem, TaskPriority, TaskStatus } from "../../globals/types.slint";
+import { IconButton } from "../../components/icon-button.slint";
+import { DateTimePicker } from "../../components/date-time-picker.slint";
+import { ChoiceButton } from "../../components/choice-button.slint";
+import { IconName } from "../../components/icon.slint";
+
+// Subtask detail pane.
+//
+// Shown in place of the task detail while a subtask is selected. A subtask is a
+// step of its parent, so this pane offers the fields that make a step
+// actionable — title, schedule, status, priority and notes — and always keeps a
+// way back to the task it belongs to.
+export component SubTaskDetailView inherits Rectangle {
+    in property <SubTaskItem> subtask;
+    // The title of the parent task, shown in the back affordance.
+    in property <string> parent-title;
+
+    background: Theme.background;
+
+    VerticalLayout {
+        padding: Layout.content-padding;
+        padding-top: Layout.content-padding + Layout.safe-area-top;
+        padding-bottom: Layout.content-padding + Layout.safe-area-bottom;
+        spacing: Theme.space-md;
+
+        // Header
+        HorizontalLayout {
+            spacing: Theme.space-sm;
+
+            IconButton {
+                icon: IconName.chevron-left;
+                tooltip: @tr("SubTaskDetail" => "Back to {0}", root.parent-title);
+                clicked => { Actions.go-to-parent-task(); }
+            }
+
+            Text {
+                text: @tr("SubTaskDetail" => "Subtask of {0}", root.parent-title);
+                color: Theme.text-muted;
+                font-size: Theme.font-size-sm;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+                overflow: elide;
+            }
+
+            IconButton {
+                icon: IconName.trash;
+                tooltip: @tr("SubTaskDetail" => "Delete subtask");
+                clicked => { Actions.delete-subtask(root.subtask.id); }
+            }
+        }
+
+        ScrollView {
+            vertical-stretch: 1;
+
+            VerticalLayout {
+                spacing: Theme.space-md;
+                alignment: start;
+
+                LineEdit {
+                    text: root.subtask.title;
+                    font-size: Theme.font-size-title;
+                    placeholder-text: @tr("SubTaskDetail" => "Subtask title");
+                    accessible-label: @tr("SubTaskDetail" => "Subtask title");
+                    edited(value) => { Actions.update-subtask-title(root.subtask.id, value); }
+                }
+
+                HorizontalLayout {
+                    spacing: Theme.space-sm;
+                    Text {
+                        text: @tr("SubTaskDetail" => "Due");
+                        color: Theme.text-muted;
+                        font-size: Theme.font-size-sm;
+                        width: 80px;
+                    }
+                    DateTimePicker {
+                        horizontal-stretch: 1;
+                        value-label: root.subtask.due-label;
+                        has-value: root.subtask.has-due;
+                        year: root.subtask.due-year;
+                        month: root.subtask.due-month;
+                        day: root.subtask.due-day;
+                        hour: root.subtask.due-hour;
+                        minute: root.subtask.due-minute;
+                        danger: root.subtask.overdue;
+                        accepted(year, month, day, hour, minute) => {
+                            Actions.update-subtask-due(root.subtask.id, year, month, day, hour, minute);
+                        }
+                        cleared => { Actions.clear-subtask-due(root.subtask.id); }
+                    }
+                }
+
+                VerticalLayout {
+                    spacing: Theme.space-sm;
+                    Text {
+                        text: @tr("SubTaskDetail" => "Status");
+                        color: Theme.text-muted;
+                        font-size: Theme.font-size-sm;
+                    }
+
+                    HorizontalLayout {
+                        spacing: Theme.space-xs;
+
+                        ChoiceButton {
+                            label: @tr("Status" => "Not started");
+                            action-label: @tr("Status" => "Set status to {0}", self.label);
+                            indicator-color: Theme.text-muted;
+                            selected: root.subtask.status == TaskStatus.not-started;
+                            clicked => {
+                                Actions.update-subtask-status(root.subtask.id, TaskStatus.not-started);
+                            }
+                        }
+                        ChoiceButton {
+                            label: @tr("Status" => "In progress");
+                            action-label: @tr("Status" => "Set status to {0}", self.label);
+                            indicator-color: Theme.accent;
+                            selected: root.subtask.status == TaskStatus.in-progress;
+                            clicked => {
+                                Actions.update-subtask-status(root.subtask.id, TaskStatus.in-progress);
+                            }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: Theme.space-xs;
+
+                        ChoiceButton {
+                            label: @tr("Status" => "Waiting");
+                            action-label: @tr("Status" => "Set status to {0}", self.label);
+                            indicator-color: Theme.warning;
+                            selected: root.subtask.status == TaskStatus.waiting;
+                            clicked => {
+                                Actions.update-subtask-status(root.subtask.id, TaskStatus.waiting);
+                            }
+                        }
+                        ChoiceButton {
+                            label: @tr("Status" => "Completed");
+                            action-label: @tr("Status" => "Set status to {0}", self.label);
+                            indicator-color: Theme.success;
+                            selected: root.subtask.status == TaskStatus.completed;
+                            clicked => {
+                                Actions.update-subtask-status(root.subtask.id, TaskStatus.completed);
+                            }
+                        }
+                        ChoiceButton {
+                            label: @tr("Status" => "Cancelled");
+                            action-label: @tr("Status" => "Set status to {0}", self.label);
+                            indicator-color: Theme.danger;
+                            selected: root.subtask.status == TaskStatus.cancelled;
+                            clicked => {
+                                Actions.update-subtask-status(root.subtask.id, TaskStatus.cancelled);
+                            }
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    spacing: Theme.space-sm;
+                    Text {
+                        text: @tr("SubTaskDetail" => "Priority");
+                        color: Theme.text-muted;
+                        font-size: Theme.font-size-sm;
+                    }
+                    HorizontalLayout {
+                        spacing: Theme.space-xs;
+
+                        ChoiceButton {
+                            label: @tr("Priority" => "None");
+                            action-label: @tr("Priority" => "Set priority to {0}", self.label);
+                            indicator-color: transparent;
+                            selected: root.subtask.priority == TaskPriority.none;
+                            clicked => {
+                                Actions.update-subtask-priority(root.subtask.id, TaskPriority.none);
+                            }
+                        }
+                        ChoiceButton {
+                            label: @tr("Priority" => "Low");
+                            action-label: @tr("Priority" => "Set priority to {0}", self.label);
+                            indicator-color: Theme.priority-low;
+                            selected: root.subtask.priority == TaskPriority.low;
+                            clicked => {
+                                Actions.update-subtask-priority(root.subtask.id, TaskPriority.low);
+                            }
+                        }
+                        ChoiceButton {
+                            label: @tr("Priority" => "Medium");
+                            action-label: @tr("Priority" => "Set priority to {0}", self.label);
+                            indicator-color: Theme.priority-medium;
+                            selected: root.subtask.priority == TaskPriority.medium;
+                            clicked => {
+                                Actions.update-subtask-priority(root.subtask.id, TaskPriority.medium);
+                            }
+                        }
+                        ChoiceButton {
+                            label: @tr("Priority" => "High");
+                            action-label: @tr("Priority" => "Set priority to {0}", self.label);
+                            indicator-color: Theme.priority-high;
+                            selected: root.subtask.priority == TaskPriority.high;
+                            clicked => {
+                                Actions.update-subtask-priority(root.subtask.id, TaskPriority.high);
+                            }
+                        }
+                    }
+                }
+
+                Text {
+                    text: @tr("SubTaskDetail" => "Notes");
+                    color: Theme.text-muted;
+                    font-size: Theme.font-size-sm;
+                }
+
+                TextEdit {
+                    height: 160px;
+                    text: root.subtask.notes;
+                    accessible-label: @tr("SubTaskDetail" => "Subtask notes");
+                    wrap: word-wrap;
+                    edited => { Actions.update-subtask-notes(root.subtask.id, self.text); }
+                }
+            }
+        }
+    }
+}

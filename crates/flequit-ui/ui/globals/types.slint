@@ -10,16 +10,117 @@ export enum TaskPriority { none, low, medium, high }
 
 export enum Pane { list, detail }
 
+// How the task list is ordered. `manual` is the stored order, which is what
+// drag and drop rearranges; the others are derived and cannot be dragged.
+export enum TaskSort { manual, due, priority, title }
+
+export enum SettingsCategory { basic, date-time, appearance, account }
+
+// The period a recurrence rule steps by. Mirrors the domain enum, including the
+// units the editor does not offer, so a rule written by another client survives
+// a round trip through this UI.
+export enum RecurrenceUnit { minute, hour, day, week, month, quarter, half-year, year }
+
+// How a monthly (or longer) rule picks its day inside the period.
+export enum RecurrenceMonthlyMode { same-day, day-of-month, weekday-of-month }
+
+export enum RecurrenceWeekOfMonth { first, second, third, fourth, last }
+
+// What stops a recurrence rule.
+export enum RecurrenceEnd { never, on-date, after-count }
+
+// The recurrence editor's working copy of a task's rule.
+//
+// Transient view state: Rust fills it in when the editor opens and the dialog
+// edits its own copy from there. Saving goes through Actions.
+//
+// The weekday flags are seven fields rather than an array because .slint has no
+// way to write back into one element of a model.
+export struct RecurrenceState {
+    task-id: string,
+    // False when the task does not repeat; the editor still shows defaults.
+    enabled: bool,
+    unit: RecurrenceUnit,
+    interval: int,
+    // Weekly rules: the weekdays the rule fires on.
+    sunday: bool,
+    monday: bool,
+    tuesday: bool,
+    wednesday: bool,
+    thursday: bool,
+    friday: bool,
+    saturday: bool,
+    // Monthly and longer rules: how the day inside the period is chosen.
+    monthly-mode: RecurrenceMonthlyMode,
+    day-of-month: int,
+    week-of-month: RecurrenceWeekOfMonth,
+    // 0 is Sunday, matching `weekday-label`.
+    weekday-of-month: int,
+    end-kind: RecurrenceEnd,
+    // Local calendar fields, like the due-date picker uses.
+    end-year: int,
+    end-month: int,
+    end-day: int,
+    max-occurrences: int,
+}
+
+export struct DateTimeFormatSetting {
+    id: string,
+    name: string,
+    format: string,
+    kind: string,
+}
+
+export struct DueButtonSetting {
+    key: string,
+    visible: bool,
+}
+
+// The horizon a user-defined due filter covers. Longer periods are already
+// covered by the built-in week / month / quarter / year buttons.
+export enum DueUnit { minute, hour, day }
+
+// A due filter the user added, e.g. 10 minutes or 5 days.
+export struct CustomDueFilterSetting {
+    value: int,
+    unit: DueUnit,
+}
+
+// A recurrence pattern the user saved for reuse in the repeat editor.
+export struct RecurrencePresetSetting {
+    interval: int,
+    unit: RecurrenceUnit,
+}
+
+export struct ReminderItem {
+    // UTC RFC 3339 timestamp used as the stable removal key.
+    key: string,
+    label: string,
+}
+
 export struct SubTaskItem {
     id: string,
     task-id: string,
     title: string,
     status: TaskStatus,
+    priority: TaskPriority,
     completed: bool,
+    notes: string,
+    // Pre-formatted in the user's timezone and format preference, like TaskItem.
+    due-label: string,
+    has-due: bool,
+    overdue: bool,
+    // Local display values consumed by DateTimePicker.
+    due-year: int,
+    due-month: int,
+    due-day: int,
+    due-hour: int,
+    due-minute: int,
 }
 
 export struct TaskItem {
     id: string,
+    project-id: string,
     list-id: string,
     title: string,
     status: TaskStatus,
@@ -29,13 +130,62 @@ export struct TaskItem {
     due-label: string,
     has-due: bool,
     overdue: bool,
+    // Local display values consumed by DateTimePicker.
+    due-year: int,
+    due-month: int,
+    due-day: int,
+    due-hour: int,
+    due-minute: int,
+    // A range task spans start → due; otherwise only the due date is used.
+    is-range-date: bool,
+    start-label: string,
+    has-start: bool,
+    start-year: int,
+    start-month: int,
+    start-day: int,
+    start-hour: int,
+    start-minute: int,
     notes: string,
     tag-labels: [string],
     subtasks: [SubTaskItem],
     subtask-count: int,
     subtask-done-count: int,
+    // Recurrence, summarised by `I18n.recurrence-summary`. The unit and the
+    // interval are passed separately because the sentence is built in .slint.
+    has-recurrence: bool,
+    recurrence-unit: RecurrenceUnit,
+    recurrence-interval: int,
+    reminders: [ReminderItem],
     // Accordion state, owned by TaskListUiViewModel and mirrored here.
     expanded: bool,
+}
+
+// Which kind of item the sidebar editor is working on.
+export enum EditorKind { project, task-list }
+
+// A colour a project can be tagged with.
+//
+// `value` is what the domain stores and what the editor sends back; `swatch` is
+// the same colour already parsed, because .slint cannot turn text into a colour.
+export struct ColorOption {
+    value: string,
+    swatch: brush,
+}
+
+// What the sidebar editor is editing.
+//
+// Transient view state: it is filled in when the editor opens and discarded
+// when it closes. Saving goes through Actions like every other mutation.
+export struct EditorState {
+    kind: EditorKind,
+    // Empty when creating a new item.
+    target-id: string,
+    // The project being edited, or the one a new list belongs to.
+    project-id: string,
+    name: string,
+    // Hex colour, empty when unset. Projects only.
+    color: string,
+    archived: bool,
 }
 
 export struct TaskListItem {
@@ -50,10 +200,33 @@ export struct ProjectItem {
     name: string,
     // Fallback shown when collapsed and no icon is set: first 2-3 characters.
     short-label: string,
+    // Hex colour as stored, empty when unset. Sent back by the editor.
     color: string,
+    // The same colour parsed for rendering; transparent when unset.
+    color-brush: brush,
     has-color: bool,
+    is-archived: bool,
     task-lists: [TaskListItem],
     expanded: bool,
+}
+
+export struct TagItem {
+    id: string,
+    project-id: string,
+    name: string,
+    color: string,
+    color-brush: brush,
+    has-color: bool,
+    bookmarked: bool,
+    assigned: bool,
+}
+
+export struct BookmarkedTagItem {
+    id: string,
+    project-id: string,
+    name: string,
+    color-brush: brush,
+    has-color: bool,
 }
 
 export struct DueFilterItem {
@@ -64,6 +237,20 @@ export struct DueFilterItem {
     query: string,
     count: int,
     visible: bool,
+    // Zero for built-in filters; positive for user-defined filters, where
+    // `custom-unit` says what the value counts.
+    custom-value: int,
+    custom-unit: DueUnit,
+}
+
+export enum SearchSuggestionKind { due, project, task-list, account, tag }
+
+export struct SearchSuggestion {
+    // The complete search text after this suggestion is selected.
+    query: string,
+    // The token shown in the candidate list, e.g. "@today" or "#work".
+    replacement: string,
+    kind: SearchSuggestionKind,
 }
 
 export struct LocaleItem {

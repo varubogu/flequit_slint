@@ -10,7 +10,7 @@ pub async fn add<R>(
     task_id: &TaskId,
     assigned_user_id: &UserId,
     user_id: &UserId,
-) -> Result<bool, String>
+) -> Result<bool, ServiceError>
 where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
@@ -18,8 +18,8 @@ where
         .await
     {
         Ok(_) => Ok(true),
-        Err(ServiceError::ValidationError(msg)) => Err(msg),
-        Err(e) => Err(format!("Failed to add task assignment: {:?}", e)),
+        Err(ServiceError::ValidationError(message)) => Err(ServiceError::ValidationError(message)),
+        Err(error) => Err(error),
     }
 }
 
@@ -28,14 +28,14 @@ pub async fn remove<R>(
     project_id: &ProjectId,
     task_id: &TaskId,
     user_id: &UserId,
-) -> Result<bool, String>
+) -> Result<bool, ServiceError>
 where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
     match service::remove_task_assignment(repositories, project_id, task_id, user_id).await {
         Ok(_) => Ok(true),
-        Err(ServiceError::ValidationError(msg)) => Err(msg),
-        Err(e) => Err(format!("Failed to remove task assignment: {:?}", e)),
+        Err(ServiceError::ValidationError(message)) => Err(ServiceError::ValidationError(message)),
+        Err(error) => Err(error),
     }
 }
 
@@ -43,14 +43,14 @@ pub async fn get_user_ids_by_task_id<R>(
     repositories: &R,
     project_id: &ProjectId,
     task_id: &TaskId,
-) -> Result<Vec<UserId>, String>
+) -> Result<Vec<UserId>, ServiceError>
 where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
     match service::get_user_ids_by_task_id(repositories, project_id, task_id).await {
         Ok(user_ids) => Ok(user_ids),
-        Err(ServiceError::ValidationError(msg)) => Err(msg),
-        Err(e) => Err(format!("Failed to get user IDs by task ID: {:?}", e)),
+        Err(ServiceError::ValidationError(message)) => Err(ServiceError::ValidationError(message)),
+        Err(error) => Err(error),
     }
 }
 
@@ -58,14 +58,14 @@ pub async fn get_task_ids_by_user_id<R>(
     repositories: &R,
     project_id: &ProjectId,
     user_id: &UserId,
-) -> Result<Vec<TaskId>, String>
+) -> Result<Vec<TaskId>, ServiceError>
 where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
     match service::get_task_ids_by_user_id(repositories, project_id, user_id).await {
         Ok(task_ids) => Ok(task_ids),
-        Err(ServiceError::ValidationError(msg)) => Err(msg),
-        Err(e) => Err(format!("Failed to get task IDs by user ID: {:?}", e)),
+        Err(ServiceError::ValidationError(message)) => Err(ServiceError::ValidationError(message)),
+        Err(error) => Err(error),
     }
 }
 
@@ -75,7 +75,7 @@ pub async fn update<R>(
     task_id: &TaskId,
     user_ids: &[UserId],
     user_id: &UserId,
-) -> Result<bool, String>
+) -> Result<bool, ServiceError>
 where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
@@ -83,8 +83,8 @@ where
         .await
     {
         Ok(_) => Ok(true),
-        Err(ServiceError::ValidationError(msg)) => Err(msg),
-        Err(e) => Err(format!("Failed to update task assignments: {:?}", e)),
+        Err(ServiceError::ValidationError(message)) => Err(ServiceError::ValidationError(message)),
+        Err(error) => Err(error),
     }
 }
 
@@ -92,17 +92,14 @@ pub async fn remove_all_by_task_id<R>(
     repositories: &R,
     project_id: &ProjectId,
     task_id: &TaskId,
-) -> Result<bool, String>
+) -> Result<bool, ServiceError>
 where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
     match service::remove_all_task_assignments_by_task_id(repositories, project_id, task_id).await {
         Ok(_) => Ok(true),
-        Err(ServiceError::ValidationError(msg)) => Err(msg),
-        Err(e) => Err(format!(
-            "Failed to remove all task assignments by task ID: {:?}",
-            e
-        )),
+        Err(ServiceError::ValidationError(message)) => Err(ServiceError::ValidationError(message)),
+        Err(error) => Err(error),
     }
 }
 
@@ -110,30 +107,27 @@ pub async fn remove_all_by_user_id<R>(
     repositories: &R,
     project_id: &ProjectId,
     user_id: &UserId,
-) -> Result<bool, String>
+) -> Result<bool, ServiceError>
 where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
     match service::remove_all_task_assignments_by_user_id(repositories, project_id, user_id).await {
         Ok(_) => Ok(true),
-        Err(ServiceError::ValidationError(msg)) => Err(msg),
-        Err(e) => Err(format!(
-            "Failed to remove all task assignments by user ID: {:?}",
-            e
-        )),
+        Err(ServiceError::ValidationError(message)) => Err(ServiceError::ValidationError(message)),
+        Err(error) => Err(error),
     }
 }
 
 pub async fn get_all<R>(
     repositories: &R,
     project_id: &ProjectId,
-) -> Result<Vec<TaskAssignment>, String>
+) -> Result<Vec<TaskAssignment>, ServiceError>
 where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
     match service::get_all_task_assignments(repositories, project_id).await {
         Ok(task_assignments) => Ok(task_assignments),
-        Err(ServiceError::ValidationError(msg)) => Err(msg),
-        Err(e) => Err(format!("Failed to get all task assignments: {:?}", e)),
+        Err(ServiceError::ValidationError(message)) => Err(ServiceError::ValidationError(message)),
+        Err(error) => Err(error),
     }
 }

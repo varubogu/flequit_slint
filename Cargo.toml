@@ -46,6 +46,7 @@ futures = "0.3"
 
 # Data
 chrono = { version = "0.4", features = ["serde"] }
+chrono-tz = "0.10"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1", features = ["serde", "v4"] }
@@ -57,6 +58,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "time",
 tracing-appender = "0.2"
 
 # Platform
+dark-light = "3"
+# Matches the version Slint's renderer already pulls in.
+fontdb = { version = "0.23", default-features = false, features = ["fs", "memmap", "std"] }
 directories = "6"
 rfd = "0.15"
 notify-rust = "4"

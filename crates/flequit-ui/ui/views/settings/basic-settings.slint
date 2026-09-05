@@ -1,0 +1,244 @@
+import { CheckBox, SpinBox } from "std-widgets.slint";
+import { Theme } from "../../globals/theme.slint";
+import { Layout } from "../../globals/layout.slint";
+import { Actions } from "../../globals/actions.slint";
+import { Capabilities } from "../../globals/capabilities.slint";
+import { SettingsState } from "../../globals/settings.slint";
+import { DueUnit, RecurrenceUnit } from "../../globals/types.slint";
+import { I18n } from "../../globals/i18n.slint";
+import { DialogButton } from "../../components/dialog-button.slint";
+import { CapabilityRow, ChoiceButton, FieldLabel, SectionTitle } from "settings-controls.slint";
+
+export component BasicSettings inherits Rectangle {
+    // Unit picked for the filter about to be added.
+    private property <DueUnit> new-due-unit: DueUnit.day;
+    // Unit picked for the recurrence preset about to be added.
+    private property <RecurrenceUnit> new-recurrence-unit: RecurrenceUnit.week;
+
+    background: Theme.background;
+    VerticalLayout {
+        padding: Layout.content-padding;
+        spacing: Theme.space-xl;
+        alignment: start;
+        SectionTitle { text: @tr("Settings" => "Basic settings"); }
+
+        VerticalLayout {
+            spacing: Theme.space-sm;
+            FieldLabel { text: @tr("Settings" => "Language"); }
+            HorizontalLayout {
+                spacing: Theme.space-sm;
+                // The display names stay in their own language, so the list is
+                // readable even when the current one is not.
+                for locale in I18n.available-locales: ChoiceButton {
+                    label: locale.display-name;
+                    selected: I18n.current-locale == locale.tag;
+                    clicked => { Actions.update-language(locale.tag); }
+                }
+            }
+        }
+
+        VerticalLayout {
+            spacing: Theme.space-sm;
+            FieldLabel { text: @tr("Settings" => "Week starts on"); }
+            HorizontalLayout {
+                spacing: Theme.space-sm;
+                ChoiceButton {
+                    label: @tr("Settings" => "Sunday");
+                    selected: SettingsState.week-start == "sunday";
+                    clicked => { Actions.update-week-start("sunday"); }
+                }
+                ChoiceButton {
+                    label: @tr("Settings" => "Monday");
+                    selected: SettingsState.week-start == "monday";
+                    clicked => { Actions.update-week-start("monday"); }
+                }
+            }
+        }
+
+        VerticalLayout {
+            spacing: Theme.space-sm;
+            FieldLabel { text: @tr("Settings" => "Due filter buttons"); }
+            for button in SettingsState.due-buttons: CheckBox {
+                text: button.key == "overdue" ? @tr("Settings" => "Show Overdue due filter")
+                    : button.key == "today" ? @tr("Settings" => "Show Today due filter")
+                    : button.key == "tomorrow" ? @tr("Settings" => "Show Tomorrow due filter")
+                    : button.key == "three-days" ? @tr("Settings" => "Show Next 3 days due filter")
+                    : button.key == "this-week" ? @tr("Settings" => "Show This week due filter")
+                    : button.key == "this-month" ? @tr("Settings" => "Show This month due filter")
+                    : button.key == "this-quarter" ? @tr("Settings" => "Show This quarter due filter")
+                    : button.key == "this-year" ? @tr("Settings" => "Show This year due filter")
+                    : @tr("Settings" => "Show This fiscal year due filter");
+                checked: button.visible;
+                toggled => { Actions.update-due-button(button.key, self.checked); }
+            }
+        }
+
+        VerticalLayout {
+            spacing: Theme.space-sm;
+            FieldLabel { text: @tr("Settings" => "Custom due filters"); }
+            for filter in SettingsState.custom-due-filters: HorizontalLayout {
+                height: Layout.touch-target;
+                spacing: Theme.space-sm;
+                Text {
+                    text: I18n.custom-due-label(filter.value, filter.unit);
+                    color: Theme.text;
+                    font-size: Theme.font-size-base;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+                DialogButton {
+                    label: @tr("Settings" => "Remove the {0} filter",
+                        I18n.custom-due-label(filter.value, filter.unit));
+                    destructive: true;
+                    clicked => { Actions.remove-custom-due-filter(filter.value, filter.unit); }
+                }
+            }
+            HorizontalLayout {
+                spacing: Theme.space-sm;
+                ChoiceButton {
+                    label: @tr("Settings" => "Minutes");
+                    selected: root.new-due-unit == DueUnit.minute;
+                    clicked => { root.new-due-unit = DueUnit.minute; }
+                }
+                ChoiceButton {
+                    label: @tr("Settings" => "Hours");
+                    selected: root.new-due-unit == DueUnit.hour;
+                    clicked => { root.new-due-unit = DueUnit.hour; }
+                }
+                ChoiceButton {
+                    label: @tr("Settings" => "Days");
+                    selected: root.new-due-unit == DueUnit.day;
+                    clicked => { root.new-due-unit = DueUnit.day; }
+                }
+            }
+            HorizontalLayout {
+                spacing: Theme.space-sm;
+                due-value := SpinBox {
+                    value: 5;
+                    minimum: 1;
+                    // Whichever unit is picked, the horizon stays under a year.
+                    maximum: root.new-due-unit == DueUnit.minute ? 43200
+                        : root.new-due-unit == DueUnit.hour ? 8760 : 3650;
+                    accessible-label: @tr("Settings" => "Due filter amount");
+                }
+                DialogButton {
+                    label: @tr("Settings" => "Add due filter");
+                    primary: true;
+                    clicked => { Actions.add-custom-due-filter(due-value.value, root.new-due-unit); }
+                }
+            }
+        }
+
+        // Saved repeat patterns. The editor offers these as one-click presets,
+        // so a rule used often does not have to be dialled in every time.
+        VerticalLayout {
+            spacing: Theme.space-sm;
+            FieldLabel { text: @tr("Settings" => "Custom recurrence presets"); }
+            for preset in SettingsState.recurrence-presets: HorizontalLayout {
+                height: Layout.touch-target;
+                spacing: Theme.space-sm;
+                Text {
+                    text: I18n.recurrence-summary(preset.unit, preset.interval);
+                    color: Theme.text;
+                    font-size: Theme.font-size-base;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+                DialogButton {
+                    label: @tr("Settings" => "Remove the {0} preset",
+                        I18n.recurrence-summary(preset.unit, preset.interval));
+                    destructive: true;
+                    clicked => {
+                        Actions.remove-recurrence-preset(preset.interval, preset.unit);
+                    }
+                }
+            }
+            HorizontalLayout {
+                spacing: Theme.space-sm;
+                ChoiceButton {
+                    label: @tr("Recurrence" => "Days");
+                    selected: root.new-recurrence-unit == RecurrenceUnit.day;
+                    clicked => { root.new-recurrence-unit = RecurrenceUnit.day; }
+                }
+                ChoiceButton {
+                    label: @tr("Recurrence" => "Weeks");
+                    selected: root.new-recurrence-unit == RecurrenceUnit.week;
+                    clicked => { root.new-recurrence-unit = RecurrenceUnit.week; }
+                }
+                ChoiceButton {
+                    label: @tr("Recurrence" => "Months");
+                    selected: root.new-recurrence-unit == RecurrenceUnit.month;
+                    clicked => { root.new-recurrence-unit = RecurrenceUnit.month; }
+                }
+                ChoiceButton {
+                    label: @tr("Recurrence" => "Years");
+                    selected: root.new-recurrence-unit == RecurrenceUnit.year;
+                    clicked => { root.new-recurrence-unit = RecurrenceUnit.year; }
+                }
+            }
+            HorizontalLayout {
+                spacing: Theme.space-sm;
+                recurrence-interval := SpinBox {
+                    value: 2;
+                    minimum: 1;
+                    maximum: 999;
+                    accessible-label: @tr("Settings" => "Recurrence interval");
+                }
+                DialogButton {
+                    label: @tr("Settings" => "Add recurrence preset");
+                    primary: true;
+                    clicked => {
+                        Actions.add-recurrence-preset(recurrence-interval.value,
+                                                      root.new-recurrence-unit);
+                    }
+                }
+            }
+        }
+
+        if Capabilities.local-notification: VerticalLayout {
+            spacing: Theme.space-sm;
+            FieldLabel { text: @tr("Settings" => "Reminder notifications"); }
+            Text {
+                text: SettingsState.notification-permission == "granted"
+                    ? @tr("Settings" => "Notification permission is granted.")
+                    : SettingsState.notification-permission == "denied"
+                        ? @tr("Settings" => "Notification permission was denied. You can request it again here.")
+                        : @tr("Settings" => "Allow notifications to receive task reminders.");
+                color: SettingsState.notification-permission == "denied"
+                    ? Theme.danger : Theme.text-muted;
+                font-size: Theme.font-size-base;
+                wrap: word-wrap;
+            }
+            if SettingsState.notification-permission != "granted": DialogButton {
+                label: SettingsState.notification-permission-loading
+                    ? @tr("Settings" => "Requesting notification permission…")
+                    : @tr("Settings" => "Allow notifications");
+                primary: true;
+                enabled: !SettingsState.notification-permission-loading;
+                clicked => { Actions.request-notification-permission(); }
+            }
+        }
+
+        if Capabilities.system-tray || Capabilities.global-hotkey
+            || Capabilities.self-update || Capabilities.arbitrary-file-path: VerticalLayout {
+            spacing: Theme.space-sm;
+            FieldLabel { text: @tr("Settings" => "Platform features"); }
+            if Capabilities.system-tray: CapabilityRow {
+                title: @tr("Settings" => "System tray");
+                description: @tr("Settings" => "This device supports keeping Flequit in the system tray.");
+            }
+            if Capabilities.global-hotkey: CapabilityRow {
+                title: @tr("Settings" => "Global shortcuts");
+                description: @tr("Settings" => "This device supports shortcuts outside the app.");
+            }
+            if Capabilities.self-update: CapabilityRow {
+                title: @tr("Settings" => "Automatic updates");
+                description: @tr("Settings" => "This installation supports in-app updates.");
+            }
+            if Capabilities.arbitrary-file-path: CapabilityRow {
+                title: @tr("Settings" => "Custom export location");
+                description: @tr("Settings" => "This device supports choosing any export folder.");
+            }
+        }
+    }
+}

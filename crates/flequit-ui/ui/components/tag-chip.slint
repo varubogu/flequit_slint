@@ -1,0 +1,28 @@
+import { Theme } from "../globals/theme.slint";
+
+// A tag name shown alongside a task.
+//
+// Sized to its text so a row of chips wraps the way the labels do, rather than
+// reserving a fixed column.
+export component TagChip inherits Rectangle {
+    in property <string> label;
+
+    border-radius: Theme.radius-sm;
+    background: Theme.surface-hover;
+    width: label-text.preferred-width + 2 * Theme.space-xs;
+    height: label-text.preferred-height + Theme.space-xs;
+
+    label-text := Text {
+        // The "#" mirrors how the tag is typed into the search box.
+        text: "#" + root.label;
+        color: Theme.text-muted;
+        font-size: Theme.font-size-sm;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        width: 100%;
+        height: 100%;
+    }
+
+    accessible-role: text;
+    accessible-label: label-text.text;
+}

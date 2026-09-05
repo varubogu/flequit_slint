@@ -1,0 +1,60 @@
+import { Theme } from "../globals/theme.slint";
+import { Layout } from "../globals/layout.slint";
+import { Icon, IconName } from "icon.slint";
+
+// Grip for dragging a row.
+//
+// A target of its own, so that a press on the row body can never be mistaken
+// for the start of a drag. Positions are reported in window coordinates: the
+// pointer stays grabbed for the whole gesture, so only the caller can decide
+// what is underneath it.
+export component DragHandle inherits Rectangle {
+    in property <string> action-label;
+
+    callback drag-started(length /* window_x */, length /* window_y */);
+    callback dragged(length /* window_x */, length /* window_y */);
+    callback drag-finished();
+    // Keyboard and screen-reader equivalents of dragging by one position.
+    callback move-earlier();
+    callback move-later();
+
+    width: Theme.space-lg;
+    height: Layout.touch-target;
+    border-radius: Theme.radius-sm;
+    background: touch.has-hover || touch.pressed ? Theme.surface-hover : transparent;
+
+    Icon {
+        name: IconName.grip;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: touch.pressed ? MouseCursor.grabbing : MouseCursor.grab;
+        moved => {
+            root.dragged(
+                self.absolute-position.x + self.mouse-x,
+                self.absolute-position.y + self.mouse-y,
+            );
+        }
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.down) {
+                // Seed the pointer position: without a move the drop must
+                // resolve to where the drag began.
+                root.drag-started(
+                    self.absolute-position.x + self.mouse-x,
+                    self.absolute-position.y + self.mouse-y,
+                );
+            }
+            if (event.kind == PointerEventKind.up
+                || event.kind == PointerEventKind.cancel) {
+                root.drag-finished();
+            }
+        }
+    }
+
+    accessible-role: button;
+    accessible-label: root.action-label;
+    accessible-action-increment => { root.move-later(); }
+    accessible-action-decrement => { root.move-earlier(); }
+}

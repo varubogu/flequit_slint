@@ -1,0 +1,114 @@
+import { SpinBox } from "std-widgets.slint";
+import { Theme, ThemeMode } from "../../globals/theme.slint";
+import { Layout } from "../../globals/layout.slint";
+import { Actions } from "../../globals/actions.slint";
+import { SettingsState } from "../../globals/settings.slint";
+import { SearchComboBox } from "../../components/search-combo-box.slint";
+import { ChoiceButton, FieldLabel, SectionTitle } from "settings-controls.slint";
+
+export component AppearanceSettings inherits Rectangle {
+    background: Theme.background;
+    VerticalLayout {
+        padding: Layout.content-padding;
+        spacing: Theme.space-xl;
+        alignment: start;
+        SectionTitle { text: @tr("Settings" => "Appearance settings"); }
+
+        VerticalLayout {
+            spacing: Theme.space-sm;
+            FieldLabel { text: @tr("Settings" => "Theme"); }
+            HorizontalLayout {
+                spacing: Theme.space-sm;
+                ChoiceButton {
+                    label: @tr("Settings" => "Use System theme");
+                    selected: SettingsState.theme-mode == ThemeMode.system;
+                    clicked => { Actions.update-theme-mode(ThemeMode.system); }
+                }
+                ChoiceButton {
+                    label: @tr("Settings" => "Use Light theme");
+                    selected: SettingsState.theme-mode == ThemeMode.light;
+                    clicked => { Actions.update-theme-mode(ThemeMode.light); }
+                }
+                ChoiceButton {
+                    label: @tr("Settings" => "Use Dark theme");
+                    selected: SettingsState.theme-mode == ThemeMode.dark;
+                    clicked => { Actions.update-theme-mode(ThemeMode.dark); }
+                }
+            }
+        }
+
+        VerticalLayout {
+            spacing: Theme.space-sm;
+            FieldLabel { text: @tr("Settings" => "Font"); }
+            // A system can carry hundreds of families, so this is the same
+            // filtering combo box the timezone setting uses. Platforms that
+            // cannot enumerate fonts still get "default" and "system".
+            SearchComboBox {
+                value: SettingsState.font;
+                options: SettingsState.font-options;
+                label: @tr("Settings" => "Font");
+                placeholder: @tr("Settings" => "Default font");
+                query-changed(query) => { Actions.filter-fonts(query); }
+                selected(font) => { Actions.update-font(font); }
+            }
+        }
+
+        VerticalLayout {
+            spacing: Theme.space-sm;
+            FieldLabel { text: @tr("Settings" => "Font size"); }
+            SpinBox {
+                value: SettingsState.font-size;
+                minimum: 8;
+                maximum: 72;
+                accessible-label: @tr("Settings" => "Font size");
+                edited(value) => { Actions.update-font-size(value); }
+            }
+        }
+
+        VerticalLayout {
+            spacing: Theme.space-sm;
+            FieldLabel { text: @tr("Settings" => "Font color"); }
+            HorizontalLayout {
+                spacing: Theme.space-sm;
+                ChoiceButton {
+                    label: @tr("Settings" => "Default font color");
+                    selected: SettingsState.font-color == "default" || SettingsState.font-color == "#000000";
+                    clicked => { Actions.update-font-color("default"); }
+                }
+                ChoiceButton {
+                    label: @tr("Settings" => "Black font color");
+                    selected: SettingsState.font-color == "black";
+                    clicked => { Actions.update-font-color("black"); }
+                }
+                ChoiceButton {
+                    label: @tr("Settings" => "White font color");
+                    selected: SettingsState.font-color == "white";
+                    clicked => { Actions.update-font-color("white"); }
+                }
+            }
+        }
+
+        VerticalLayout {
+            spacing: Theme.space-sm;
+            FieldLabel { text: @tr("Settings" => "Background color"); }
+            HorizontalLayout {
+                spacing: Theme.space-sm;
+                ChoiceButton {
+                    label: @tr("Settings" => "Default background color");
+                    selected: SettingsState.background-color == "default" || SettingsState.background-color == "#FFFFFF";
+                    clicked => { Actions.update-background-color("default"); }
+                }
+                ChoiceButton {
+                    label: @tr("Settings" => "White background color");
+                    selected: SettingsState.background-color == "white";
+                    clicked => { Actions.update-background-color("white"); }
+                }
+                ChoiceButton {
+                    label: @tr("Settings" => "Black background color");
+                    selected: SettingsState.background-color == "black";
+                    clicked => { Actions.update-background-color("black"); }
+                }
+            }
+        }
+    }
+}

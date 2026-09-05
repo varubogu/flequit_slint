@@ -3,7 +3,11 @@ import { Theme } from "../../globals/theme.slint";
 import { Layout } from "../../globals/layout.slint";
 import { AppState } from "../../globals/app-state.slint";
 import { Actions } from "../../globals/actions.slint";
+import { EditorKind, TaskItem, TaskSort } from "../../globals/types.slint";
+import { DialogButton } from "../../components/dialog-button.slint";
 import { TaskRow } from "../../components/task-row.slint";
+import { Icon, IconName } from "../../components/icon.slint";
+import { TaskSortBar } from "task-sort-bar.slint";
 
 // Task list pane.
 //
@@ -11,33 +15,173 @@ import { TaskRow } from "../../components/task-row.slint";
 export component TaskListView inherits Rectangle {
     background: Theme.background;
 
+    // Reordering rewrites the stored order, which is only what the list shows
+    // while it is sorted manually. The derived orderings ignore it.
+    private property <bool> reorderable: AppState.task-sort == TaskSort.manual;
+
+    // A drop inside the list, rather than on a list in the sidebar.
+    private property <bool> reordering: AppState.is-dragging
+        && AppState.drop-list-id == ""
+        && root.reorderable;
+
+    // Where the pointer currently is, as a row index. Rows are assumed to be
+    // uniform, the same approximation the scroll-into-view code makes.
+    private property <int> drop-index: task-list.estimated-row-height <= 0px
+        ? 0
+        : Math.clamp(
+            Math.floor((AppState.drag-y - task-list.absolute-position.y
+                - task-list.viewport-y) / task-list.estimated-row-height),
+            0,
+            AppState.tasks.length - 1);
+
+    function start-drag(task: TaskItem, x: length, y: length) {
+        AppState.dragging-task-id = task.id;
+        AppState.dragging-project-id = task.project-id;
+        AppState.drop-list-id = "";
+        AppState.drag-x = x;
+        AppState.drag-y = y;
+    }
+
+    function finish-drag(task-id: string, index: int) {
+        if (AppState.drop-list-id != "") {
+            Actions.move-task-to-list(task-id, AppState.drop-list-id);
+        } else if (root.reordering && root.drop-index != index) {
+            Actions.reorder-task(task-id, root.drop-index);
+        }
+        AppState.dragging-task-id = "";
+        AppState.dragging-project-id = "";
+        AppState.drop-list-id = "";
+    }
+
+    function create-project() {
+        AppState.editor = {
+            kind: EditorKind.project,
+            target-id: "",
+            project-id: "",
+            name: "",
+            color: "",
+            archived: false,
+        };
+        AppState.editor-open = true;
+    }
+
+    function create-task-list() {
+        AppState.editor = {
+            kind: EditorKind.task-list,
+            target-id: "",
+            project-id: AppState.selected-project-id,
+            name: "",
+            color: "",
+            archived: false,
+        };
+        AppState.editor-open = true;
+    }
+
     VerticalLayout {
         spacing: 0px;
 
-        ListView {
+        TaskSortBar { }
+
+        task-list := ListView {
             vertical-stretch: 1;
 
-            for task in AppState.tasks: TaskRow {
+            private property <int> scroll-request: AppState.scroll-to-index;
+            private property <length> estimated-row-height:
+                AppState.tasks.length > 0 ? self.viewport-height / AppState.tasks.length : 0px;
+            private property <length> requested-row-y:
+                self.viewport-y + self.scroll-request * self.estimated-row-height;
+
+            changed scroll-request => {
+                if (self.scroll-request >= 0 && self.scroll-request < AppState.tasks.length) {
+                    if (self.requested-row-y < 0px) {
+                        self.viewport-y += 0px - self.requested-row-y;
+                    }
+
+                    if (self.requested-row-y + self.estimated-row-height > self.visible-height) {
+                        self.viewport-y -= self.requested-row-y
+                            + self.estimated-row-height - self.visible-height;
+                    }
+                }
+
+                if (self.scroll-request >= 0) {
+                    AppState.scroll-to-index = -1;
+                }
+            }
+
+            for task[index] in AppState.tasks: TaskRow {
                 task: task;
                 selected: AppState.selected-task-id == task.id;
+                dragging: AppState.dragging-task-id == task.id;
+                drop-before: root.reordering && root.drop-index == index;
                 clicked => { Actions.select-task(task.id); }
                 toggle-completed => { Actions.toggle-task-completed(task.id); }
                 toggle-expansion => { Actions.toggle-task-expansion(task.id); }
                 subtask-clicked(id) => { Actions.select-subtask(id); }
                 subtask-toggled(id) => { Actions.toggle-subtask-completed(id); }
+                drag-started(x, y) => { root.start-drag(task, x, y); }
+                dragged(x, y) => {
+                    AppState.drag-x = x;
+                    AppState.drag-y = y;
+                }
+                drag-finished => { root.finish-drag(task.id, index); }
+                move-earlier => {
+                    if (root.reorderable) { Actions.reorder-task(task.id, index - 1); }
+                }
+                move-later => {
+                    if (root.reorderable) { Actions.reorder-task(task.id, index + 1); }
+                }
             }
         }
 
         if AppState.tasks.length == 0 && !AppState.loading: Rectangle {
             vertical-stretch: 1;
-            Text {
-                text: @tr("TaskList" => "No tasks here yet.");
-                color: Theme.text-muted;
-                font-size: Theme.font-size-base;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-                width: 100%;
-                height: 100%;
+
+            VerticalLayout {
+                padding: Layout.content-padding;
+                spacing: Theme.space-md;
+                alignment: center;
+
+                Text {
+                    text: AppState.search-query != ""
+                        ? @tr("TaskList" => "No tasks match your search.")
+                        : AppState.projects.length == 0
+                            ? @tr("TaskList" => "Create a project to get started.")
+                            : AppState.selected-project-id == ""
+                                ? @tr("TaskList" => "Select a project from the sidebar.")
+                                : AppState.selected-list-id == ""
+                                    ? @tr("TaskList" => "Select a task list, or create a new one.")
+                                    : @tr("TaskList" => "Add your first task to this list.");
+                    color: Theme.text-muted;
+                    font-size: Theme.font-size-base;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+
+                if AppState.search-query != "": DialogButton {
+                    label: @tr("TaskList" => "Clear search");
+                    clicked => { Actions.search-changed(""); }
+                }
+
+                if AppState.search-query == "" && AppState.projects.length == 0: DialogButton {
+                    label: @tr("TaskList" => "Create project");
+                    primary: true;
+                    clicked => { root.create-project(); }
+                }
+
+                if AppState.search-query == ""
+                    && AppState.projects.length > 0
+                    && AppState.selected-project-id != ""
+                    && AppState.selected-list-id == "": DialogButton {
+                    label: @tr("TaskList" => "Create task list");
+                    primary: true;
+                    clicked => { root.create-task-list(); }
+                }
+
+                if AppState.search-query == "" && AppState.selected-list-id != "": DialogButton {
+                    label: @tr("TaskList" => "Add your first task");
+                    primary: true;
+                    clicked => { new-task.focus(); }
+                }
             }
         }
 
@@ -71,14 +215,11 @@ export component TaskListView inherits Rectangle {
                     border-radius: Theme.radius-sm;
                     background: AppState.selected-list-id == "" ? Theme.border : Theme.accent;
 
-                    Text {
-                        text: "+";
-                        color: Theme.text-on-accent;
-                        font-size: Theme.font-size-lg;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                        width: 100%;
-                        height: 100%;
+                    Icon {
+                        name: IconName.plus;
+                        tint: Theme.text-on-accent;
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
                     }
 
                     TouchArea {

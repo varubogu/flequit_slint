@@ -1,6 +1,9 @@
 import { Theme } from "../globals/theme.slint";
 import { Layout } from "../globals/layout.slint";
 import { TaskItem, TaskPriority } from "../globals/types.slint";
+import { TaskRowMeta } from "task-row-meta.slint";
+import { DragHandle } from "drag-handle.slint";
+import { SubTaskRow } from "subtask-row.slint";
 
 // One row in the task list, including its collapsible subtasks.
 //
@@ -9,6 +12,10 @@ import { TaskItem, TaskPriority } from "../globals/types.slint";
 export component TaskRow inherits Rectangle {
     in property <TaskItem> task;
     in property <bool> selected: false;
+    // Drawn above the row when it is where a dragged task would land.
+    in property <bool> drop-before: false;
+    // True for the row being dragged, which is faded to show it has left.
+    in property <bool> dragging: false;
 
     callback clicked();
     callback toggle-completed();
@@ -16,7 +23,17 @@ export component TaskRow inherits Rectangle {
     callback subtask-clicked(string /* subtask_id */);
     callback subtask-toggled(string /* subtask_id */);
 
+    // Dragging is reported in window coordinates so the caller can resolve a
+    // drop target outside this row, such as a list in the sidebar.
+    callback drag-started(length /* window_x */, length /* window_y */);
+    callback dragged(length /* window_x */, length /* window_y */);
+    callback drag-finished();
+    // Keyboard and screen-reader equivalents of dragging by one position.
+    callback move-earlier();
+    callback move-later();
+
     height: layout.preferred-height;
+    opacity: root.dragging ? 0.5 : 1.0;
     background: root.selected ? Theme.surface-selected
         : row-touch.has-hover ? Theme.surface-hover
         : transparent;
@@ -31,6 +48,15 @@ export component TaskRow inherits Rectangle {
             padding-right: Theme.space-sm;
             spacing: Theme.space-sm;
             alignment: stretch;
+
+            DragHandle {
+                action-label: @tr("TaskList" => "Reorder {0}", root.task.title);
+                drag-started(x, y) => { root.drag-started(x, y); }
+                dragged(x, y) => { root.dragged(x, y); }
+                drag-finished => { root.drag-finished(); }
+                move-earlier => { root.move-earlier(); }
+                move-later => { root.move-later(); }
+            }
 
             // Expand / collapse. Occupies space even with no subtasks so
             // titles stay aligned.
@@ -107,20 +133,9 @@ export component TaskRow inherits Rectangle {
                     overflow: elide;
                 }
 
-                if root.task.has-due || root.task.subtask-count > 0: HorizontalLayout {
-                    spacing: Theme.space-sm;
-
-                    if root.task.has-due: Text {
-                        text: root.task.due-label;
-                        color: root.task.overdue ? Theme.danger : Theme.text-muted;
-                        font-size: Theme.font-size-sm;
-                    }
-
-                    if root.task.subtask-count > 0: Text {
-                        text: root.task.subtask-done-count + " / " + root.task.subtask-count;
-                        color: Theme.text-muted;
-                        font-size: Theme.font-size-sm;
-                    }
+                if root.task.has-due || root.task.subtask-count > 0
+                    || root.task.tag-labels.length > 0: TaskRowMeta {
+                    task: root.task;
                 }
             }
 
@@ -140,46 +155,10 @@ export component TaskRow inherits Rectangle {
             padding-bottom: Theme.space-xs;
             spacing: 0px;
 
-            for sub in root.task.subtasks: Rectangle {
-                height: Layout.touch-target;
-                border-radius: Theme.radius-sm;
-                background: sub-touch.has-hover ? Theme.surface-hover : transparent;
-
-                HorizontalLayout {
-                    padding-left: Theme.space-sm;
-                    spacing: Theme.space-sm;
-                    alignment: stretch;
-
-                    Rectangle {
-                        width: Layout.touch-target;
-                        Rectangle {
-                            width: 14px;
-                            height: 14px;
-                            x: (parent.width - self.width) / 2;
-                            y: (parent.height - self.height) / 2;
-                            border-radius: Theme.radius-sm;
-                            border-width: 1px;
-                            border-color: sub.completed ? Theme.accent : Theme.border;
-                            background: sub.completed ? Theme.accent : transparent;
-                        }
-                        TouchArea {
-                            clicked => { root.subtask-toggled(sub.id); }
-                        }
-                    }
-
-                    Text {
-                        text: sub.title;
-                        color: sub.completed ? Theme.text-muted : Theme.text;
-                        font-size: Theme.font-size-sm;
-                        vertical-alignment: center;
-                        overflow: elide;
-                        horizontal-stretch: 1;
-                    }
-                }
-
-                sub-touch := TouchArea {
-                    clicked => { root.subtask-clicked(sub.id); }
-                }
+            for sub in root.task.subtasks: SubTaskRow {
+                subtask: sub;
+                clicked => { root.subtask-clicked(sub.id); }
+                toggled => { root.subtask-toggled(sub.id); }
             }
         }
     }
@@ -188,6 +167,14 @@ export component TaskRow inherits Rectangle {
         // Sits behind the interactive children so they win the click.
         z: -1;
         clicked => { root.clicked(); }
+    }
+
+    // Insertion marker for drag and drop.
+    if root.drop-before: Rectangle {
+        y: 0px;
+        width: 100%;
+        height: 2px;
+        background: Theme.accent;
     }
 
     accessible-role: list-item;

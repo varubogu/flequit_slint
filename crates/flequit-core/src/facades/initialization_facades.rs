@@ -11,14 +11,9 @@ pub struct InitializationData {
     pub projects: Vec<ProjectTree>,
 }
 
-// エラー変換のヘルパー関数
-fn handle_service_error<T>(result: Result<T, ServiceError>) -> Result<T, String> {
-    result.map_err(|e| format!("{:?}", e))
-}
-
 // TODO: この関数はジェネリクス対応が必要だが、コマンドでは使用されていないためコメントアウト
 
-// pub async fn load_all_data() -> Result<InitializationData, String> {
+// pub async fn load_all_data() -> Result<InitializationData, ServiceError> {
 //     // 他の関数を組み合わせて全データを取得
 //     let _current_account = load_current_account().await?; // 現在は使用しない
 //     let projects = load_all_project_trees().await?;
@@ -30,23 +25,23 @@ fn handle_service_error<T>(result: Result<T, ServiceError>) -> Result<T, String>
 //     })
 // }
 
-pub async fn load_current_account<R>(repositories: &R) -> Result<Option<Account>, String>
+pub async fn load_current_account<R>(repositories: &R) -> Result<Option<Account>, ServiceError>
 where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
-    handle_service_error(initialization_service::load_current_account(repositories).await)
+    initialization_service::load_current_account(repositories).await
 }
 
-pub async fn load_all_project_trees<R>(repositories: &R) -> Result<Vec<ProjectTree>, String>
+pub async fn load_all_project_trees<R>(repositories: &R) -> Result<Vec<ProjectTree>, ServiceError>
 where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
-    handle_service_error(initialization_service::load_all_project_trees(repositories).await)
+    initialization_service::load_all_project_trees(repositories).await
 }
 
-pub async fn load_all_account<R>(repositories: &R) -> Result<Vec<Account>, String>
+pub async fn load_all_account<R>(repositories: &R) -> Result<Vec<Account>, ServiceError>
 where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
-    handle_service_error(initialization_service::load_all_account(repositories).await)
+    initialization_service::load_all_account(repositories).await
 }

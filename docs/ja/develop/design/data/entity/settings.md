@@ -19,7 +19,7 @@
 | 背景色 | background_color | String | NN | "#FFFFFF" | - |
 | 週開始曜日 | week_start | String | NN | "monday" | "sunday" / "monday" |
 | タイムゾーン | timezone | String | NN | "Asia/Tokyo" | - |
-| カスタム期日日数 | custom_due_days | String | NN | "[1,3,7,14,30]" | JSON 配列文字列 |
+| カスタム期限フィルタ | custom_due_filters | Vec\<CustomDueFilter\> | NN | [] | `{ value, unit }`。`unit` は minute / hour / day。旧形式の日数配列（`custom_due_days`）も読み込む |
 | 最終選択アカウント ID | last_selected_account | String | NN | "" | - |
 
 ### 制約・インデックス
@@ -35,7 +35,8 @@
 ### 関連実装ファイル
 
 - Rust モデル: `crates/flequit-settings/src/models/settings.rs`
-- Slint UI 型: `crates/flequit-ui/ui/globals/settings.slint`（設定画面の実装時に作成する。現時点では未作成）
+- Rust モデル: `crates/flequit-settings/src/models/custom_due_filter.rs`
+- Slint UI 型: `crates/flequit-ui/ui/globals/settings.slint`
 
 ---
 

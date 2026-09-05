@@ -83,12 +83,20 @@ flequit-platform (横断: flequit-types のみに依存)
 | Repository | `RepositoryError` | Database (`#[from] sqlx::Error`) / Automerge / Serialization (`#[from] serde_json::Error`) / Io (`#[from] std::io::Error`) |
 | Domain (service/facade) | `ServiceError` | NotFound / Validation / BusinessRule / Repository (`#[from]`) / ExternalService |
 | Platform | `PlatformError` | Unsupported / PermissionDenied / Cancelled / Io |
-| UI (ViewModel) | `UiError` | Service (`#[from] ServiceError`) / Platform (`#[from] PlatformError`) |
+| UI (ViewModel) | `UiError` | Service（表示カテゴリへ手動分類）/ Platform (`#[from] PlatformError`) |
 
 **Tauri 版との違い**: IPC がないため `CommandError` と文字列化が不要になった。
 エラーは型のまま ViewModel まで届き、表示直前に i18n コードへ変換される。
 
-実装参照: `crates/flequit-types/src/errors/`, `crates/flequit-types/src/errors/`,
+すべての facade 公開関数は `Result<T, ServiceError>` を返す。
+`RepositoryError` を文字列へ変換せず `ServiceError::Repository` として保持し、
+ViewModel の `UiError` 変換で次の表示カテゴリへ分類する。
+
+- `NotFound` / `UserNotFound`: 対象が見つからない
+- `ValidationError` / `InvalidArgument` / 制約違反: 入力の検証エラー
+- その他の `RepositoryError`: ストレージ障害
+
+実装参照: `crates/flequit-types/src/errors/`, `crates/flequit-ui/src/error.rs`,
 `crates/flequit-platform/src/error.rs`
 
 ### コンテキスト付きエラー

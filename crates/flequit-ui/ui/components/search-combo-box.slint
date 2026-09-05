@@ -1,0 +1,135 @@
+import { LineEdit, ListView } from "std-widgets.slint";
+import { Theme } from "../globals/theme.slint";
+import { Layout } from "../globals/layout.slint";
+
+// A combo box whose list is narrowed by typing.
+//
+// The options are owned by the caller: every keystroke raises `query-changed`
+// and a ViewModel writes the matches back into `options`. Filtering in Rust
+// keeps list logic out of .slint and lets a long list — every IANA timezone —
+// stay virtual instead of being rebuilt in a binding.
+export component SearchComboBox inherits VerticalLayout {
+    in property <string> value;
+    in property <[string]> options;
+    // Accessible name of the text field, e.g. "Timezone".
+    in property <string> label;
+    in property <string> placeholder;
+    in property <string> empty-label: @tr("SearchComboBox" => "No matches");
+    // Rows shown before the list starts scrolling.
+    in property <int> visible-rows: 7;
+
+    // Raised while typing so the caller can refill `options`.
+    callback query-changed(string /* query */);
+    // Raised when an option is picked from the list or confirmed with Enter.
+    callback selected(string /* option */);
+
+    private property <bool> open: false;
+
+    spacing: Theme.space-xs;
+
+    HorizontalLayout {
+        spacing: Theme.space-sm;
+
+        field := LineEdit {
+            horizontal-stretch: 1;
+            text: root.value;
+            placeholder-text: root.placeholder;
+            accessible-label: root.label;
+            edited(query) => {
+                root.open = true;
+                root.query-changed(query);
+            }
+            accepted(query) => {
+                root.open = false;
+                root.selected(query);
+            }
+        }
+
+        toggle := Rectangle {
+            width: Layout.touch-target;
+            border-radius: Theme.radius-sm;
+            border-width: 1px;
+            border-color: Theme.border;
+            background: toggle-touch.has-hover ? Theme.surface-hover : Theme.surface;
+
+            Text {
+                text: root.open ? "▴" : "▾";
+                color: Theme.text;
+                font-size: Theme.font-size-base;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+
+            toggle-touch := TouchArea {
+                clicked => {
+                    root.open = !root.open;
+                    if (root.open) {
+                        root.query-changed(field.text);
+                    } else {
+                        // Closing without picking discards the half-typed query,
+                        // so the field never shows something that was not stored.
+                        field.text = root.value;
+                    }
+                }
+            }
+            accessible-role: button;
+            accessible-label: root.open
+                ? @tr("SearchComboBox" => "Hide {0} options", root.label)
+                : @tr("SearchComboBox" => "Show {0} options", root.label);
+            accessible-action-default => { toggle-touch.clicked(); }
+        }
+    }
+
+    if root.open && root.options.length == 0: Text {
+        text: root.empty-label;
+        color: Theme.text-muted;
+        font-size: Theme.font-size-sm;
+    }
+
+    if root.open && root.options.length > 0: Rectangle {
+        height: Math.min(root.options.length, root.visible-rows) * Layout.touch-target
+            + 2 * Theme.space-xs;
+        border-radius: Theme.radius-sm;
+        border-width: 1px;
+        border-color: Theme.border;
+        background: Theme.surface-raised;
+        clip: true;
+
+        ListView {
+            x: Theme.space-xs;
+            y: Theme.space-xs;
+            width: parent.width - 2 * Theme.space-xs;
+            height: parent.height - 2 * Theme.space-xs;
+
+            for option in root.options: Rectangle {
+                height: Layout.touch-target;
+                border-radius: Theme.radius-sm;
+                background: option == root.value ? Theme.surface-selected
+                    : option-touch.has-hover ? Theme.surface-hover
+                    : transparent;
+
+                Text {
+                    x: Theme.space-sm;
+                    width: parent.width - 2 * Theme.space-sm;
+                    height: 100%;
+                    text: option;
+                    color: Theme.text;
+                    font-size: Theme.font-size-base;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+
+                option-touch := TouchArea {
+                    clicked => {
+                        field.text = option;
+                        root.open = false;
+                        root.selected(option);
+                    }
+                }
+                accessible-role: button;
+                accessible-label: option;
+                accessible-action-default => { option-touch.clicked(); }
+            }
+        }
+    }
+}

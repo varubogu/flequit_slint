@@ -16,6 +16,8 @@
 
 use std::path::{Path, PathBuf};
 
+use chrono::{DateTime, Utc};
+
 use crate::{
     AppPaths, Capabilities, Capability, FileFilter, FileHandle, FormFactor, NotificationId,
     NotificationRequest, PermissionState, Platform, PlatformError, PlatformResult,
@@ -73,6 +75,18 @@ impl Platform for IosPlatform {
 
     async fn notify(&self, _request: NotificationRequest) -> PlatformResult<NotificationId> {
         Err(PlatformError::Unsupported("ios notifications"))
+    }
+
+    async fn schedule_notification(
+        &self,
+        _request: NotificationRequest,
+        _scheduled_at: DateTime<Utc>,
+    ) -> PlatformResult<NotificationId> {
+        Err(PlatformError::Unsupported("ios scheduled notifications"))
+    }
+
+    async fn cancel_notification(&self, _id: &NotificationId) -> PlatformResult<()> {
+        Err(PlatformError::Unsupported("ios scheduled notifications"))
     }
 
     async fn pick_file(&self, _filter: Option<FileFilter>) -> PlatformResult<Option<FileHandle>> {

@@ -91,6 +91,7 @@ async fn test_task_create_operation() -> Result<(), Box<dyn std::error::Error>> 
         project_id,
         list_id: task_list_id,
         title: "Create操作SQLiteタスク".to_string(),
+        reminders: vec![timestamp + chrono::Duration::hours(1)],
         description: Some("Create操作SQLiteテスト用タスク".to_string()),
         status: TaskStatus::NotStarted,
         priority: 2,
@@ -124,6 +125,7 @@ async fn test_task_create_operation() -> Result<(), Box<dyn std::error::Error>> 
     assert_eq!(retrieved.description, task.description);
     assert_eq!(retrieved.project_id, task.project_id);
     assert_eq!(retrieved.list_id, task.list_id);
+    assert_eq!(retrieved.reminders, task.reminders);
 
     Ok(())
 }
@@ -197,6 +199,7 @@ async fn test_task_read_operation() -> Result<(), Box<dyn std::error::Error>> {
         project_id,
         list_id: task_list_id,
         title: "Read操作SQLiteタスク1".to_string(),
+        reminders: vec![],
         description: Some("Read操作SQLiteテスト用タスク1".to_string()),
         status: TaskStatus::NotStarted,
         priority: 2,
@@ -224,6 +227,7 @@ async fn test_task_read_operation() -> Result<(), Box<dyn std::error::Error>> {
         project_id,
         list_id: task_list_id,
         title: "Read操作SQLiteタスク2".to_string(),
+        reminders: vec![],
         description: Some("Read操作SQLiteテスト用タスク2".to_string()),
         status: TaskStatus::InProgress,
         priority: 1,
@@ -336,6 +340,7 @@ async fn test_task_update_operation() -> Result<(), Box<dyn std::error::Error>> 
         project_id,
         list_id: task_list_id,
         title: "Update操作SQLiteタスク1".to_string(),
+        reminders: vec![],
         description: Some("Update操作SQLiteテスト用タスク1".to_string()),
         status: TaskStatus::NotStarted,
         priority: 2,
@@ -363,6 +368,7 @@ async fn test_task_update_operation() -> Result<(), Box<dyn std::error::Error>> 
         project_id,
         list_id: task_list_id,
         title: "Update操作SQLiteタスク2".to_string(),
+        reminders: vec![],
         description: Some("Update操作SQLiteテスト用タスク2".to_string()),
         status: TaskStatus::InProgress,
         priority: 1,
@@ -488,6 +494,7 @@ async fn test_task_delete_operation() -> Result<(), Box<dyn std::error::Error>> 
         project_id,
         list_id: task_list_id,
         title: "Delete操作SQLiteタスク1".to_string(),
+        reminders: vec![],
         description: Some("Delete操作SQLiteテスト用タスク1".to_string()),
         status: TaskStatus::NotStarted,
         priority: 2,
@@ -515,6 +522,7 @@ async fn test_task_delete_operation() -> Result<(), Box<dyn std::error::Error>> 
         project_id,
         list_id: task_list_id,
         title: "Delete操作SQLiteタスク2".to_string(),
+        reminders: vec![],
         description: Some("Delete操作SQLiteテスト用タスク2".to_string()),
         status: TaskStatus::InProgress,
         priority: 1,

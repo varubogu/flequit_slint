@@ -20,4 +20,8 @@ pub mod viewmodels;
 
 pub use bindings::AppWindow;
 pub use error::{UiError, UiResult};
-pub use viewmodels::AppViewModel;
+pub use viewmodels::{
+    AppViewModel, CustomDueFilter, CustomDueUnit, DateTimeFormatKind, DateTimeFormatPreference,
+    DueButtonPreference, RecurrencePreset, SettingsSaveFuture, SettingsStore, SettingsStoreError,
+    UserSettings, resolve_locale, system_locale,
+};

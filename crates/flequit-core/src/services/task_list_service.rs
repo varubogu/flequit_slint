@@ -248,6 +248,7 @@ where
                 do_end_date: task.do_end_date,
                 is_range_date: task.is_range_date,
                 recurrence_rule,
+                reminders: task.reminders.clone(),
                 assigned_user_ids: task.assigned_user_ids.clone(),
                 order_index: task.order_index,
                 is_archived: task.is_archived,

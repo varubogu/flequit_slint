@@ -59,6 +59,9 @@ pub struct Model {
     /// 期間指定フラグ
     pub is_range_date: Option<bool>,
 
+    /// 通知日時の JSON 配列（UTC RFC 3339）
+    pub reminders: String,
+
     /// 表示順序
     #[sea_orm(indexed)] // ソート用
     pub order_index: i32,
@@ -157,6 +160,8 @@ impl SqliteModelConverter<Task> for Model {
             do_end_date: None,
             is_range_date: self.is_range_date,
             recurrence_rule,
+            reminders: serde_json::from_str(&self.reminders)
+                .map_err(|error| format!("Invalid task reminders: {error}"))?,
             assigned_user_ids,
             tag_ids,
             order_index: self.order_index,
@@ -199,6 +204,8 @@ impl DomainToSqliteConverter<ActiveModel> for Task {
             start_date: Set(self.plan_start_date),
             end_date: Set(self.plan_end_date),
             is_range_date: Set(self.is_range_date),
+            reminders: Set(serde_json::to_string(&self.reminders)
+                .map_err(|error| format!("Could not serialize task reminders: {error}"))?),
             order_index: Set(self.order_index),
             is_archived: Set(self.is_archived),
             created_at: Set(self.created_at),
@@ -242,6 +249,8 @@ impl DomainToSqliteConverterWithProjectId<ActiveModel> for Task {
             start_date: Set(self.plan_start_date),
             end_date: Set(self.plan_end_date),
             is_range_date: Set(self.is_range_date),
+            reminders: Set(serde_json::to_string(&self.reminders)
+                .map_err(|error| format!("Could not serialize task reminders: {error}"))?),
             order_index: Set(self.order_index),
             is_archived: Set(self.is_archived),
             created_at: Set(self.created_at),

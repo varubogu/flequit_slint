@@ -1,0 +1,192 @@
+import { ComboBox, LineEdit } from "std-widgets.slint";
+import { Theme } from "../../globals/theme.slint";
+import { Layout } from "../../globals/layout.slint";
+import { Actions } from "../../globals/actions.slint";
+import { SettingsState } from "../../globals/settings.slint";
+import { DateTimePicker } from "../../components/date-time-picker.slint";
+import { SearchComboBox } from "../../components/search-combo-box.slint";
+import { DialogButton } from "../../components/dialog-button.slint";
+import { FieldLabel, SectionTitle } from "settings-controls.slint";
+
+export component DateTimeSettings inherits Rectangle {
+    property <string> test-format: SettingsState.current-datetime-format;
+    property <string> test-format-name;
+    property <int> test-year: SettingsState.preview-year;
+    property <int> test-month: SettingsState.preview-month;
+    property <int> test-day: SettingsState.preview-day;
+    property <int> test-hour: SettingsState.preview-hour;
+    property <int> test-minute: SettingsState.preview-minute;
+    property <bool> confirming-delete: false;
+    property <bool> custom-selected: false;
+    private property <int> selected-index: root.custom-selected
+        ? 4 : Actions.datetime-format-index(root.test-format);
+    private property <string> selected-id: SettingsState.datetime-format-ids[root.selected-index];
+    private property <string> selected-kind: SettingsState.datetime-format-kinds[root.selected-index];
+    private property <bool> can-name: root.selected-kind == "custom" || root.selected-kind == "custom-format";
+    private property <string> current-preview: Actions.preview-datetime(
+        SettingsState.current-datetime-format, root.test-year, root.test-month, root.test-day,
+        root.test-hour, root.test-minute);
+    private property <string> test-preview: Actions.preview-datetime(
+        root.test-format, root.test-year, root.test-month, root.test-day,
+        root.test-hour, root.test-minute);
+
+    changed selected-index => {
+        root.confirming-delete = false;
+        root.test-format-name = root.selected-kind == "custom-format"
+            ? SettingsState.datetime-format-names[root.selected-index] : "";
+    }
+
+    background: Theme.background;
+    VerticalLayout {
+        padding: Layout.content-padding;
+        spacing: Theme.space-xl;
+        alignment: start;
+        SectionTitle { text: @tr("Settings" => "Date and time"); }
+
+        VerticalLayout {
+            spacing: Theme.space-sm;
+            FieldLabel { text: @tr("Settings" => "Timezone"); }
+            SearchComboBox {
+                value: SettingsState.timezone;
+                options: SettingsState.timezone-options;
+                label: @tr("Settings" => "Timezone");
+                placeholder: "Asia/Tokyo";
+                query-changed(query) => { Actions.filter-timezones(query); }
+                selected(timezone) => { Actions.update-timezone(timezone); }
+            }
+            Text {
+                text: @tr("Settings" => "Type to narrow the list, then pick an IANA timezone, UTC, or system.");
+                color: Theme.text-muted;
+                font-size: Theme.font-size-sm;
+                wrap: word-wrap;
+            }
+        }
+
+        VerticalLayout {
+            spacing: Theme.space-sm;
+            FieldLabel { text: @tr("Settings" => "Preview date and time"); }
+            DateTimePicker {
+                value-label: root.current-preview;
+                has-value: true;
+                year: root.test-year;
+                month: root.test-month;
+                day: root.test-day;
+                hour: root.test-hour;
+                minute: root.test-minute;
+                allow-clear: false;
+                edit-label: @tr("Settings" => "Edit preview date and time");
+                date-title: @tr("Settings" => "Select preview date");
+                time-title: @tr("Settings" => "Select preview time");
+                accepted(year, month, day, hour, minute) => {
+                    root.test-year = year;
+                    root.test-month = month;
+                    root.test-day = day;
+                    root.test-hour = hour;
+                    root.test-minute = minute;
+                }
+            }
+        }
+
+        VerticalLayout {
+            spacing: Theme.space-sm;
+            FieldLabel { text: @tr("Settings" => "Current date and time format"); }
+            current-format := LineEdit {
+                text: SettingsState.current-datetime-format;
+                placeholder-text: "%Y-%m-%d %H:%M";
+                accessible-label: @tr("Settings" => "Current date and time format");
+                edited(value) => { Actions.update-datetime-format(value); }
+            }
+            Text {
+                text: root.current-preview == ""
+                    ? @tr("Settings" => "Unable to preview this format") : root.current-preview;
+                color: root.current-preview == "" ? Theme.danger : Theme.text;
+                font-size: Theme.font-size-base;
+            }
+            DialogButton {
+                label: @tr("Settings" => "Copy current format to test");
+                clicked => {
+                    root.custom-selected = false;
+                    root.test-format = current-format.text;
+                }
+            }
+        }
+
+        VerticalLayout {
+            spacing: Theme.space-sm;
+            FieldLabel { text: @tr("Settings" => "Test format preset"); }
+            presets := ComboBox {
+                model: SettingsState.datetime-format-names;
+                current-index: root.selected-index;
+                accessible-label: @tr("Settings" => "Test format preset");
+                selected(_) => {
+                    root.custom-selected = SettingsState.datetime-format-kinds[self.current-index] == "custom";
+                    if (!root.custom-selected) {
+                        root.test-format = SettingsState.datetime-format-values[self.current-index];
+                    }
+                }
+            }
+            LineEdit {
+                text: root.test-format;
+                placeholder-text: "%Y-%m-%d %H:%M";
+                accessible-label: @tr("Settings" => "Test date and time format");
+                edited(value) => {
+                    root.custom-selected = false;
+                    root.test-format = value;
+                }
+            }
+            Text {
+                text: root.test-preview == ""
+                    ? @tr("Settings" => "Unable to preview this format") : root.test-preview;
+                color: root.test-preview == "" ? Theme.danger : Theme.text;
+                font-size: Theme.font-size-base;
+            }
+            DialogButton {
+                label: @tr("Settings" => "Use test format");
+                primary: true;
+                clicked => { Actions.update-datetime-format(root.test-format); }
+            }
+        }
+
+        if root.can-name: VerticalLayout {
+            spacing: Theme.space-sm;
+            FieldLabel {
+                text: root.selected-kind == "custom-format"
+                    ? @tr("Settings" => "Rename custom format")
+                    : @tr("Settings" => "Custom format name");
+            }
+            LineEdit {
+                text <=> root.test-format-name;
+                accessible-label: @tr("Settings" => "Custom format name");
+            }
+            HorizontalLayout {
+                spacing: Theme.space-sm;
+                DialogButton {
+                    label: @tr("Settings" => "Add custom format");
+                    primary: root.selected-kind == "custom";
+                    enabled: root.test-format-name != "";
+                    clicked => {
+                        Actions.add-datetime-format(root.test-format-name, root.test-format);
+                        root.custom-selected = false;
+                    }
+                }
+                if root.selected-kind == "custom-format" && !root.confirming-delete: DialogButton {
+                    label: @tr("Settings" => "Overwrite custom format");
+                    primary: true;
+                    enabled: root.test-format-name != "";
+                    clicked => { Actions.overwrite-datetime-format(
+                        root.selected-id, root.test-format-name, root.test-format); }
+                }
+                if root.selected-kind == "custom-format" && !root.confirming-delete: DialogButton {
+                    label: @tr("Settings" => "Delete custom format");
+                    destructive: true;
+                    clicked => { root.confirming-delete = true; }
+                }
+                if root.selected-kind == "custom-format" && root.confirming-delete: DialogButton {
+                    label: @tr("Settings" => "Delete custom format for good");
+                    destructive: true;
+                    clicked => { Actions.delete-datetime-format(root.selected-id); }
+                }
+            }
+        }
+    }
+}

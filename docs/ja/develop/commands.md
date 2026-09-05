@@ -42,7 +42,7 @@ Node.js / Bun への依存はない。
 | 用途 | コマンド |
 | --- | --- |
 | 抽出ツールの導入 | `cargo install slint-tr-extractor` |
-| `.pot` 再生成 | `find crates/flequit-ui/ui -name '*.slint' \| xargs slint-tr-extractor -o i18n/flequit-ui.pot` |
+| `.pot` 再生成 | `find crates/flequit-ui/ui -name '*.slint' \| sort \| xargs slint-tr-extractor -o i18n/flequit-ui.pot` |
 | `.po` へのマージ | `msgmerge --update i18n/ja/LC_MESSAGES/flequit-ui.po i18n/flequit-ui.pot` |
 | 未翻訳の確認 | `msgfmt --statistics -o /dev/null i18n/ja/LC_MESSAGES/flequit-ui.po` |
 

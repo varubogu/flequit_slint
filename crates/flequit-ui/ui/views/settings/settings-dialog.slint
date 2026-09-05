@@ -1,0 +1,113 @@
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "../../globals/theme.slint";
+import { Layout } from "../../globals/layout.slint";
+import { Actions } from "../../globals/actions.slint";
+import { SettingsState } from "../../globals/settings.slint";
+import { SettingsCategory } from "../../globals/types.slint";
+import { IconButton } from "../../components/icon-button.slint";
+import { IconName } from "../../components/icon.slint";
+import { AccountSettings } from "account-settings.slint";
+import { AppearanceSettings } from "appearance-settings.slint";
+import { BasicSettings } from "basic-settings.slint";
+import { DateTimeSettings } from "datetime-settings.slint";
+import { SettingsCategories } from "settings-categories.slint";
+
+component SelectedSettings inherits Rectangle {
+    background: Theme.background;
+    ScrollView {
+        if SettingsState.selected-category == SettingsCategory.basic: BasicSettings { }
+        if SettingsState.selected-category == SettingsCategory.date-time: DateTimeSettings { }
+        if SettingsState.selected-category == SettingsCategory.appearance: AppearanceSettings { }
+        if SettingsState.selected-category == SettingsCategory.account: AccountSettings { }
+    }
+}
+
+component AllSettings inherits ScrollView {
+    in property <SettingsCategory> category: SettingsState.selected-category;
+
+    changed category => {
+        self.viewport-y = root.category == SettingsCategory.basic ? 0px
+            : root.category == SettingsCategory.date-time ? 0px - date-time.y
+            : root.category == SettingsCategory.appearance ? 0px - appearance.y
+            : 0px - account.y;
+    }
+
+    VerticalLayout {
+        spacing: Theme.space-xl;
+        alignment: start;
+        BasicSettings { }
+        Rectangle { height: 1px; background: Theme.border; }
+        date-time := DateTimeSettings { }
+        Rectangle { height: 1px; background: Theme.border; }
+        appearance := AppearanceSettings { }
+        Rectangle { height: 1px; background: Theme.border; }
+        account := AccountSettings { }
+    }
+}
+
+export component SettingsDialog inherits Rectangle {
+    background: #00000080;
+    TouchArea { }
+
+    Rectangle {
+        x: Layout.is-compact ? 0px : Theme.space-xl;
+        y: Layout.is-compact ? 0px : Theme.space-xl;
+        width: Layout.is-compact ? parent.width : parent.width - 2 * Theme.space-xl;
+        height: Layout.is-compact ? parent.height : parent.height - 2 * Theme.space-xl;
+        border-radius: Layout.is-compact ? 0px : Theme.radius-lg;
+        background: Theme.background;
+        clip: true;
+
+        VerticalLayout {
+            spacing: 0px;
+            Rectangle {
+                height: Layout.touch-target + 2 * Theme.space-md + Layout.safe-area-top;
+                background: Theme.surface-raised;
+                HorizontalLayout {
+                    padding: Theme.space-md;
+                    padding-top: Theme.space-md + Layout.safe-area-top;
+                    spacing: Theme.space-md;
+                    IconButton {
+                        icon: IconName.chevron-left;
+                        tooltip: Layout.is-compact && SettingsState.compact-detail-open
+                            ? @tr("Settings" => "Back to settings categories")
+                            : @tr("Settings" => "Close settings");
+                        clicked => {
+                            if (Layout.is-compact && SettingsState.compact-detail-open) {
+                                SettingsState.compact-detail-open = false;
+                            } else {
+                                Actions.close-settings();
+                            }
+                        }
+                    }
+                    VerticalLayout {
+                        spacing: Theme.space-xs;
+                        horizontal-stretch: 1;
+                        Text {
+                            text: @tr("Settings" => "Settings");
+                            color: Theme.text;
+                            font-size: Theme.font-size-title;
+                            font-weight: 600;
+                        }
+                        Text {
+                            text: @tr("Settings" => "Configure Flequit preferences");
+                            color: Theme.text-muted;
+                            font-size: Theme.font-size-sm;
+                        }
+                    }
+                }
+            }
+            Rectangle { height: 1px; background: Theme.border; }
+
+            if Layout.is-compact && !SettingsState.compact-detail-open: SettingsCategories { }
+            if Layout.is-compact && SettingsState.compact-detail-open: SelectedSettings { }
+
+            if !Layout.is-compact: HorizontalLayout {
+                spacing: 0px;
+                SettingsCategories { width: Layout.sidebar-overlay-width; }
+                Rectangle { width: 1px; background: Theme.border; }
+                AllSettings { horizontal-stretch: 1; }
+            }
+        }
+    }
+}

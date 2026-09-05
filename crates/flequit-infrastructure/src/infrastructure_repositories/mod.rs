@@ -377,4 +377,24 @@ mod tests {
         let mock_repos = MockInfrastructureRepositories::new();
         assert_infra_trait_impl(&mock_repos);
     }
+
+    #[tokio::test]
+    async fn task_facade_delegates_transactional_deletion() {
+        use chrono::Utc;
+        use flequit_core::facades::task_facades;
+        use flequit_model::types::id_types::{ProjectId, TaskId, UserId};
+
+        let repositories = MockInfrastructureRepositories::new();
+        let result = task_facades::delete_task(
+            &repositories,
+            &ProjectId::new(),
+            &TaskId::new(),
+            &UserId::new(),
+            &Utc::now(),
+        )
+        .await;
+
+        assert!(result.expect("mock deletion should succeed"));
+        assert_eq!(repositories.get_call_log(), ["delete_task_transactionally"]);
+    }
 }

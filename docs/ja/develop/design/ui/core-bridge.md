@@ -71,16 +71,15 @@ flequit-infrastructure-{sqlite,automerge}
   ID 採番結果を UI が即座に使えるようにするため
 - 部分更新は `patch` 型で受け取る（`design/data/partial-update-implementation.md` 参照）
 
-### 現状の制約: 削除系 facade
+### 削除系 facade のトランザクション境界
 
-`task_facades::delete_task` は
-`TransactionManager<Transaction = sea_orm::DatabaseTransaction>` の境界を要求する。
-これを ViewModel から呼ぶと **`flequit-ui` が SQLite の型を知ることになり**、
-本書のレイヤー分離と `scripts/check-crate-deps.sh` の不変条件に反する。
+削除 facade は `flequit-core` の `TransactionalDeletionPort` を呼び出す。
+SQLite のトランザクション型、削除順序、Automerge のスナップショット復元は
+`flequit-infrastructure` の実装内に閉じ込める。
 
-対応方針: トランザクション境界を `flequit-infrastructure` の内側へ隠し、
-facade の公開シグネチャからストレージ固有型を除去する。
-それまで UI からの削除操作は未実装とする。
+この境界により ViewModel はほかの facade と同じく
+`Result<T, ServiceError>` だけを扱い、ストレージ固有型や repository trait を参照しない。
+タスク削除は `Actions.delete-task` から ViewModel を経由して接続済み。
 
 ## エラーの受け渡し
 
@@ -90,7 +89,7 @@ facade は `Result<T, ServiceError>` を返す。ViewModel が UI 表示用へ�
 RepositoryError → ServiceError → （ViewModel で変換）→ i18n キー + 表示メッセージ
 ```
 
-- 文字列化はエラー表示の直前（ViewModel の `adapters/error.rs`）でのみ行う
+- エラー詳細の文字列化はログ用途に限定し、`flequit-ui/src/error.rs` で表示コードへ分類する
 - エラー種別ごとに i18n キーへマップし、ユーザーに解決方法を提示する
 - 詳細は `design/error-handling.md` を参照
 

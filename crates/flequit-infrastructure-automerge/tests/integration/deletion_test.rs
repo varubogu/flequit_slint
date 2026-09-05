@@ -42,6 +42,7 @@ fn make_test_task(project_id: &ProjectId, task_list_id: &TaskListId, user_id: &U
         project_id: *project_id,
         list_id: *task_list_id,
         title: "Test Task".to_string(),
+        reminders: vec![],
         description: None,
         status: TaskStatus::NotStarted,
         priority: 0,

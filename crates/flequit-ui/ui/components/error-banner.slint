@@ -1,5 +1,6 @@
 import { Theme } from "../globals/theme.slint";
 import { Layout } from "../globals/layout.slint";
+import { Icon, IconName } from "icon.slint";
 
 // Dismissible error strip shown above the content area.
 export component ErrorBanner inherits Rectangle {
@@ -49,14 +50,11 @@ export component ErrorBanner inherits Rectangle {
             height: Layout.touch-target;
             border-radius: Theme.radius-sm;
             background: close-touch.has-hover ? Theme.surface-hover.with-alpha(0.3) : transparent;
-            Text {
-                text: "✕";
-                color: Theme.text-on-accent;
-                font-size: Theme.font-size-base;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-                width: 100%;
-                height: 100%;
+            Icon {
+                name: IconName.close;
+                tint: Theme.text-on-accent;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
             }
             close-touch := TouchArea { clicked => { root.dismissed(); } }
         }

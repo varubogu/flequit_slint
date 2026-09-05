@@ -1050,6 +1050,7 @@ async fn test_task_repository_crud_operations() -> Result<(), Box<dyn std::error
         project_id,
         list_id: task_list_id,
         title: "統合テスト用タスク".to_string(),
+        reminders: vec![timestamp + chrono::Duration::hours(1)],
         description: Some("Automerge Repository統合テストのためのタスク".to_string()),
         status: TaskStatus::NotStarted,
         priority: 1,
@@ -1083,6 +1084,7 @@ async fn test_task_repository_crud_operations() -> Result<(), Box<dyn std::error
     let retrieved = retrieved_task.unwrap();
     assert_eq!(retrieved.title, task.title);
     assert_eq!(retrieved.description, task.description);
+    assert_eq!(retrieved.reminders, task.reminders);
     assert_eq!(retrieved.list_id, task.list_id);
     assert_eq!(retrieved.status, task.status);
     println!("✅ Task retrieved successfully: {}", retrieved.title);

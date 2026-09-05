@@ -28,7 +28,7 @@ crates/flequit-platform/src/
 ├── paths.rs             # ディレクトリ解決
 ├── notification.rs      # ローカル通知
 ├── file_dialog.rs       # ファイル選択
-├── opener.rs            # 外部アプリ起動
+├── theme.rs             # OS 配色と変更通知の共通型
 ├── lifecycle.rs         # サスペンド/レジュームの購読
 ├── error.rs
 └── platform/
@@ -84,7 +84,7 @@ UI は `capabilities.has(Capability::SystemTray)` の形で判定する。
 
 | 項目 | 内容 |
 | --- | --- |
-| インターフェース | `notify(request: NotificationRequest) -> Result<NotificationId>` |
+| インターフェース | 即時通知 `notify`、予約 `schedule_notification`、取消 `cancel_notification` |
 | Desktop | `notify-rust` |
 | Android | 通知チャネル + `NotificationManager` |
 | iOS | `UNUserNotificationCenter` |
@@ -92,8 +92,10 @@ UI は `capabilities.has(Capability::SystemTray)` の形で判定する。
 - モバイルは **実行時に通知許可を要求** する必要がある。
   `request_permission()` を用意し、初回リマインダー設定時に呼ぶ
 - 許可されなかった場合は設定画面に理由と再要求導線を表示する
-- 予約通知（将来時刻の通知）は OS のスケジューラに登録する。
-  アプリのプロセスが生存していることを前提にしない
+- デスクトップ版はプラットフォーム層が予約タイマーを所有し、起動時に保存済みの
+  未来のリマインダーを再登録する。アプリ終了中に到来した通知は次回起動時に送らない
+- Android / iOS 版では OS のスケジューラへ登録し、アプリのプロセスが生存している
+  ことを前提にしない（Phase 2）
 
 ## ファイル選択
 
@@ -116,6 +118,21 @@ UI は `capabilities.has(Capability::SystemTray)` の形で判定する。
 | Desktop | `opener` |
 | Android | `Intent.ACTION_VIEW` |
 | iOS | `UIApplication.open` |
+
+## システムテーマ
+
+`Platform::system_theme()` で現在の OS 配色を取得し、
+`Platform::subscribe_system_theme()` が返す `SystemThemeWatcher` で起動後の変更を受け取る。
+ViewModel は監視を専用スレッドで行い、変更時だけ
+`slint::Weak::upgrade_in_event_loop()` を通して `Theme.system-dark` を更新する。
+
+| 項目 | Desktop | Android / iOS |
+| --- | --- | --- |
+| 配色検出 | `dark-light` | Slint の起動時配色を使用 |
+| 起動後の変更通知 | `dark-light::Watcher` | Phase 2 でネイティブ API に接続 |
+
+監視オブジェクトは `AppViewModel` が所有し、ウィンドウ終了時に停止してスレッドを回収する。
+OS 固有型は `flequit-platform` の外へ公開しない。
 
 ## ライフサイクル
 
