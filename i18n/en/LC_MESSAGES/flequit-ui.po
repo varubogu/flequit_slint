@@ -1,0 +1,216 @@
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: flequit\n"
+"POT-Creation-Date: 2026-09-05 15:39+0000\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: crates/flequit-ui/ui/components/error-banner.slint:36
+msgctxt "ErrorBanner"
+msgid "Retry"
+msgstr "Retry"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:20
+msgctxt "DueFilter"
+msgid "Overdue"
+msgstr "Overdue"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:21
+msgctxt "DueFilter"
+msgid "Today"
+msgstr "Today"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:22
+msgctxt "DueFilter"
+msgid "Tomorrow"
+msgstr "Tomorrow"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:23
+msgctxt "DueFilter"
+msgid "Next 3 days"
+msgstr "Next 3 days"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:24
+msgctxt "DueFilter"
+msgid "This week"
+msgstr "This week"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:25
+msgctxt "DueFilter"
+msgid "This month"
+msgstr "This month"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:26
+msgctxt "DueFilter"
+msgid "This quarter"
+msgstr "This quarter"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:27
+msgctxt "DueFilter"
+msgid "This year"
+msgstr "This year"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:28
+msgctxt "DueFilter"
+msgid "This fiscal year"
+msgstr "This fiscal year"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:34
+msgctxt "Error"
+msgid "Could not save the task."
+msgstr "Could not save the task."
+
+#: crates/flequit-ui/ui/globals/i18n.slint:35
+msgctxt "Error"
+msgid "Could not delete the task."
+msgstr "Could not delete the task."
+
+#: crates/flequit-ui/ui/globals/i18n.slint:36
+msgctxt "Error"
+msgid "Could not load projects."
+msgstr "Could not load projects."
+
+#: crates/flequit-ui/ui/globals/i18n.slint:37
+msgctxt "Error"
+msgid "Local storage is unavailable."
+msgstr "Local storage is unavailable."
+
+#: crates/flequit-ui/ui/globals/i18n.slint:38
+msgctxt "Error"
+msgid "The item could not be identified."
+msgstr "The item could not be identified."
+
+#: crates/flequit-ui/ui/globals/i18n.slint:39
+msgctxt "Error"
+msgid "The operation is not available on this device."
+msgstr "The operation is not available on this device."
+
+#: crates/flequit-ui/ui/globals/i18n.slint:41
+msgctxt "Error"
+msgid "Something went wrong."
+msgstr "Something went wrong."
+
+#: crates/flequit-ui/ui/main.slint:74
+msgctxt "Shell"
+msgid "Open menu"
+msgstr "Open menu"
+
+#: crates/flequit-ui/ui/main.slint:158
+msgctxt "Shell"
+msgid "Loading…"
+msgstr "Loading…"
+
+#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:31
+msgctxt "Sidebar"
+msgid "Toggle sidebar"
+msgstr "Toggle sidebar"
+
+#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:37
+msgctxt "Sidebar"
+msgid "🔍 Search"
+msgstr "🔍 Search"
+
+#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:148
+msgctxt "Sidebar"
+msgid "Expand {0}"
+msgstr "Expand {0}"
+
+#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:243
+msgctxt "Sidebar"
+msgid "Settings"
+msgstr "Settings"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:24
+msgctxt "TaskDetail"
+msgid "Select a task to see its details."
+msgstr "Select a task to see its details."
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:45
+msgctxt "TaskDetail"
+msgid "Back to list"
+msgstr "Back to list"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:50
+msgctxt "TaskDetail"
+msgid "Task"
+msgstr "Task"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:59
+msgctxt "TaskDetail"
+msgid "Delete task"
+msgstr "Delete task"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:75
+msgctxt "TaskDetail"
+msgid "Task title"
+msgstr "Task title"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:86
+msgctxt "TaskDetail"
+msgid "Due"
+msgstr "Due"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:93
+msgctxt "TaskDetail"
+msgid "Not set"
+msgstr "Not set"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:102
+msgctxt "TaskDetail"
+msgid "Status"
+msgstr "Status"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:108
+msgctxt "Status"
+msgid "Not started"
+msgstr "Not started"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:109
+msgctxt "Status"
+msgid "In progress"
+msgstr "In progress"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:110
+msgctxt "Status"
+msgid "Waiting"
+msgstr "Waiting"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:111
+msgctxt "Status"
+msgid "Completed"
+msgstr "Completed"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:112
+msgctxt "Status"
+msgid "Cancelled"
+msgstr "Cancelled"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:121
+msgctxt "TaskDetail"
+msgid "Notes"
+msgstr "Notes"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:135
+msgctxt "TaskDetail"
+msgid "Subtasks"
+msgstr "Subtasks"
+
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:34
+msgctxt "TaskList"
+msgid "No tasks here yet."
+msgstr "No tasks here yet."
+
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:58
+msgctxt "TaskList"
+msgid "Select a list to add a task"
+msgstr "Select a list to add a task"
+
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:59
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:59
+msgctxt "TaskList"
+msgid "Add a task"
+msgstr "Add a task"

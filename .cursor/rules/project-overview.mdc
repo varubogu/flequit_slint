@@ -1,0 +1,46 @@
+---
+description: Project overview
+globs:
+alwaysApply: true
+---
+
+# Project Overview
+
+## Application Overview
+
+A native task management application built with **Rust + Slint**.
+Single process, no WebView, no IPC. Supports project management and task collaboration.
+Currently designed for local operation (SQLite), but future updates will support
+synchronization. Uses an AutoMerge-based data management system to prevent conflicts
+during synchronization.
+
+Ported from the SvelteKit + Tauri implementation at `varubogu/flequit`.
+
+## Target Platforms
+
+- Phase 1: Windows / macOS / Linux
+- Phase 2: Android / iOS
+- Web: out of scope
+
+UI is a single codebase; layout switches on window width, never on target OS.
+
+## Tech Stack
+
+For details, refer to `docs/ja/develop/design/tech-stack.md`.
+
+## Project Structure
+
+For details, refer to `docs/ja/develop/rules/file-structure.md`.
+
+## Architecture Invariants
+
+Enforced by `./scripts/check-crate-deps.sh`:
+
+- Crate dependency direction:
+  `flequit-types -> flequit-model -> flequit-repository -> flequit-core ->
+  flequit-infrastructure-* -> flequit-infrastructure -> flequit-ui -> flequit-app`
+  (`flequit-platform` is a leaf crate depending only on `flequit-types`)
+- `#[cfg(target_os = ...)]` only inside `flequit-platform`
+- `.slint` holds no business logic and never references domain types
+- Only ViewModels call `flequit-core` facades
+- Never block the UI thread; background UI updates go through `upgrade_in_event_loop()`

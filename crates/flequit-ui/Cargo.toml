@@ -1,0 +1,28 @@
+[package]
+name = "flequit-ui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Slint user interface and ViewModel layer for Flequit."
+
+[dependencies]
+flequit-core.workspace = true
+flequit-infrastructure.workspace = true
+flequit-model.workspace = true
+flequit-platform.workspace = true
+flequit-types.workspace = true
+
+slint.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true }
+tracing.workspace = true
+
+[build-dependencies]
+slint-build.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+tokio = { workspace = true, features = ["rt", "macros"] }
+# Drives the UI without a display so click handling can be tested in CI.
+i-slint-backend-testing = "1"

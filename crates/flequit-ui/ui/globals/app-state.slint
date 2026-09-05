@@ -1,0 +1,46 @@
+import { TaskItem, ProjectItem, DueFilterItem, Pane } from "types.slint";
+
+// Application state shared across views.
+//
+// Written by Rust (ViewModels), read by views. Views may write only the
+// transient fields marked below; anything that must be persisted or that
+// triggers a domain operation goes through Actions instead.
+
+export global AppState {
+    // --- Data, pushed by ViewModels ---
+    in-out property <[ProjectItem]> projects;
+    in-out property <[TaskItem]> tasks;
+    in-out property <[DueFilterItem]> due-filters;
+
+    // --- Selection ---
+    in-out property <string> selected-project-id;
+    in-out property <string> selected-list-id;
+    in-out property <string> selected-task-id;
+    in-out property <string> selected-subtask-id;
+
+    // Resolved by the ViewModel rather than looked up in the view: Slint
+    // bindings are declarative expressions, and searching a model is logic.
+    in-out property <TaskItem> selected-task;
+    in-out property <bool> has-selected-task: false;
+
+    // --- Navigation (compact layout only) ---
+    in-out property <Pane> active-pane: Pane.list;
+    // Transient: views may toggle this directly.
+    in-out property <bool> sidebar-open: false;
+
+    // --- Search ---
+    in-out property <string> search-query;
+
+    // --- Async status ---
+    in-out property <bool> loading: false;
+    // Empty string means "no error". Holds display-ready text resolved via I18n.
+    in-out property <string> error-message;
+
+    // --- Scroll coordination ---
+    // Set by ViewModels to bring a row into view; -1 means "no request".
+    in-out property <int> scroll-to-index: -1;
+
+    // --- Derived helpers ---
+    out property <bool> has-error: root.error-message != "";
+    out property <bool> has-selection: root.selected-task-id != "" || root.selected-subtask-id != "";
+}

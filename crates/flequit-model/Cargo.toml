@@ -1,0 +1,14 @@
+[package]
+name = "flequit-model"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+async-trait = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+partially = { version = "0.2", features = ["derive"]}
+serde = { version = "1", features = ["derive"] }
+uuid = { version = "1", features = ["serde", "v4"] }
+
+# Internal dependencies
+flequit-types = { path = "../flequit-types" }

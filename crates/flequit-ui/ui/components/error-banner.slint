@@ -1,0 +1,64 @@
+import { Theme } from "../globals/theme.slint";
+import { Layout } from "../globals/layout.slint";
+
+// Dismissible error strip shown above the content area.
+export component ErrorBanner inherits Rectangle {
+    in property <string> message;
+    callback dismissed();
+    callback retried();
+
+    height: self.visible ? content.preferred-height + 2 * Theme.space-sm : 0px;
+    background: Theme.danger;
+    border-radius: Theme.radius-sm;
+    accessible-role: text;
+    accessible-label: root.message;
+
+    content := HorizontalLayout {
+        padding: Theme.space-sm;
+        spacing: Theme.space-sm;
+        alignment: stretch;
+
+        Text {
+            text: root.message;
+            color: Theme.text-on-accent;
+            font-size: Theme.font-size-base;
+            wrap: word-wrap;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+
+        Rectangle {
+            width: Layout.touch-target;
+            height: Layout.touch-target;
+            border-radius: Theme.radius-sm;
+            background: retry-touch.has-hover ? Theme.surface-hover.with-alpha(0.3) : transparent;
+            Text {
+                text: @tr("ErrorBanner" => "Retry");
+                color: Theme.text-on-accent;
+                font-size: Theme.font-size-sm;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                width: 100%;
+                height: 100%;
+            }
+            retry-touch := TouchArea { clicked => { root.retried(); } }
+        }
+
+        Rectangle {
+            width: Layout.touch-target;
+            height: Layout.touch-target;
+            border-radius: Theme.radius-sm;
+            background: close-touch.has-hover ? Theme.surface-hover.with-alpha(0.3) : transparent;
+            Text {
+                text: "✕";
+                color: Theme.text-on-accent;
+                font-size: Theme.font-size-base;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                width: 100%;
+                height: 100%;
+            }
+            close-touch := TouchArea { clicked => { root.dismissed(); } }
+        }
+    }
+}

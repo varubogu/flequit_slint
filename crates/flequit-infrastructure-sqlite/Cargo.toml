@@ -1,0 +1,52 @@
+[package]
+name = "flequit-infrastructure-sqlite"
+version = "0.1.0"
+edition = "2024"
+description = "SQLite infrastructure layer for Flequit task management application"
+
+[lib]
+name = "flequit_infrastructure_sqlite"
+crate-type = ["rlib"]
+
+[[bin]]
+name = "migration_runner"
+path = "src/bin/migration_runner.rs"
+
+[dependencies]
+flequit-types = { path = "../flequit-types" }
+flequit-model = { path = "../flequit-model" }
+flequit-repository = { path = "../flequit-repository" }
+flequit-core = { path = "../flequit-core" }
+
+# Database and ORM
+sea-orm = { version = "1", features = ["sqlx-sqlite", "runtime-tokio-rustls", "macros"] }
+sea-orm-migration = { version = "1", features = ["sqlx-sqlite", "runtime-tokio-rustls"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
+futures = "0.3"
+
+# Utilities
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+dirs = "6"
+
+# Error handling
+thiserror = "2"
+
+# Partial update support
+partially = { version = "0.2.1", features = ["derive"] }
+
+# Logging
+log = "0.4"
+tracing = "0.1"
+
+[dev-dependencies]
+tempfile = "3"
+flequit-testing = { path = "../flequit-testing" }
+function_name = "0.3"

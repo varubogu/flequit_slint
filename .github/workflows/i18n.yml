@@ -1,0 +1,43 @@
+name: i18n
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  translations:
+    name: Translation completeness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install gettext
+        run: sudo apt-get update && sudo apt-get install -y gettext
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install slint-tr-extractor
+        run: cargo install slint-tr-extractor --locked
+
+      # Changing a @tr() source string changes its msgid and silently drops the
+      # existing translation, so the extracted template must stay committed.
+      - name: Check the extraction template is current
+        run: |
+          find crates/flequit-ui/ui -name '*.slint' \
+            | xargs slint-tr-extractor -o /tmp/flequit-ui.pot
+          if ! diff -q <(grep -v '^"POT-Creation-Date' i18n/flequit-ui.pot) \
+                       <(grep -v '^"POT-Creation-Date' /tmp/flequit-ui.pot); then
+            echo "::error::i18n/flequit-ui.pot is out of date. Re-run the extractor."
+            diff <(grep -v '^"POT-Creation-Date' i18n/flequit-ui.pot) \
+                 <(grep -v '^"POT-Creation-Date' /tmp/flequit-ui.pot) || true
+            exit 1
+          fi
+
+      - name: Report untranslated entries
+        run: |
+          for po in i18n/*/LC_MESSAGES/flequit-ui.po; do
+            echo "== $po"
+            msgfmt --statistics -o /dev/null "$po"
+          done

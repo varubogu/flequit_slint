@@ -1,0 +1,43 @@
+import { LocaleItem } from "types.slint";
+
+// Translation surface.
+//
+// Rust never builds user-facing strings. It sets a code (an error kind, a
+// status) and the mapping functions below turn it into translated text, so
+// every string lives in the .po files.
+
+export global I18n {
+    in-out property <string> current-locale: "en";
+    in-out property <[LocaleItem]> available-locales: [
+        { tag: "en", display-name: "English" },
+        { tag: "ja", display-name: "日本語" },
+    ];
+
+    callback locale-changed(string);
+
+    // Maps a due-filter key to its translated label.
+    pure public function due-filter-label(key: string) -> string {
+        return key == "overdue" ? @tr("DueFilter" => "Overdue")
+            : key == "today" ? @tr("DueFilter" => "Today")
+            : key == "tomorrow" ? @tr("DueFilter" => "Tomorrow")
+            : key == "three-days" ? @tr("DueFilter" => "Next 3 days")
+            : key == "this-week" ? @tr("DueFilter" => "This week")
+            : key == "this-month" ? @tr("DueFilter" => "This month")
+            : key == "this-quarter" ? @tr("DueFilter" => "This quarter")
+            : key == "this-year" ? @tr("DueFilter" => "This year")
+            : key == "this-fiscal-year" ? @tr("DueFilter" => "This fiscal year")
+            : key;
+    }
+
+    // Maps an error code emitted by a ViewModel to translated text.
+    pure public function error-message(code: string) -> string {
+        return code == "task.save-failed" ? @tr("Error" => "Could not save the task.")
+            : code == "task.delete-failed" ? @tr("Error" => "Could not delete the task.")
+            : code == "project.load-failed" ? @tr("Error" => "Could not load projects.")
+            : code == "storage.unavailable" ? @tr("Error" => "Local storage is unavailable.")
+            : code == "input.malformed-id" ? @tr("Error" => "The item could not be identified.")
+            : code == "platform.failed" ? @tr("Error" => "The operation is not available on this device.")
+            : code == "" ? ""
+            : @tr("Error" => "Something went wrong.");
+    }
+}

@@ -1,0 +1,16 @@
+// Platform feature availability, resolved once at startup by flequit-platform.
+//
+// Views hide affordances the platform cannot honour rather than showing an
+// option that fails when used.
+
+export global Capabilities {
+    in-out property <bool> system-tray: false;
+    in-out property <bool> global-hotkey: false;
+    in-out property <bool> multi-window: false;
+    in-out property <bool> os-trash: false;
+    in-out property <bool> arbitrary-file-path: false;
+    in-out property <bool> local-notification: false;
+    in-out property <bool> file-picker: false;
+    in-out property <bool> background-sync: false;
+    in-out property <bool> self-update: false;
+}

@@ -1,0 +1,34 @@
+import { Theme } from "../globals/theme.slint";
+import { Layout } from "../globals/layout.slint";
+
+// Square, icon-only button sized to the current breakpoint's hit area.
+export component IconButton inherits Rectangle {
+    in property <string> label;
+    in property <string> tooltip;
+    in property <bool> active: false;
+    callback clicked();
+
+    width: Layout.touch-target;
+    height: Layout.touch-target;
+    border-radius: Theme.radius-sm;
+    background: root.active ? Theme.surface-selected
+        : touch.has-hover ? Theme.surface-hover
+        : transparent;
+    accessible-role: button;
+    accessible-label: root.tooltip != "" ? root.tooltip : root.label;
+    accessible-action-default => { root.clicked(); }
+
+    Text {
+        text: root.label;
+        color: Theme.text;
+        font-size: Theme.font-size-lg;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        width: 100%;
+        height: 100%;
+    }
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}

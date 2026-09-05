@@ -1,0 +1,216 @@
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: flequit\n"
+"POT-Creation-Date: 2026-09-05 15:39+0000\n"
+"Language: ja\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: crates/flequit-ui/ui/components/error-banner.slint:36
+msgctxt "ErrorBanner"
+msgid "Retry"
+msgstr "再試行"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:20
+msgctxt "DueFilter"
+msgid "Overdue"
+msgstr "期限切れ"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:21
+msgctxt "DueFilter"
+msgid "Today"
+msgstr "今日"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:22
+msgctxt "DueFilter"
+msgid "Tomorrow"
+msgstr "明日"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:23
+msgctxt "DueFilter"
+msgid "Next 3 days"
+msgstr "3日"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:24
+msgctxt "DueFilter"
+msgid "This week"
+msgstr "今週"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:25
+msgctxt "DueFilter"
+msgid "This month"
+msgstr "今月"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:26
+msgctxt "DueFilter"
+msgid "This quarter"
+msgstr "今期"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:27
+msgctxt "DueFilter"
+msgid "This year"
+msgstr "今年"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:28
+msgctxt "DueFilter"
+msgid "This fiscal year"
+msgstr "今年度"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:34
+msgctxt "Error"
+msgid "Could not save the task."
+msgstr "タスクを保存できませんでした。"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:35
+msgctxt "Error"
+msgid "Could not delete the task."
+msgstr "タスクを削除できませんでした。"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:36
+msgctxt "Error"
+msgid "Could not load projects."
+msgstr "プロジェクトを読み込めませんでした。"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:37
+msgctxt "Error"
+msgid "Local storage is unavailable."
+msgstr "ローカルストレージを利用できません。"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:38
+msgctxt "Error"
+msgid "The item could not be identified."
+msgstr "対象を特定できませんでした。"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:39
+msgctxt "Error"
+msgid "The operation is not available on this device."
+msgstr "この端末では利用できない操作です。"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:41
+msgctxt "Error"
+msgid "Something went wrong."
+msgstr "問題が発生しました。"
+
+#: crates/flequit-ui/ui/main.slint:74
+msgctxt "Shell"
+msgid "Open menu"
+msgstr "メニューを開く"
+
+#: crates/flequit-ui/ui/main.slint:158
+msgctxt "Shell"
+msgid "Loading…"
+msgstr "読み込み中…"
+
+#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:31
+msgctxt "Sidebar"
+msgid "Toggle sidebar"
+msgstr "サイドバーを開閉"
+
+#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:37
+msgctxt "Sidebar"
+msgid "🔍 Search"
+msgstr "🔍 検索"
+
+#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:148
+msgctxt "Sidebar"
+msgid "Expand {0}"
+msgstr "{0} を展開"
+
+#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:243
+msgctxt "Sidebar"
+msgid "Settings"
+msgstr "設定"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:24
+msgctxt "TaskDetail"
+msgid "Select a task to see its details."
+msgstr "タスクを選択すると詳細が表示されます。"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:45
+msgctxt "TaskDetail"
+msgid "Back to list"
+msgstr "一覧へ戻る"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:50
+msgctxt "TaskDetail"
+msgid "Task"
+msgstr "タスク"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:59
+msgctxt "TaskDetail"
+msgid "Delete task"
+msgstr "タスクを削除"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:75
+msgctxt "TaskDetail"
+msgid "Task title"
+msgstr "タスク名"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:86
+msgctxt "TaskDetail"
+msgid "Due"
+msgstr "期限"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:93
+msgctxt "TaskDetail"
+msgid "Not set"
+msgstr "未設定"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:102
+msgctxt "TaskDetail"
+msgid "Status"
+msgstr "ステータス"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:108
+msgctxt "Status"
+msgid "Not started"
+msgstr "未着手"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:109
+msgctxt "Status"
+msgid "In progress"
+msgstr "実行中"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:110
+msgctxt "Status"
+msgid "Waiting"
+msgstr "待機中"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:111
+msgctxt "Status"
+msgid "Completed"
+msgstr "完了"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:112
+msgctxt "Status"
+msgid "Cancelled"
+msgstr "中止"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:121
+msgctxt "TaskDetail"
+msgid "Notes"
+msgstr "ノート"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:135
+msgctxt "TaskDetail"
+msgid "Subtasks"
+msgstr "サブタスク"
+
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:34
+msgctxt "TaskList"
+msgid "No tasks here yet."
+msgstr "タスクはまだありません。"
+
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:58
+msgctxt "TaskList"
+msgid "Select a list to add a task"
+msgstr "リストを選択するとタスクを追加できます"
+
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:59
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:59
+msgctxt "TaskList"
+msgid "Add a task"
+msgstr "タスクを追加"

@@ -1,0 +1,35 @@
+// Callbacks implemented in Rust by the ViewModels.
+//
+// Any interaction that persists data or runs domain logic goes through here.
+// Views must not mutate AppState for those cases.
+
+export global Actions {
+    // --- Navigation ---
+    callback select-project(string /* project_id */);
+    callback select-task-list(string /* project_id */, string /* list_id */);
+    callback select-task(string /* task_id */);
+    callback select-subtask(string /* subtask_id */);
+    callback go-to-parent-task();
+    callback toggle-project-expansion(string /* project_id */);
+    callback toggle-task-expansion(string /* task_id */);
+
+    // --- Search and filters ---
+    callback search-changed(string /* query */);
+    callback due-filter-clicked(string /* filter_key */);
+
+    // --- Task mutations ---
+    callback add-task(string /* list_id */, string /* title */);
+    callback toggle-task-completed(string /* task_id */);
+    callback update-task-title(string /* task_id */, string /* title */);
+    callback update-task-notes(string /* task_id */, string /* notes */);
+    callback delete-task(string /* task_id */);
+
+    // --- Subtask mutations ---
+    callback add-subtask(string /* task_id */, string /* title */);
+    callback toggle-subtask-completed(string /* subtask_id */);
+
+    // --- Shell ---
+    callback open-settings();
+    callback dismiss-error();
+    callback retry-last-action();
+}

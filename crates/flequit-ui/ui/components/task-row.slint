@@ -1,0 +1,198 @@
+import { Theme } from "../globals/theme.slint";
+import { Layout } from "../globals/layout.slint";
+import { TaskItem, TaskPriority } from "../globals/types.slint";
+
+// One row in the task list, including its collapsible subtasks.
+//
+// Holds no state: `expanded` and `completed` arrive from the model and every
+// interaction is reported upward as a callback.
+export component TaskRow inherits Rectangle {
+    in property <TaskItem> task;
+    in property <bool> selected: false;
+
+    callback clicked();
+    callback toggle-completed();
+    callback toggle-expansion();
+    callback subtask-clicked(string /* subtask_id */);
+    callback subtask-toggled(string /* subtask_id */);
+
+    height: layout.preferred-height;
+    background: root.selected ? Theme.surface-selected
+        : row-touch.has-hover ? Theme.surface-hover
+        : transparent;
+    border-radius: Theme.radius-sm;
+
+    layout := VerticalLayout {
+        spacing: 0px;
+
+        // --- Main row ---
+        HorizontalLayout {
+            padding-left: Theme.space-sm;
+            padding-right: Theme.space-sm;
+            spacing: Theme.space-sm;
+            alignment: stretch;
+
+            // Expand / collapse. Occupies space even with no subtasks so
+            // titles stay aligned.
+            Rectangle {
+                width: Layout.touch-target;
+                height: Layout.touch-target;
+                border-radius: Theme.radius-sm;
+                background: expand-touch.has-hover && root.task.subtask-count > 0
+                    ? Theme.surface-hover : transparent;
+
+                if root.task.subtask-count > 0: Text {
+                    text: root.task.expanded ? "▾" : "▸";
+                    color: Theme.text-muted;
+                    font-size: Theme.font-size-base;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    width: 100%;
+                    height: 100%;
+                }
+
+                expand-touch := TouchArea {
+                    enabled: root.task.subtask-count > 0;
+                    clicked => { root.toggle-expansion(); }
+                }
+            }
+
+            // Completion checkbox
+            Rectangle {
+                width: Layout.touch-target;
+                height: Layout.touch-target;
+
+                Rectangle {
+                    width: 18px;
+                    height: 18px;
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    border-radius: Theme.radius-sm;
+                    border-width: 1px;
+                    border-color: root.task.completed ? Theme.accent : Theme.border;
+                    background: root.task.completed ? Theme.accent : transparent;
+
+                    Text {
+                        text: root.task.completed ? "✓" : "";
+                        color: Theme.text-on-accent;
+                        font-size: Theme.font-size-sm;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        width: 100%;
+                        height: 100%;
+                    }
+                }
+
+                check-touch := TouchArea {
+                    clicked => { root.toggle-completed(); }
+                }
+                accessible-role: checkbox;
+                accessible-checked: root.task.completed;
+                accessible-label: root.task.title;
+                accessible-action-default => { root.toggle-completed(); }
+            }
+
+            // Title and metadata
+            VerticalLayout {
+                horizontal-stretch: 1;
+                padding-top: Theme.space-xs;
+                padding-bottom: Theme.space-xs;
+                spacing: 2px;
+                alignment: center;
+
+                Text {
+                    text: root.task.title;
+                    color: root.task.completed ? Theme.text-muted : Theme.text;
+                    font-size: Theme.font-size-base;
+                    overflow: elide;
+                }
+
+                if root.task.has-due || root.task.subtask-count > 0: HorizontalLayout {
+                    spacing: Theme.space-sm;
+
+                    if root.task.has-due: Text {
+                        text: root.task.due-label;
+                        color: root.task.overdue ? Theme.danger : Theme.text-muted;
+                        font-size: Theme.font-size-sm;
+                    }
+
+                    if root.task.subtask-count > 0: Text {
+                        text: root.task.subtask-done-count + " / " + root.task.subtask-count;
+                        color: Theme.text-muted;
+                        font-size: Theme.font-size-sm;
+                    }
+                }
+            }
+
+            // Priority marker
+            if root.task.priority != TaskPriority.none: Rectangle {
+                width: 4px;
+                border-radius: 2px;
+                background: root.task.priority == TaskPriority.high ? Theme.priority-high
+                    : root.task.priority == TaskPriority.medium ? Theme.priority-medium
+                    : Theme.priority-low;
+            }
+        }
+
+        // --- Subtasks ---
+        if root.task.expanded: VerticalLayout {
+            padding-left: Layout.touch-target + Theme.space-sm;
+            padding-bottom: Theme.space-xs;
+            spacing: 0px;
+
+            for sub in root.task.subtasks: Rectangle {
+                height: Layout.touch-target;
+                border-radius: Theme.radius-sm;
+                background: sub-touch.has-hover ? Theme.surface-hover : transparent;
+
+                HorizontalLayout {
+                    padding-left: Theme.space-sm;
+                    spacing: Theme.space-sm;
+                    alignment: stretch;
+
+                    Rectangle {
+                        width: Layout.touch-target;
+                        Rectangle {
+                            width: 14px;
+                            height: 14px;
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            border-radius: Theme.radius-sm;
+                            border-width: 1px;
+                            border-color: sub.completed ? Theme.accent : Theme.border;
+                            background: sub.completed ? Theme.accent : transparent;
+                        }
+                        TouchArea {
+                            clicked => { root.subtask-toggled(sub.id); }
+                        }
+                    }
+
+                    Text {
+                        text: sub.title;
+                        color: sub.completed ? Theme.text-muted : Theme.text;
+                        font-size: Theme.font-size-sm;
+                        vertical-alignment: center;
+                        overflow: elide;
+                        horizontal-stretch: 1;
+                    }
+                }
+
+                sub-touch := TouchArea {
+                    clicked => { root.subtask-clicked(sub.id); }
+                }
+            }
+        }
+    }
+
+    row-touch := TouchArea {
+        // Sits behind the interactive children so they win the click.
+        z: -1;
+        clicked => { root.clicked(); }
+    }
+
+    accessible-role: list-item;
+    accessible-label: root.task.title;
+    accessible-item-selected: root.selected;
+    accessible-item-selectable: true;
+    accessible-action-default => { root.clicked(); }
+}

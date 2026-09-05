@@ -1,0 +1,81 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/flequit-types",
+    "crates/flequit-platform",
+    "crates/flequit-model",
+    "crates/flequit-repository",
+    "crates/flequit-core",
+    "crates/flequit-infrastructure-sqlite",
+    "crates/flequit-infrastructure-automerge",
+    "crates/flequit-infrastructure",
+    "crates/flequit-settings",
+    "crates/flequit-testing",
+    "crates/flequit-ui",
+    "crates/flequit-app",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/varubogu/flequit_slint"
+
+[workspace.dependencies]
+# Internal crates
+flequit-types = { path = "crates/flequit-types" }
+flequit-platform = { path = "crates/flequit-platform" }
+flequit-model = { path = "crates/flequit-model" }
+flequit-repository = { path = "crates/flequit-repository" }
+flequit-core = { path = "crates/flequit-core" }
+flequit-infrastructure = { path = "crates/flequit-infrastructure" }
+flequit-infrastructure-sqlite = { path = "crates/flequit-infrastructure-sqlite" }
+flequit-infrastructure-automerge = { path = "crates/flequit-infrastructure-automerge" }
+flequit-settings = { path = "crates/flequit-settings" }
+flequit-testing = { path = "crates/flequit-testing" }
+flequit-ui = { path = "crates/flequit-ui" }
+
+# UI
+slint = "1"
+slint-build = "1"
+
+# Async
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+async-trait = "0.1"
+futures = "0.3"
+
+# Data
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["serde", "v4"] }
+
+# Errors / logging
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "time", "chrono"] }
+tracing-appender = "0.2"
+
+# Platform
+directories = "6"
+rfd = "0.15"
+notify-rust = "4"
+opener = "0.8"
+trash = "5"
+
+# Dev
+tempfile = "3"
+mockall = "0.13"
+rstest = "0.24"
+pretty_assertions = "1"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
+[profile.dev]
+# Slint's generated code is large; keep incremental builds usable.
+opt-level = 0
+debug = 1

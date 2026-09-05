@@ -1,0 +1,171 @@
+import { ScrollView, LineEdit, TextEdit } from "std-widgets.slint";
+import { Theme } from "../../globals/theme.slint";
+import { Layout } from "../../globals/layout.slint";
+import { AppState } from "../../globals/app-state.slint";
+import { Actions } from "../../globals/actions.slint";
+import { TaskItem, TaskStatus } from "../../globals/types.slint";
+import { IconButton } from "../../components/icon-button.slint";
+
+// Task detail pane.
+//
+// In the compact breakpoint this is a full-screen view reached from the list,
+// so it shows a back affordance; the caller decides via `show-back`.
+export component TaskDetailView inherits Rectangle {
+    in property <bool> show-back: false;
+    callback back();
+
+    // The selected task, resolved by the caller from AppState.tasks.
+    in property <TaskItem> task;
+    in property <bool> has-task: false;
+
+    background: Theme.background;
+
+    if !root.has-task: Text {
+        text: @tr("TaskDetail" => "Select a task to see its details.");
+        color: Theme.text-muted;
+        font-size: Theme.font-size-base;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        width: 100%;
+        height: 100%;
+    }
+
+    if root.has-task: VerticalLayout {
+        padding: Layout.content-padding;
+        padding-top: Layout.content-padding + Layout.safe-area-top;
+        padding-bottom: Layout.content-padding + Layout.safe-area-bottom;
+        spacing: Theme.space-md;
+
+        // Header
+        HorizontalLayout {
+            spacing: Theme.space-sm;
+
+            if root.show-back: IconButton {
+                label: "‹";
+                tooltip: @tr("TaskDetail" => "Back to list");
+                clicked => { root.back(); }
+            }
+
+            Text {
+                text: @tr("TaskDetail" => "Task");
+                color: Theme.text-muted;
+                font-size: Theme.font-size-sm;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+            }
+
+            IconButton {
+                label: "🗑";
+                tooltip: @tr("TaskDetail" => "Delete task");
+                clicked => { Actions.delete-task(root.task.id); }
+            }
+        }
+
+        ScrollView {
+            vertical-stretch: 1;
+
+            VerticalLayout {
+                spacing: Theme.space-md;
+                alignment: start;
+
+                // Title
+                LineEdit {
+                    text: root.task.title;
+                    font-size: Theme.font-size-title;
+                    placeholder-text: @tr("TaskDetail" => "Task title");
+                    edited(value) => { Actions.update-task-title(root.task.id, value); }
+                }
+
+                // Metadata
+                VerticalLayout {
+                    spacing: Theme.space-sm;
+
+                    HorizontalLayout {
+                        spacing: Theme.space-sm;
+                        Text {
+                            text: @tr("TaskDetail" => "Due");
+                            color: Theme.text-muted;
+                            font-size: Theme.font-size-sm;
+                            width: 80px;
+                        }
+                        Text {
+                            text: root.task.has-due ? root.task.due-label
+                                : @tr("TaskDetail" => "Not set");
+                            color: root.task.overdue ? Theme.danger : Theme.text;
+                            font-size: Theme.font-size-base;
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: Theme.space-sm;
+                        Text {
+                            text: @tr("TaskDetail" => "Status");
+                            color: Theme.text-muted;
+                            font-size: Theme.font-size-sm;
+                            width: 80px;
+                        }
+                        Text {
+                            text: root.task.status == TaskStatus.not-started ? @tr("Status" => "Not started")
+                                : root.task.status == TaskStatus.in-progress ? @tr("Status" => "In progress")
+                                : root.task.status == TaskStatus.waiting ? @tr("Status" => "Waiting")
+                                : root.task.status == TaskStatus.completed ? @tr("Status" => "Completed")
+                                : @tr("Status" => "Cancelled");
+                            color: Theme.text;
+                            font-size: Theme.font-size-base;
+                        }
+                    }
+                }
+
+                // Notes
+                Text {
+                    text: @tr("TaskDetail" => "Notes");
+                    color: Theme.text-muted;
+                    font-size: Theme.font-size-sm;
+                }
+
+                TextEdit {
+                    height: 160px;
+                    text: root.task.notes;
+                    wrap: word-wrap;
+                    edited => { Actions.update-task-notes(root.task.id, self.text); }
+                }
+
+                // Subtasks
+                if root.task.subtask-count > 0: Text {
+                    text: @tr("TaskDetail" => "Subtasks");
+                    color: Theme.text-muted;
+                    font-size: Theme.font-size-sm;
+                }
+
+                for sub in root.task.subtasks: Rectangle {
+                    height: Layout.touch-target;
+                    border-radius: Theme.radius-sm;
+                    background: sub-touch.has-hover ? Theme.surface-hover : transparent;
+
+                    HorizontalLayout {
+                        padding-left: Theme.space-sm;
+                        spacing: Theme.space-sm;
+                        Text {
+                            text: sub.completed ? "☑" : "☐";
+                            color: Theme.text-muted;
+                            font-size: Theme.font-size-base;
+                            vertical-alignment: center;
+                        }
+                        Text {
+                            text: sub.title;
+                            color: sub.completed ? Theme.text-muted : Theme.text;
+                            font-size: Theme.font-size-base;
+                            vertical-alignment: center;
+                            horizontal-stretch: 1;
+                            overflow: elide;
+                        }
+                    }
+
+                    sub-touch := TouchArea {
+                        clicked => { Actions.select-subtask(sub.id); }
+                    }
+                }
+            }
+        }
+    }
+}

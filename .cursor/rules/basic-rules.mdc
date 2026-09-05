@@ -1,0 +1,30 @@
+---
+description: Basic rules
+globs:
+alwaysApply: true
+---
+
+# Basic Rules
+
+## About Responses
+
+Respond in Japanese.
+
+## Permission Confirmation for Modifications
+
+When instructed to make changes, do not immediately modify parts unrelated to the
+source without first asking for permission from the user.
+
+## Commit Policy
+
+Let the user run `git commit` and `git push`.
+
+## Build and Test Limitations
+
+Limit the number of cargo workers to 4 during build and full test execution
+(to prevent unintended load on the user).
+
+- `cargo test -j 4` — all cargo commands (check, build, test, clippy, fmt, etc.)
+  should limit workers to 4.
+
+There is no Node.js / Bun / npm in this repository. Cargo only.

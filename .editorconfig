@@ -1,0 +1,39 @@
+# https://editorconfig.org
+
+# このファイルがプロジェクトのルートであることを示す
+root = true
+
+# 全てのファイルに適用されるルール
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Rust は rustfmt に従う（4スペース）
+[*.rs]
+indent_style = space
+indent_size = 4
+
+# Slint / TOML / YAML / JSON / Markdown
+[*.{slint,toml,yml,yaml,json}]
+indent_style = space
+indent_size = 4
+
+[*.{yml,yaml,json}]
+indent_size = 2
+
+[*.md]
+indent_style = space
+indent_size = 2
+# Markdown は行末2スペースが改行を意味するため除外
+trim_trailing_whitespace = false
+
+# gettext カタログはツールが生成するため触らない
+[*.{po,pot}]
+insert_final_newline = true
+trim_trailing_whitespace = false
+
+[*.sh]
+indent_style = space
+indent_size = 2

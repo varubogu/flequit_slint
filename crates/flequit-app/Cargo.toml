@@ -1,0 +1,28 @@
+[package]
+name = "flequit-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Flequit executable: bootstrap, dependency wiring, event loop."
+default-run = "flequit"
+
+[[bin]]
+name = "flequit"
+path = "src/main.rs"
+
+[lib]
+name = "flequit_app"
+path = "src/lib.rs"
+crate-type = ["lib", "cdylib"]
+
+[dependencies]
+flequit-infrastructure.workspace = true
+flequit-platform.workspace = true
+flequit-settings.workspace = true
+flequit-ui.workspace = true
+
+slint.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

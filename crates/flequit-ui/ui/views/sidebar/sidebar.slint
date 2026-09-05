@@ -1,0 +1,248 @@
+import { ScrollView, LineEdit } from "std-widgets.slint";
+import { Theme } from "../../globals/theme.slint";
+import { Layout } from "../../globals/layout.slint";
+import { AppState } from "../../globals/app-state.slint";
+import { I18n } from "../../globals/i18n.slint";
+import { Actions } from "../../globals/actions.slint";
+import { ProjectItem, DueFilterItem } from "../../globals/types.slint";
+import { IconButton } from "../../components/icon-button.slint";
+
+// Left navigation: search, due-date filters and the project tree.
+//
+// `collapsed` is decided by the caller from the breakpoint, so this component
+// works identically in an inline column and in a compact overlay.
+export component Sidebar inherits Rectangle {
+    in property <bool> collapsed: false;
+    callback collapse-toggled();
+
+    background: Theme.surface;
+
+    VerticalLayout {
+        padding-top: Layout.safe-area-top;
+        spacing: 0px;
+
+        // --- Header ---
+        HorizontalLayout {
+            padding: Theme.space-sm;
+            spacing: Theme.space-sm;
+
+            IconButton {
+                label: root.collapsed ? "»" : "«";
+                tooltip: @tr("Sidebar" => "Toggle sidebar");
+                clicked => { root.collapse-toggled(); }
+            }
+
+            if !root.collapsed: LineEdit {
+                horizontal-stretch: 1;
+                placeholder-text: @tr("Sidebar" => "🔍 Search");
+                text: AppState.search-query;
+                edited(value) => { Actions.search-changed(value); }
+            }
+        }
+
+        // --- Content ---
+        ScrollView {
+            vertical-stretch: 1;
+
+            VerticalLayout {
+                padding: Theme.space-sm;
+                spacing: Theme.space-lg;
+                alignment: start;
+
+                // Due-date filters
+                VerticalLayout {
+                    spacing: 2px;
+
+                    for filter in AppState.due-filters: Rectangle {
+                        visible: filter.visible;
+                        height: filter.visible ? Layout.touch-target : 0px;
+                        border-radius: Theme.radius-sm;
+                        background: AppState.search-query == filter.query
+                            ? Theme.surface-selected
+                            : filter-touch.has-hover ? Theme.surface-hover
+                            : transparent;
+
+                        HorizontalLayout {
+                            padding-left: Theme.space-sm;
+                            padding-right: Theme.space-sm;
+                            spacing: Theme.space-sm;
+
+                            Text {
+                                text: "◷";
+                                color: Theme.text-muted;
+                                font-size: Theme.font-size-base;
+                                vertical-alignment: center;
+                            }
+
+                            if !root.collapsed: Text {
+                                text: I18n.due-filter-label(filter.key);
+                                color: Theme.text;
+                                font-size: Theme.font-size-base;
+                                vertical-alignment: center;
+                                horizontal-stretch: 1;
+                                overflow: elide;
+                            }
+
+                            if !root.collapsed && filter.count > 0: Text {
+                                text: filter.count;
+                                color: Theme.text-muted;
+                                font-size: Theme.font-size-sm;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        filter-touch := TouchArea {
+                            clicked => { Actions.due-filter-clicked(filter.key); }
+                        }
+                        accessible-role: button;
+                        accessible-label: I18n.due-filter-label(filter.key);
+                        accessible-action-default => { Actions.due-filter-clicked(filter.key); }
+                    }
+                }
+
+                // Projects
+                VerticalLayout {
+                    spacing: 2px;
+
+                    for project in AppState.projects: VerticalLayout {
+                        spacing: 0px;
+
+                        Rectangle {
+                            height: Layout.touch-target;
+                            border-radius: Theme.radius-sm;
+                            // Hover is rendered by the inner targets: an id
+                            // declared inside an `if` is not visible here.
+                            background: AppState.selected-project-id == project.id
+                                && AppState.selected-list-id == ""
+                                ? Theme.surface-selected
+                                : transparent;
+
+                            HorizontalLayout {
+                                padding-right: Theme.space-sm;
+                                spacing: 0px;
+
+                                // Expanding and selecting are separate targets:
+                                // a single click on the chevron opens the list,
+                                // a click on the name selects the project.
+                                Rectangle {
+                                    width: Layout.touch-target;
+                                    background: chevron-touch.has-hover
+                                        ? Theme.surface-hover : transparent;
+                                    border-radius: Theme.radius-sm;
+
+                                    Text {
+                                        text: root.collapsed ? project.short-label
+                                            : (project.expanded ? "▾" : "▸");
+                                        color: Theme.text-muted;
+                                        font-size: Theme.font-size-base;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                        width: 100%;
+                                        height: 100%;
+                                    }
+
+                                    chevron-touch := TouchArea {
+                                        clicked => { Actions.toggle-project-expansion(project.id); }
+                                    }
+                                    accessible-role: button;
+                                    accessible-label: @tr("Sidebar" => "Expand {0}", project.name);
+                                    accessible-expandable: true;
+                                    accessible-expanded: project.expanded;
+                                    accessible-action-default => {
+                                        Actions.toggle-project-expansion(project.id);
+                                    }
+                                }
+
+                                if !root.collapsed: Rectangle {
+                                    horizontal-stretch: 1;
+                                    border-radius: Theme.radius-sm;
+                                    background: name-touch.has-hover
+                                        ? Theme.surface-hover : transparent;
+
+                                    Text {
+                                        x: Theme.space-xs;
+                                        width: parent.width - Theme.space-xs;
+                                        text: project.name;
+                                        color: Theme.text;
+                                        font-size: Theme.font-size-base;
+                                        vertical-alignment: center;
+                                        height: 100%;
+                                        overflow: elide;
+                                    }
+
+                                    name-touch := TouchArea {
+                                        clicked => { Actions.select-project(project.id); }
+                                    }
+                                    accessible-role: button;
+                                    accessible-label: project.name;
+                                    accessible-action-default => {
+                                        Actions.select-project(project.id);
+                                    }
+                                }
+                            }
+                        }
+
+                        if !root.collapsed && project.expanded: VerticalLayout {
+                            padding-left: Theme.space-lg;
+                            spacing: 0px;
+
+                            for list in project.task-lists: Rectangle {
+                                height: Layout.touch-target;
+                                border-radius: Theme.radius-sm;
+                                background: AppState.selected-list-id == list.id
+                                    ? Theme.surface-selected
+                                    : list-touch.has-hover ? Theme.surface-hover
+                                    : transparent;
+
+                                HorizontalLayout {
+                                    padding-left: Theme.space-sm;
+                                    padding-right: Theme.space-sm;
+                                    spacing: Theme.space-sm;
+
+                                    Text {
+                                        text: list.name;
+                                        color: Theme.text;
+                                        font-size: Theme.font-size-base;
+                                        vertical-alignment: center;
+                                        horizontal-stretch: 1;
+                                        overflow: elide;
+                                    }
+
+                                    if list.task-count > 0: Text {
+                                        text: list.task-count;
+                                        color: Theme.text-muted;
+                                        font-size: Theme.font-size-sm;
+                                        vertical-alignment: center;
+                                    }
+                                }
+
+                                list-touch := TouchArea {
+                                    clicked => { Actions.select-task-list(project.id, list.id); }
+                                }
+                                accessible-role: button;
+                                accessible-label: list.name;
+                                accessible-action-default => {
+                                    Actions.select-task-list(project.id, list.id);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- Footer ---
+        HorizontalLayout {
+            padding: Theme.space-sm;
+            padding-bottom: Theme.space-sm + Layout.safe-area-bottom;
+            spacing: Theme.space-sm;
+            alignment: start;
+
+            IconButton {
+                label: "⚙";
+                tooltip: @tr("Sidebar" => "Settings");
+                clicked => { Actions.open-settings(); }
+            }
+        }
+    }
+}

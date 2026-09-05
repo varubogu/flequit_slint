@@ -1,0 +1,41 @@
+// Responsive breakpoints.
+//
+// Layout branches on window width only. Never branch on the target OS:
+// a narrow desktop window must behave exactly like a phone.
+// See docs/ja/develop/design/ui/responsive-layout.md
+
+export enum Breakpoint { compact, medium, expanded }
+
+export global Layout {
+    // Assigned by the root Window from its own width.
+    in-out property <length> window-width: 1200px;
+
+    out property <bool> is-compact: root.window-width < 600px;
+    out property <bool> is-medium: root.window-width >= 600px && root.window-width < 1024px;
+    out property <bool> is-expanded: root.window-width >= 1024px;
+
+    out property <Breakpoint> breakpoint:
+        root.is-compact ? Breakpoint.compact
+        : root.is-medium ? Breakpoint.medium
+        : Breakpoint.expanded;
+
+    // Minimum hit area. Touch-sized on compact, pointer-sized elsewhere.
+    out property <length> touch-target: root.is-compact ? 48px : 32px;
+
+    out property <length> content-padding:
+        root.is-compact ? 12px
+        : root.is-medium ? 16px
+        : 24px;
+
+    // Sidebar width per breakpoint. 0 means "overlay, hidden by default".
+    out property <length> sidebar-width:
+        root.is-expanded ? 240px
+        : root.is-medium ? 62px
+        : 0px;
+
+    out property <length> sidebar-overlay-width: 280px;
+
+    // Safe area insets, supplied by the platform on mobile.
+    in-out property <length> safe-area-top: 0px;
+    in-out property <length> safe-area-bottom: 0px;
+}

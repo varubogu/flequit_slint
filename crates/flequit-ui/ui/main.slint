@@ -1,0 +1,167 @@
+import { Theme, ThemeMode } from "globals/theme.slint";
+import { Layout, Breakpoint } from "globals/layout.slint";
+import { AppState } from "globals/app-state.slint";
+import { Actions } from "globals/actions.slint";
+import { Capabilities } from "globals/capabilities.slint";
+import { I18n } from "globals/i18n.slint";
+import { TaskItem, ProjectItem, TaskListItem, SubTaskItem, DueFilterItem, LocaleItem,
+         TaskStatus, TaskPriority, Pane } from "globals/types.slint";
+import { Sidebar } from "views/sidebar/sidebar.slint";
+import { TaskListView } from "views/task-list/task-list.slint";
+import { TaskDetailView } from "views/task-detail/task-detail.slint";
+import { ErrorBanner } from "components/error-banner.slint";
+import { IconButton } from "components/icon-button.slint";
+
+// Re-export globals so Rust can reach them through the generated bindings.
+export { Theme, Layout, AppState, Actions, Capabilities, I18n }
+export { TaskItem, ProjectItem, TaskListItem, SubTaskItem, DueFilterItem, LocaleItem,
+         TaskStatus, TaskPriority, Pane, ThemeMode, Breakpoint }
+
+export component AppWindow inherits Window {
+    title: "Flequit";
+    background: Theme.background;
+    preferred-width: 1200px;
+    preferred-height: 800px;
+    min-width: 320px;
+    min-height: 480px;
+
+    // Single source of truth for every responsive decision in the app.
+    // Assigning here means a narrow desktop window behaves exactly like a phone.
+    changed width => { Layout.window-width = self.width; }
+
+    // In compact the panes are exclusive; elsewhere both are visible.
+    private property <bool> show-list:
+        Layout.is-compact ? AppState.active-pane == Pane.list : true;
+    private property <bool> show-detail:
+        Layout.is-compact ? AppState.active-pane == Pane.detail : true;
+
+    HorizontalLayout {
+        spacing: 0px;
+
+        // --- Inline sidebar: expanded and medium only ---
+        if !Layout.is-compact: Rectangle {
+            width: Layout.sidebar-width;
+            Sidebar {
+                width: 100%;
+                height: 100%;
+                collapsed: Layout.is-medium;
+                collapse-toggled => { AppState.sidebar-open = !AppState.sidebar-open; }
+            }
+        }
+
+        if !Layout.is-compact: Rectangle {
+            width: 1px;
+            background: Theme.border;
+        }
+
+        // --- Content ---
+        VerticalLayout {
+            horizontal-stretch: 1;
+            spacing: 0px;
+
+            // Compact-only top bar with the hamburger.
+            if Layout.is-compact: Rectangle {
+                height: Layout.touch-target + 2 * Theme.space-sm + Layout.safe-area-top;
+                background: Theme.surface;
+
+                HorizontalLayout {
+                    padding: Theme.space-sm;
+                    padding-top: Theme.space-sm + Layout.safe-area-top;
+                    spacing: Theme.space-sm;
+
+                    IconButton {
+                        label: "☰";
+                        tooltip: @tr("Shell" => "Open menu");
+                        clicked => { AppState.sidebar-open = true; }
+                    }
+
+                    Text {
+                        text: "Flequit";
+                        color: Theme.text;
+                        font-size: Theme.font-size-lg;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                    }
+                }
+            }
+
+            if AppState.has-error: Rectangle {
+                height: banner.height + 2 * Theme.space-sm;
+                HorizontalLayout {
+                    padding: Theme.space-sm;
+                    banner := ErrorBanner {
+                        message: AppState.error-message;
+                        dismissed => { Actions.dismiss-error(); }
+                        retried => { Actions.retry-last-action(); }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                vertical-stretch: 1;
+                spacing: 0px;
+
+                if root.show-list: TaskListView {
+                    horizontal-stretch: Layout.is-expanded ? 1 : 2;
+                }
+
+                if root.show-list && root.show-detail: Rectangle {
+                    width: 1px;
+                    background: Theme.border;
+                }
+
+                if root.show-detail: TaskDetailView {
+                    horizontal-stretch: 1;
+                    show-back: Layout.is-compact;
+                    has-task: AppState.has-selected-task;
+                    task: AppState.selected-task;
+                    back => { AppState.active-pane = Pane.list; }
+                }
+            }
+        }
+    }
+
+    // --- Compact sidebar overlay ---
+    if Layout.is-compact && AppState.sidebar-open: Rectangle {
+        width: 100%;
+        height: 100%;
+        background: #00000080;
+
+        TouchArea {
+            clicked => { AppState.sidebar-open = false; }
+        }
+
+        Rectangle {
+            x: 0;
+            width: Layout.sidebar-overlay-width;
+            height: 100%;
+
+            Sidebar {
+                width: 100%;
+                height: 100%;
+                collapsed: false;
+                collapse-toggled => { AppState.sidebar-open = false; }
+            }
+        }
+    }
+
+    // --- Loading veil ---
+    if AppState.loading: Rectangle {
+        width: 100%;
+        height: 100%;
+        background: Theme.background.with-alpha(0.6);
+
+        // Swallow input while loading.
+        TouchArea { }
+
+        Text {
+            text: @tr("Shell" => "Loading…");
+            color: Theme.text;
+            font-size: Theme.font-size-lg;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            width: 100%;
+            height: 100%;
+        }
+    }
+}

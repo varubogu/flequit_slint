@@ -1,0 +1,43 @@
+---
+description: Platform abstraction rules
+globs:
+  - "crates/flequit-platform/**/*.rs"
+  - "crates/flequit-app/**/*.rs"
+  - "mobile/**"
+alwaysApply: true
+---
+
+# Platform Abstraction Rules
+
+## About Platform Abstraction
+
+For details, refer to `docs/ja/develop/design/platform/platform-abstraction.md`.
+
+## Hard Rule
+
+`#[cfg(target_os = ...)]` and `#[cfg(target_arch = ...)]` live only inside
+`crates/flequit-platform/src/platform/`. If an OS check is needed elsewhere,
+the abstraction is missing — add it to `flequit-platform` instead.
+
+## Capability Gating
+
+Unsupported features are reported through `Capability`, not runtime errors.
+Query before calling; hide the UI affordance when unavailable.
+
+`SystemTray`, `GlobalHotkey`, `MultiWindow`, `OsTrash`, `ArbitraryFilePath` are
+desktop-only. `LocalNotification` and `FilePicker` exist everywhere.
+
+## Paths
+
+Use `paths::data_dir()` / `config_dir()` / `cache_dir()` / `log_dir()`.
+Mobile keeps everything inside the app sandbox.
+
+## File Handles
+
+Mobile file pickers return URIs / security-scoped handles, not paths.
+Return a `FileHandle` abstraction and read/write through it.
+
+## Lifecycle
+
+Never write save-on-exit logic. Mobile OSes kill the process without warning.
+Persist on every operation. Handle `Suspend` / `Resume` / `LowMemory` explicitly.

@@ -1,0 +1,38 @@
+[package]
+name = "flequit-core"
+version = "0.1.0"
+edition = "2024"
+description = "Core business logic for Flequit task management application"
+
+[lib]
+name = "flequit_core"
+crate-type = ["rlib"]
+
+[dependencies]
+# Storage layer dependency
+flequit-types = { path = "../flequit-types" }
+flequit-model = { path = "../flequit-model" }
+flequit-repository = { path = "../flequit-repository" }
+flequit-settings = { path = "../flequit-settings" }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
+
+# Database ORM (for transaction types)
+sea-orm = { version = "1", features = ["sqlx-sqlite", "runtime-tokio-rustls"] }
+
+# Utilities
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Error handling
+thiserror = "2"
+
+# Logging
+log = "0.4"
+tracing = "0.1"

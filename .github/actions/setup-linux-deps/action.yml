@@ -1,0 +1,21 @@
+name: Setup Linux dependencies
+description: Installs the system libraries Slint and the platform layer need on Linux runners.
+
+runs:
+  using: composite
+  steps:
+    - name: Install system packages
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          libxkbcommon-dev \
+          libwayland-dev \
+          libxcb1-dev \
+          libx11-dev \
+          libxcursor-dev \
+          libxrandr-dev \
+          libxi-dev \
+          libfontconfig1-dev \
+          libdbus-1-dev \
+          pkg-config

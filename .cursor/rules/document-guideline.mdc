@@ -1,0 +1,17 @@
+---
+description: Document guideline
+globs:
+  - "docs/**/*.md"
+alwaysApply: true
+---
+
+# Document Guideline
+
+## About Document
+
+For details, refer to `docs/ja/develop/rules/documentation.md`.
+
+## Current Policy
+
+`docs/ja/` is the source of truth. `docs/en/` has not been created yet;
+do not generate it as part of an unrelated change.

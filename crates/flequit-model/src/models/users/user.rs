@@ -1,0 +1,217 @@
+//! ユーザー管理モデル
+//!
+//! このモジュールはアプリケーション内でのユーザー情報を管理する構造体を定義します。
+//!
+//! ## 概要
+//!
+//! `User`構造体は、アプリケーション内でのユーザープロフィール情報を表現します。
+//! `UserDocument`構造体は、複数のユーザー情報を配列として管理するAutomergeドキュメントです。
+//! 認証情報（`Account`）とは分離され、ユーザーの実体情報を管理します。
+//!
+//! ## 操作制約
+//!
+//! User Documentは以下の特別な制約があります：
+//! - **追加**: 新しいユーザープロフィールの追加は常に可能
+//! - **更新**: 既存のユーザープロフィールの更新は可能
+//! - **削除**: ユーザープロフィールの論理削除が可能（deleted フラグを使用）
+//! - **編集権限**: 自分のAccount.user_idにマッチするプロフィールのみ編集可能
+
+use crate::models::ModelConverter;
+use crate::models::task_projects::{
+    subtask_assignment::SubTaskAssignment, task_assignment::TaskAssignment,
+};
+use crate::types::id_types::UserId;
+use async_trait::async_trait;
+use chrono::{DateTime, Utc};
+use partially::Partial;
+use serde::{Deserialize, Serialize};
+
+/// アプリケーションユーザー情報を表現する構造体
+///
+/// 認証後のユーザーの実体情報（プロフィール、表示名等）を管理します。
+/// 認証情報は別途`Account`モデルで管理されます。
+///
+/// # フィールド
+///
+/// * `id` - ユーザーの公開識別子（他者から参照可能、プロジェクト共有用）
+/// * `username` - ユニークユーザー名（必須、@mention等で使用）
+/// * `display_name` - 表示用名前（UI表示用、任意設定可能）
+/// * `email` - メールアドレス（任意、通知や連絡で使用）
+/// * `avatar_url` - プロフィール画像URL（外部サービス由来）
+/// * `bio` - 自己紹介文（任意）
+/// * `timezone` - タイムゾーン（任意）
+/// * `is_active` - アクティブ状態（必須）
+/// * `created_at` - ユーザー作成日時
+/// * `updated_at` - プロフィール最終更新日時
+/// * `deleted` - 削除フラグ（論理削除）
+/// * `updated_by` - 最終更新者のユーザーID
+///
+/// # フロントエンド互換性
+///
+/// 本構造体は、Svelteフロントエンドとの互換性を保つため、
+/// 複数のアバター関連フィールド(`avatar_url`, `avatar`)を持ちます。
+///
+/// # 設計思想
+///
+/// - **ユーザー中心設計**: アプリケーション内でのユーザー体験に特化
+/// - **プロフィール管理**: 表示名、アバター等のカスタマイズ可能な情報を重視
+/// - **認証分離**: 認証情報とユーザー情報を明確に分離
+/// - **公開設計**: 全フィールドが外部公開想定（内部IDと公開IDの分離不要）
+///
+/// # 使用例
+///
+/// ```rust,no_run
+/// # use chrono::Utc;
+/// # use flequit_model::models::users::user::User;
+/// # use flequit_model::types::id_types::UserId;
+///
+/// let user = User {
+///     id: UserId::new(),
+///     handle_id: "john_doe".to_string(),
+///     display_name: "John Doe".to_string(),
+///     email: Some("john@example.com".to_string()),
+///     avatar_url: Some("https://example.com/avatar.jpg".to_string()),
+///     bio: Some("Software developer".to_string()),
+///     timezone: Some("America/New_York".to_string()),
+///     is_active: true,
+///     created_at: Utc::now(),
+///     updated_at: Utc::now(),
+///     deleted: false,
+///     updated_by: UserId::new(),
+/// };
+/// ```
+///
+/// # 関連モデル
+///
+/// - [`crate::models::account::Account`] - 認証情報
+/// - [`crate::models::project::ProjectMember`] - プロジェクトメンバーシップ
+/// - [`crate::models::task::Task`] - タスク担当者情報
+#[derive(Debug, Clone, Serialize, Deserialize, Partial)]
+#[partially(derive(Debug, Clone, Serialize, Deserialize, Default))]
+pub struct User {
+    /// ユーザーの公開識別子（他者から参照可能、プロジェクト共有用）
+    #[partially(omit)] // IDは更新対象外
+    pub id: UserId,
+    /// ユニークユーザー名（必須、@mention等で使用）
+    pub handle_id: String,
+    /// 表示用名前（UI表示用、任意設定可能）
+    pub display_name: String,
+    /// メールアドレス（任意、通知や連絡で使用）
+    pub email: Option<String>,
+    /// プロフィール画像URL（外部サービス由来）
+    pub avatar_url: Option<String>,
+    /// 自己紹介文（任意）
+    pub bio: Option<String>,
+    /// タイムゾーン（任意）
+    pub timezone: Option<String>,
+    /// アクティブ状態（必須）
+    pub is_active: bool,
+    /// ユーザー作成日時
+    pub created_at: DateTime<Utc>,
+    /// プロフィール最終更新日時
+    pub updated_at: DateTime<Utc>,
+    /// 削除フラグ（論理削除）
+    pub deleted: bool,
+    /// 最終更新者のユーザーID
+    pub updated_by: UserId,
+}
+
+/// ユーザーとその割り当て情報を含むTree構造体
+///
+/// ユーザー情報に加えて、そのユーザーに割り当てられたタスクや
+/// サブタスクの情報を階層構造で管理します。
+/// フロントエンドでユーザーダッシュボードや担当一覧を表示する際に使用されます。
+///
+/// # フィールド
+///
+/// * `id` - ユーザーの公開識別子
+/// * `username` - ユニークユーザー名
+/// * `display_name` - 表示用名前（UI表示用）
+/// * `email` - メールアドレス（任意）
+/// * `avatar_url` - プロフィール画像URL（外部サービス由来）
+/// * `bio` - 自己紹介文（任意）
+/// * `timezone` - タイムゾーン（任意）
+/// * `is_active` - アクティブ状態
+/// * `created_at` - ユーザー作成日時
+/// * `updated_at` - プロフィール最終更新日時
+/// * `deleted` - 削除フラグ（論理削除）
+/// * `updated_by` - 最終更新者のユーザーID
+/// * `task_assignments` - このユーザーに割り当てられたタスクの一覧
+/// * `subtask_assignments` - このユーザーに割り当てられたサブタスクの一覧
+///
+/// # 使用例
+///
+/// ```rust,no_run
+/// # use chrono::Utc;
+/// # use flequit_model::models::users::user::UserTree;
+/// # use flequit_model::types::id_types::UserId;
+///
+/// let user_tree = UserTree {
+///     id: UserId::new(),
+///     handle_id: "john_doe".to_string(),
+///     display_name: "John Doe".to_string(),
+///     email: Some("john@example.com".to_string()),
+///     avatar_url: Some("https://example.com/avatar.jpg".to_string()),
+///     bio: Some("Software developer".to_string()),
+///     timezone: Some("America/New_York".to_string()),
+///     is_active: true,
+///     created_at: Utc::now(),
+///     updated_at: Utc::now(),
+///     deleted: false,
+///     updated_by: UserId::new(),
+///     task_assignments: vec![],
+///     subtask_assignments: vec![],
+/// };
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserTree {
+    /// ユーザーの公開識別子（他者から参照可能、プロジェクト共有用）
+    pub id: UserId,
+    /// ユニークユーザー名（必須、@mention等で使用）
+    pub handle_id: String,
+    /// 表示用名前（UI表示用、任意設定可能）
+    pub display_name: String,
+    /// メールアドレス（任意、通知や連絡で使用）
+    pub email: Option<String>,
+    /// プロフィール画像URL（外部サービス由来）
+    pub avatar_url: Option<String>,
+    /// 自己紹介文（任意）
+    pub bio: Option<String>,
+    /// タイムゾーン（任意）
+    pub timezone: Option<String>,
+    /// アクティブ状態（必須）
+    pub is_active: bool,
+    /// ユーザー作成日時
+    pub created_at: DateTime<Utc>,
+    /// プロフィール最終更新日時
+    pub updated_at: DateTime<Utc>,
+    /// 削除フラグ（論理削除）
+    pub deleted: bool,
+    /// 最終更新者のユーザーID
+    pub updated_by: UserId,
+    /// このユーザーに割り当てられたタスクの一覧
+    pub task_assignments: Vec<TaskAssignment>,
+    /// このユーザーに割り当てられたサブタスクの一覧
+    pub subtask_assignments: Vec<SubTaskAssignment>,
+}
+
+#[async_trait]
+impl ModelConverter<User> for UserTree {
+    async fn to_model(&self) -> Result<User, String> {
+        // UserTreeからUser基本構造体に変換（関連データのtask_assignments, subtask_assignmentsは除く）
+        Ok(User {
+            id: self.id,
+            handle_id: self.handle_id.clone(),
+            display_name: self.display_name.clone(),
+            email: self.email.clone(),
+            avatar_url: self.avatar_url.clone(),
+            bio: self.bio.clone(),
+            timezone: self.timezone.clone(),
+            is_active: self.is_active,
+            created_at: self.created_at,
+            updated_at: self.updated_at,
+            deleted: self.deleted,
+            updated_by: self.updated_by,
+        })
+    }
+}

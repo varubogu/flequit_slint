@@ -1,0 +1,59 @@
+---
+description: Development guidelines
+globs:
+alwaysApply: true
+---
+
+# Development Guidelines
+
+## About Design Documents
+
+`docs/ja/` is the source of truth. `docs/en/` does not exist yet.
+
+### Architecture & Design
+
+- `docs/ja/develop/design/architecture.md` - Overall architecture
+- `docs/ja/develop/design/tech-stack.md` - Tech stack and crate layout
+- `docs/ja/develop/design/ui/` - Slint UI design
+  - `layers.md` - Layer responsibilities and dependency rules
+  - `slint-patterns.md` - Slint design patterns
+  - `viewmodel-architecture.md` - ViewModel layer
+  - `responsive-layout.md` - Breakpoints and touch requirements
+  - `core-bridge.md` - How the UI talks to the core
+  - `i18n-system.md` - Internationalization
+- `docs/ja/develop/design/platform/platform-abstraction.md` - OS abstraction
+- `docs/ja/develop/design/backend/` - Rust design
+  - `rust-guidelines.md` - Clean architecture, error handling, async
+  - `transaction-management.md` - Transaction boundaries
+- `docs/ja/develop/design/data/` - Data-related design
+  - `data-model.md` - Data structure specifications
+  - `data-security.md` - Security design
+  - `automerge-repo-dataflow.md` - Data flow design
+  - `partial-update-implementation.md` - Partial update system
+  - `entity/` - Entity definitions
+
+### Development Rules
+
+- `docs/ja/develop/rules/` - coding rules (ui.md, backend.md, testing.md, etc.)
+
+### Requirements Definition
+
+- `docs/ja/develop/requirements/` - performance.md, accessibility.md, testing.md, etc.
+
+### Testing
+
+- `docs/ja/develop/design/testing.md` - Testing strategy and guidelines
+
+Refer to these documents as needed and work based on the latest design information.
+
+## Coding Standards
+
+For details, refer to `docs/ja/develop/rules/coding-standards.md`.
+
+## Development Workflow
+
+For details, refer to `docs/ja/develop/rules/workflow.md`.
+
+## Command List
+
+For details, refer to `docs/ja/develop/commands.md`.

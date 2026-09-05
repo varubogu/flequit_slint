@@ -1,0 +1,28 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+
+# Application data written during local runs
+config.local.toml
+
+# Temporary test output (timestamped; intentionally not cleaned up by tests)
+.tmp/
+
+# Packaging output
+/dist/
+
+# Mobile build artifacts
+/mobile/android/.gradle/
+/mobile/android/build/
+/mobile/ios/build/
+/mobile/ios/*.xcodeproj/
+/mobile/ios/*.xcworkspace/
+
+# Editors
+.DS_Store
+*.swp
+
+# AI tooling local state
+.claude/settings.local.json
+.serena/

@@ -1,0 +1,23 @@
+[package]
+name = "flequit-infrastructure"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+flequit-types = { path = "../flequit-types" }
+flequit-model = { path = "../flequit-model" }
+flequit-repository = { path = "../flequit-repository" }
+flequit-core = { path = "../flequit-core" }
+flequit-infrastructure-sqlite = { path = "../flequit-infrastructure-sqlite" }
+flequit-infrastructure-automerge = { path = "../flequit-infrastructure-automerge" }
+async-trait = "0.1"
+chrono = "0.4"
+tracing = "0.1"
+log = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1", features = ["sync"] }
+dirs = "6"
+sea-orm = { version = "1", features = ["sqlx-sqlite", "runtime-tokio-rustls"] }
+
+[dev-dependencies]
+scopeguard = "1.0"

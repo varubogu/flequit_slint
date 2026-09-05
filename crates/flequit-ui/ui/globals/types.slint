@@ -1,0 +1,72 @@
+// UI-facing data types.
+//
+// These are display-ready: dates are pre-formatted strings, optionals are
+// resolved into a value plus a `has-*` flag. Domain types never reach the UI.
+// Conversion lives in crates/flequit-ui/src/adapters/.
+
+export enum TaskStatus { not-started, in-progress, waiting, completed, cancelled }
+
+export enum TaskPriority { none, low, medium, high }
+
+export enum Pane { list, detail }
+
+export struct SubTaskItem {
+    id: string,
+    task-id: string,
+    title: string,
+    status: TaskStatus,
+    completed: bool,
+}
+
+export struct TaskItem {
+    id: string,
+    list-id: string,
+    title: string,
+    status: TaskStatus,
+    priority: TaskPriority,
+    completed: bool,
+    // Pre-formatted in the user's timezone and format preference.
+    due-label: string,
+    has-due: bool,
+    overdue: bool,
+    notes: string,
+    tag-labels: [string],
+    subtasks: [SubTaskItem],
+    subtask-count: int,
+    subtask-done-count: int,
+    // Accordion state, owned by TaskListUiViewModel and mirrored here.
+    expanded: bool,
+}
+
+export struct TaskListItem {
+    id: string,
+    project-id: string,
+    name: string,
+    task-count: int,
+}
+
+export struct ProjectItem {
+    id: string,
+    name: string,
+    // Fallback shown when collapsed and no icon is set: first 2-3 characters.
+    short-label: string,
+    color: string,
+    has-color: bool,
+    task-lists: [TaskListItem],
+    expanded: bool,
+}
+
+export struct DueFilterItem {
+    // Stable key, e.g. "today". Sent back to Rust on click.
+    key: string,
+    label: string,
+    // Search text this button writes into the search box, e.g. "@today".
+    query: string,
+    count: int,
+    visible: bool,
+}
+
+export struct LocaleItem {
+    tag: string,
+    display-name: string,
+}

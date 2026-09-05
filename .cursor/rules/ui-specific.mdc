@@ -1,0 +1,48 @@
+---
+description: UI-specific rules (Slint / ViewModel)
+globs:
+  - "crates/flequit-ui/**/*.slint"
+  - "crates/flequit-ui/**/*.rs"
+alwaysApply: true
+---
+
+# UI-specific Rules
+
+## Slint Design Patterns
+
+For details, refer to `docs/ja/develop/design/ui/slint-patterns.md`.
+
+## Layer Boundaries
+
+For details, refer to `docs/ja/develop/design/ui/layers.md`.
+
+- `.slint` files: layout and display only. No business logic, no domain types.
+- `src/adapters/`: pure domain-type <-> Slint-type conversion. No I/O.
+- `src/viewmodels/`: UI state, callback implementations, facade calls.
+
+Only ViewModels call `flequit-core` facades. Never call repositories or concrete
+infrastructure crates from the UI. Never write `#[cfg(target_os = ...)]` here.
+
+## Responsive Layout
+
+For details, refer to `docs/ja/develop/design/ui/responsive-layout.md`.
+
+Branch on window width (`Compact < 600px`, `Medium 600-1023px`, `Expanded >= 1024px`),
+never on target OS. Minimum tap target is 48px in `Compact`.
+
+## Thread Boundary
+
+Slint components and models are not `Send`. Update the UI from background threads
+only via `slint::Weak::upgrade_in_event_loop()`. Capture only `Weak` in closures.
+
+## Model Updates
+
+Use row-level notifications (`set_row_data` / `push` / `remove`).
+Use `set_vec` only for initial load and filter changes.
+
+## Internationalization System
+
+For details, refer to `docs/ja/develop/design/ui/i18n-system.md`.
+
+All display strings use `@tr()` in `.slint`. Never build user-facing strings in Rust;
+pass an identifier and map it to `@tr()` in `ui/globals/i18n.slint`.

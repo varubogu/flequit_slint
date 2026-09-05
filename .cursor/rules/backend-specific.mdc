@@ -1,0 +1,44 @@
+---
+description: Backend-specific rules
+globs:
+  - "crates/flequit-core/**/*.rs"
+  - "crates/flequit-repository/**/*.rs"
+  - "crates/flequit-model/**/*.rs"
+  - "crates/flequit-types/**/*.rs"
+  - "crates/flequit-infrastructure/**/*.rs"
+  - "crates/flequit-infrastructure-sqlite/**/*.rs"
+  - "crates/flequit-infrastructure-automerge/**/*.rs"
+  - "crates/flequit-settings/**/*.rs"
+  - "**/Cargo.toml"
+alwaysApply: true
+---
+
+# Backend-specific Rules
+
+## About Rust Components
+
+For details, refer to `docs/ja/develop/design/backend/rust-guidelines.md`.
+
+## Module Relationships
+
+For details, refer to the "アーキテクチャ構成" section in
+`docs/ja/develop/design/backend/rust-guidelines.md`.
+
+Access control:
+
+- Facades call services; services call repository traits.
+- Facades own transaction boundaries; services and repositories never commit or roll back.
+- Infrastructure adapters implement persistence only, no domain rules.
+
+## Transactions
+
+For details, refer to `docs/ja/develop/design/backend/transaction-management.md`.
+
+## Async
+
+The Tokio runtime is constructed by `flequit-app`. Lower layers never create a runtime.
+`flequit-core` and below know nothing about Slint; notify the UI via channels.
+
+## Paths
+
+Never hardcode filesystem paths. Use `flequit_platform::paths`.
