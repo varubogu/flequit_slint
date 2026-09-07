@@ -76,6 +76,13 @@ export component TaskDetailView inherits Rectangle {
 
                 // Title
                 LineEdit {
+                    private property <int> focus-detail-request: AppState.focus-detail-request;
+                    init => {
+                        if (self.focus-detail-request > 0 && root.has-task) { self.focus(); }
+                    }
+                    changed focus-detail-request => {
+                        if (root.has-task) { self.focus(); }
+                    }
                     text: root.task.title;
                     font-size: Theme.font-size-title;
                     placeholder-text: @tr("TaskDetail" => "Task title");

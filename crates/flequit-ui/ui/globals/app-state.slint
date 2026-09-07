@@ -43,6 +43,14 @@ export global AppState {
 
     in-out property <bool> sidebar-collapsed: false;
 
+    // --- Keyboard focus coordination ---
+    // Conditional panes cannot be referenced by id from the window. The shell
+    // increments one of these counters and the visible view focuses itself.
+    in-out property <int> focus-search-request: 0;
+    in-out property <int> focus-list-request: 0;
+    in-out property <int> focus-detail-request: 0;
+    in-out property <int> focus-new-task-request: 0;
+
     // --- Search ---
     in-out property <string> search-query;
     in-out property <[SearchSuggestion]> search-suggestions;

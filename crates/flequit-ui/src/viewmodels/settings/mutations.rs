@@ -30,6 +30,11 @@ pub(super) fn bind(window: &AppWindow, queue: &SettingsQueue) {
     });
 
     let updater = queue.updater(window.as_weak());
+    actions.on_update_vim_mode(move |enabled| {
+        updater.update(move |settings| settings.vim_mode = enabled);
+    });
+
+    let updater = queue.updater(window.as_weak());
     actions.on_update_due_button(move |key, visible| {
         let key = key.to_string();
         updater.update(move |settings| {

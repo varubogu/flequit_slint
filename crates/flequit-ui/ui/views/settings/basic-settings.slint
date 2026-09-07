@@ -57,6 +57,16 @@ export component BasicSettings inherits Rectangle {
 
         VerticalLayout {
             spacing: Theme.space-sm;
+            FieldLabel { text: @tr("Settings" => "Keyboard"); }
+            CheckBox {
+                text: @tr("Settings" => "Enable Vim task navigation (j/k and g/G)");
+                checked: SettingsState.vim-mode;
+                toggled => { Actions.update-vim-mode(self.checked); }
+            }
+        }
+
+        VerticalLayout {
+            spacing: Theme.space-sm;
             FieldLabel { text: @tr("Settings" => "Due filter buttons"); }
             for button in SettingsState.due-buttons: CheckBox {
                 text: button.key == "overdue" ? @tr("Settings" => "Show Overdue due filter")

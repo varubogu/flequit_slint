@@ -590,6 +590,28 @@ where
             });
         }
 
+        {
+            let weak = window.as_weak();
+            let state = Arc::clone(&self.state);
+            actions.on_move_task_selection(move |delta| {
+                let Some(window) = weak.upgrade() else { return };
+                if select_task_at_offset(&window, delta) {
+                    refresh_tags(&window, &state);
+                }
+            });
+        }
+
+        {
+            let weak = window.as_weak();
+            let state = Arc::clone(&self.state);
+            actions.on_select_task_boundary(move |first| {
+                let Some(window) = weak.upgrade() else { return };
+                if select_task_boundary(&window, first) {
+                    refresh_tags(&window, &state);
+                }
+            });
+        }
+
         // Selecting a subtask also expands its parent row, so the list shows
         // where the detail pane's content came from.
         {
@@ -4210,6 +4232,60 @@ fn select_task(window: &AppWindow, task_id: &SharedString) {
     }
 }
 
+/// Moves the task-list selection without leaving the list pane in compact mode.
+fn select_task_at_offset(window: &AppWindow, delta: i32) -> bool {
+    let app_state = window.global::<AppState>();
+    let tasks = app_state.get_tasks();
+    let current = app_state.get_selected_task_id();
+    let selected = tasks.iter().position(|task| task.id == current);
+    let Some(index) = task_selection_index(tasks.row_count(), selected, delta) else {
+        return false;
+    };
+    let Some(task) = tasks.row_data(index) else {
+        return false;
+    };
+
+    clear_subtask_selection(window);
+    select_task(window, &task.id);
+    app_state.set_active_pane(Pane::List);
+    true
+}
+
+/// Selects the first or last visible task without leaving the list pane.
+fn select_task_boundary(window: &AppWindow, first: bool) -> bool {
+    let app_state = window.global::<AppState>();
+    let tasks = app_state.get_tasks();
+    let Some(index) = task_boundary_index(tasks.row_count(), first) else {
+        return false;
+    };
+    let Some(task) = tasks.row_data(index) else {
+        return false;
+    };
+
+    clear_subtask_selection(window);
+    select_task(window, &task.id);
+    app_state.set_active_pane(Pane::List);
+    true
+}
+
+fn task_selection_index(row_count: usize, selected: Option<usize>, delta: i32) -> Option<usize> {
+    if row_count == 0 {
+        return None;
+    }
+    let Some(current) = selected else {
+        return Some(if delta < 0 { row_count - 1 } else { 0 });
+    };
+    Some(
+        current
+            .saturating_add_signed(delta as isize)
+            .min(row_count - 1),
+    )
+}
+
+fn task_boundary_index(row_count: usize, first: bool) -> Option<usize> {
+    (row_count > 0).then_some(if first { 0 } else { row_count - 1 })
+}
+
 /// Reads the current UI row for a subtask, wherever its parent task is.
 fn subtask_row(window: &AppWindow, subtask_id: &SharedString) -> Option<SubTaskItem> {
     window
@@ -4308,6 +4384,19 @@ fn update_project_row(window: &AppWindow, project_id: &str, edit: impl FnOnce(&m
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn keyboard_task_navigation_stays_in_bounds() {
+        assert_eq!(task_selection_index(0, None, 1), None);
+        assert_eq!(task_selection_index(3, None, 1), Some(0));
+        assert_eq!(task_selection_index(3, None, -1), Some(2));
+        assert_eq!(task_selection_index(3, Some(0), -1), Some(0));
+        assert_eq!(task_selection_index(3, Some(1), 1), Some(2));
+        assert_eq!(task_selection_index(3, Some(2), 1), Some(2));
+        assert_eq!(task_boundary_index(0, true), None);
+        assert_eq!(task_boundary_index(3, true), Some(0));
+        assert_eq!(task_boundary_index(3, false), Some(2));
+    }
 
     #[test]
     fn a_new_subtask_has_default_values() {

@@ -62,6 +62,11 @@ export component SubTaskDetailView inherits Rectangle {
                 alignment: start;
 
                 LineEdit {
+                    private property <int> focus-detail-request: AppState.focus-detail-request;
+                    init => {
+                        if (self.focus-detail-request > 0) { self.focus(); }
+                    }
+                    changed focus-detail-request => { self.focus(); }
                     text: root.subtask.title;
                     font-size: Theme.font-size-title;
                     placeholder-text: @tr("SubTaskDetail" => "Subtask title");

@@ -139,6 +139,7 @@ fn to_user_settings(settings: &Settings) -> UserSettings {
     UserSettings {
         language: settings.language.clone(),
         week_start: settings.week_start.clone(),
+        vim_mode: settings.vim_mode,
         timezone: settings.timezone.clone(),
         datetime_format: to_datetime_format_preference(&settings.datetime_format),
         datetime_formats: settings
@@ -176,6 +177,7 @@ fn apply_user_settings(stored: &mut Settings, settings: UserSettings) {
     // the tag the UI actually resolved to instead.
     stored.language = resolve_locale(&settings.language, system_locale().as_deref()).to_string();
     stored.week_start = settings.week_start;
+    stored.vim_mode = settings.vim_mode;
     stored.timezone = settings.timezone;
     stored.datetime_format = from_datetime_format_preference(settings.datetime_format);
     stored.datetime_formats = settings

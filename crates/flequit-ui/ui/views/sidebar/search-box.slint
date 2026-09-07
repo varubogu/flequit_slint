@@ -1,6 +1,7 @@
 import { LineEdit, ListView } from "std-widgets.slint";
 import { Theme } from "../../globals/theme.slint";
 import { Layout } from "../../globals/layout.slint";
+import { AppState } from "../../globals/app-state.slint";
 import { SearchSuggestion, SearchSuggestionKind } from "../../globals/types.slint";
 import { Icon, IconName } from "../../components/icon.slint";
 
@@ -53,6 +54,11 @@ export component SearchBox inherits Rectangle {
         }
 
         field := LineEdit {
+            private property <int> focus-search-request: AppState.focus-search-request;
+            init => {
+                if (self.focus-search-request > 0) { self.focus(); }
+            }
+            changed focus-search-request => { self.focus(); }
             horizontal-stretch: 1;
             height: 100%;
             placeholder-text: @tr("Sidebar" => "Search");

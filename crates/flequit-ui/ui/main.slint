@@ -42,6 +42,7 @@ export component AppWindow inherits Window {
     preferred-height: 800px;
     min-width: 320px;
     min-height: 480px;
+    forward-focus: shortcut-scope;
 
     // Single source of truth for every responsive decision in the app.
     // Assigning here means a narrow desktop window behaves exactly like a phone.
@@ -66,7 +67,132 @@ export component AppWindow inherits Window {
     private property <bool> show-detail:
         Layout.is-compact ? AppState.active-pane == Pane.detail : true;
     private property <bool> inline-sidebar-collapsed:
-        Layout.is-medium || AppState.sidebar-collapsed;
+        Layout.is-medium ? !AppState.sidebar-open : AppState.sidebar-collapsed;
+    private property <int> keyboard-pane: 1;
+    private property <bool> keyboard-shortcuts-enabled:
+        !AppState.loading && !SettingsState.open && !AppState.editor-open
+        && !AppState.tag-manager-open && !AppState.recurrence-open;
+
+    function focus-search() {
+        root.keyboard-pane = 0;
+        if (Layout.is-compact || Layout.is-medium) {
+            AppState.sidebar-open = true;
+        } else {
+            AppState.sidebar-collapsed = false;
+        }
+        AppState.focus-search-request += 1;
+    }
+
+    function focus-task-list(new-task: bool) {
+        root.keyboard-pane = 1;
+        AppState.sidebar-open = false;
+        AppState.active-pane = Pane.list;
+        if (new-task) {
+            AppState.focus-new-task-request += 1;
+        } else {
+            AppState.focus-list-request += 1;
+        }
+    }
+
+    function focus-detail() {
+        if (AppState.has-selected-task) {
+            root.keyboard-pane = 2;
+            AppState.sidebar-open = false;
+            AppState.active-pane = Pane.detail;
+            AppState.focus-detail-request += 1;
+        }
+    }
+
+    function cycle-keyboard-pane(reverse: bool) {
+        if (reverse) {
+            if (root.keyboard-pane == 2) {
+                root.focus-task-list(false);
+            } else if (root.keyboard-pane == 1) {
+                root.focus-search();
+            } else if (AppState.has-selected-task) {
+                root.focus-detail();
+            } else {
+                root.focus-task-list(false);
+            }
+        } else {
+            if (root.keyboard-pane == 0) {
+                root.focus-task-list(false);
+            } else if (root.keyboard-pane == 1 && AppState.has-selected-task) {
+                root.focus-detail();
+            } else {
+                root.focus-search();
+            }
+        }
+    }
+
+    shortcut-scope := FocusScope {
+        width: 100%;
+        height: 100%;
+
+    KeyBinding {
+        keys: @keys(Control + N);
+        enabled: root.keyboard-shortcuts-enabled;
+        activated => { root.focus-task-list(true); }
+    }
+    KeyBinding {
+        keys: @keys(Control + F);
+        enabled: root.keyboard-shortcuts-enabled;
+        activated => { root.focus-search(); }
+    }
+    KeyBinding {
+        keys: @keys(Control + K);
+        enabled: root.keyboard-shortcuts-enabled;
+        activated => { root.focus-search(); }
+    }
+    KeyBinding {
+        keys: @keys(Control + "1");
+        enabled: root.keyboard-shortcuts-enabled;
+        activated => { root.focus-search(); }
+    }
+    KeyBinding {
+        keys: @keys(Control + "2");
+        enabled: root.keyboard-shortcuts-enabled;
+        activated => { root.focus-task-list(false); }
+    }
+    KeyBinding {
+        keys: @keys(Control + "3");
+        enabled: root.keyboard-shortcuts-enabled && AppState.has-selected-task;
+        activated => { root.focus-detail(); }
+    }
+    KeyBinding {
+        keys: @keys(F6);
+        enabled: root.keyboard-shortcuts-enabled;
+        activated => { root.cycle-keyboard-pane(false); }
+    }
+    KeyBinding {
+        keys: @keys(Shift + F6);
+        enabled: root.keyboard-shortcuts-enabled;
+        activated => { root.cycle-keyboard-pane(true); }
+    }
+    KeyBinding {
+        keys: @keys(Control + ",");
+        enabled: !AppState.loading && !SettingsState.open;
+        activated => { Actions.open-settings(); }
+    }
+    KeyBinding {
+        keys: @keys(Escape);
+        enabled: !AppState.loading;
+        activated => {
+            if (SettingsState.open) {
+                Actions.close-settings();
+            } else if (AppState.recurrence-open) {
+                AppState.recurrence-open = false;
+            } else if (AppState.tag-manager-open) {
+                AppState.tag-manager-open = false;
+            } else if (AppState.editor-open) {
+                AppState.editor-open = false;
+            } else if (AppState.sidebar-open) {
+                AppState.sidebar-open = false;
+            } else if (Layout.is-compact && AppState.active-pane == Pane.detail) {
+                root.focus-task-list(false);
+            }
+        }
+    }
 
     HorizontalLayout {
         spacing: 0px;
@@ -221,5 +347,6 @@ export component AppWindow inherits Window {
             width: 100%;
             height: 100%;
         }
+    }
     }
 }

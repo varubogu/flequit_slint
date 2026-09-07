@@ -160,6 +160,7 @@ pub struct UserSettings {
     /// system locale", which `resolve_locale` turns into a supported tag.
     pub language: String,
     pub week_start: String,
+    pub vim_mode: bool,
     pub timezone: String,
     pub datetime_format: DateTimeFormatPreference,
     pub datetime_formats: Vec<DateTimeFormatPreference>,
@@ -178,6 +179,7 @@ impl Default for UserSettings {
         Self {
             language: String::new(),
             week_start: "sunday".to_string(),
+            vim_mode: false,
             timezone: "system".to_string(),
             datetime_format: DateTimeFormatPreference::default(),
             datetime_formats: Vec::new(),

@@ -43,6 +43,9 @@ pub struct Settings {
     /// 週の開始曜日（"sunday", "monday"）
     #[serde(alias = "week_start")]
     pub week_start: String,
+    /// Enables Vim-style task-list navigation (j/k and g/G).
+    #[serde(default, alias = "vim_mode")]
+    pub vim_mode: bool,
     /// タイムゾーン
     pub timezone: String,
     /// カスタム期限フィルタ（値と単位。旧形式の日数配列も読み込める）
@@ -85,6 +88,7 @@ impl Default for Settings {
             font_color: "#000000".to_string(),
             background_color: "#FFFFFF".to_string(),
             week_start: "sunday".to_string(),
+            vim_mode: false,
             timezone: "Asia/Tokyo".to_string(),
             custom_due_filters: vec![],
             custom_recurrence_presets: vec![],

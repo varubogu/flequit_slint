@@ -551,6 +551,7 @@ fn project_and_task_list_management_reaches_its_handlers() {
 fn the_settings_dialog_reaches_its_handlers() {
     let window = window_with_content();
     let week_starts = Rc::new(RefCell::new(Vec::<String>::new()));
+    let vim_modes = Rc::new(RefCell::new(Vec::<bool>::new()));
     let due_buttons = Rc::new(RefCell::new(Vec::<(String, bool)>::new()));
     let custom_due_filters = Rc::new(RefCell::new(Vec::<(i32, DueUnit)>::new()));
     let searches = Rc::new(RefCell::new(Vec::<String>::new()));
@@ -589,6 +590,10 @@ fn the_settings_dialog_reaches_its_handlers() {
         window
             .global::<Actions>()
             .on_update_week_start(move |value| seen.borrow_mut().push(value.to_string()));
+        let seen = Rc::clone(&vim_modes);
+        window
+            .global::<Actions>()
+            .on_update_vim_mode(move |enabled| seen.borrow_mut().push(enabled));
         let seen = Rc::clone(&searches);
         window
             .global::<Actions>()
@@ -660,6 +665,8 @@ fn the_settings_dialog_reaches_its_handlers() {
     assert_eq!(searches.borrow().as_slice(), ["font"]);
     assert!(activate(&window, "Monday"));
     assert_eq!(week_starts.borrow().as_slice(), ["monday"]);
+    assert!(activate(&window, "Enable Vim task navigation (j/k and g/G)"));
+    assert_eq!(vim_modes.borrow().as_slice(), [true]);
     assert!(activate(&window, "Show Today due filter"));
     assert_eq!(
         due_buttons.borrow().as_slice(),

@@ -1249,6 +1249,16 @@ msgctxt "Settings"
 msgid "Week starts on"
 msgstr "Week starts on"
 
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:60
+msgctxt "Settings"
+msgid "Keyboard"
+msgstr "Keyboard"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:62
+msgctxt "Settings"
+msgid "Enable Vim task navigation (j/k and g/G)"
+msgstr "Enable Vim task navigation (j/k and g/G)"
+
 #: crates/flequit-ui/ui/views/settings/basic-settings.slint:29
 msgctxt "Settings"
 msgid "Sunday"

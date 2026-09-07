@@ -15,6 +15,7 @@ pub(super) fn publish(window: &AppWindow, settings: &UserSettings) {
     let ui = window.global::<UiSettingsState>();
     publish_locale(window, settings);
     ui.set_week_start(settings.week_start.clone().into());
+    ui.set_vim_mode(settings.vim_mode);
     ui.set_due_buttons(ModelRc::new(VecModel::from(
         settings
             .due_buttons

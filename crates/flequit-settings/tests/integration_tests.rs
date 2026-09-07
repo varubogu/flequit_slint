@@ -27,6 +27,7 @@ fn test_default_settings() {
     assert_eq!(settings.language, "ja");
     assert_eq!(settings.font_size, 13);
     assert_eq!(settings.week_start, "sunday");
+    assert!(!settings.vim_mode);
     assert_eq!(settings.timezone, "Asia/Tokyo");
     assert!(settings.custom_due_filters.is_empty());
     assert_eq!(settings.due_date_buttons.len(), 9);
@@ -86,6 +87,7 @@ viewItems: []
     assert_eq!(settings.font_color, "#000000");
     assert_eq!(settings.background_color, "#FFFFFF");
     assert_eq!(settings.week_start, "monday");
+    assert!(!settings.vim_mode);
     // 旧形式の日数配列は「日」単位のフィルタとして読む。
     assert_eq!(
         settings.custom_due_filters,
@@ -108,6 +110,7 @@ fn test_load_snake_case_settings_file() {
         .replace("fontColor:", "font_color:")
         .replace("backgroundColor:", "background_color:")
         .replace("weekStart:", "week_start:")
+        .replace("vimMode:", "vim_mode:")
         .replace("dueDateButtons:", "due_date_buttons:")
         .replace("viewItems:", "view_items:");
 
@@ -115,6 +118,7 @@ fn test_load_snake_case_settings_file() {
 
     assert_eq!(settings.font_size, 13);
     assert_eq!(settings.week_start, "sunday");
+    assert!(!settings.vim_mode);
     assert_eq!(settings.due_date_buttons.len(), 9);
 }
 
@@ -126,6 +130,7 @@ fn test_settings_are_written_in_camel_case() {
     assert!(yaml_str.contains("fontSize:"));
     assert!(yaml_str.contains("backgroundColor:"));
     assert!(yaml_str.contains("weekStart:"));
+    assert!(yaml_str.contains("vimMode:"));
     assert!(!yaml_str.contains("font_size:"));
 }
 

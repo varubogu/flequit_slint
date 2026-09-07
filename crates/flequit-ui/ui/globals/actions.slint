@@ -12,6 +12,8 @@ export global Actions {
     callback select-project(string /* project_id */);
     callback select-task-list(string /* project_id */, string /* list_id */);
     callback select-task(string /* task_id */);
+    callback move-task-selection(int /* delta */);
+    callback select-task-boundary(bool /* first */);
     callback select-subtask(string /* subtask_id */);
     callback go-to-parent-task();
     callback toggle-project-expansion(string /* project_id */);
@@ -102,6 +104,7 @@ export global Actions {
     // Switches the UI language and persists the choice.
     callback update-language(string /* locale tag */);
     callback update-week-start(string /* week_start */);
+    callback update-vim-mode(bool /* enabled */);
     callback update-due-button(string /* key */, bool /* visible */);
     callback add-custom-due-filter(int /* value */, DueUnit /* unit */);
     callback remove-custom-due-filter(int /* value */, DueUnit /* unit */);
