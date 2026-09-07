@@ -283,6 +283,13 @@ cargo clippy --workspace --all-targets -- -D warnings
 - 旧形式（日数だけの配列）の設定ファイルも読めるよう、`CustomDueFilter` は
   整数を「日」として解釈する `Deserialize` を持ち、YAML キーには
   `custom_due_days` の別名を残す
+- 設定ファイルは旧 Tauri 版（`varubogu/flequit`）と同じパス
+  （`ProjectDirs` の config_dir 配下 `settings.yml`）を共有するため、
+  YAML キーは旧実装と同じ **camelCase** で読み書きし、snake_case も
+  `#[serde(alias)]` で受け付ける。`DateTimeFormatGroup` も旧実装に合わせて
+  snake_case（`default` / `custom_format`）で保存する。
+  旧アプリを使っていた環境で `missing field font_size` により起動できなく
+  なるのを防ぐため（2026-09-07）
 - タイムゾーンは絞り込みコンボボックスにした。IANA の候補は数百件あり、
   絞り込みは Rust 側（`viewmodels/settings/timezone.rs`）で行う。`.slint` の
   バインディングで毎キーストローク全件を走査させないため

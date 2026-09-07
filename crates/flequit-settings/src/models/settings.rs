@@ -16,7 +16,10 @@ use super::view_item::ViewItem;
 ///
 /// アプリケーションの全設定項目を単一の構造体で管理します。
 /// フロントエンドのSettings型に対応しています。
+/// 設定ファイルは旧 Tauri 版と同じ `settings.yml` を共有するため、
+/// キーは旧実装と同じ camelCase で読み書きし、snake_case も alias で受け付ける。
 #[derive(Debug, Clone, Serialize, Deserialize, Partial)]
+#[serde(rename_all = "camelCase")]
 #[partially(derive(Debug, Clone, Serialize, Deserialize, Default))]
 pub struct Settings {
     // テーマ・外観設定
@@ -27,34 +30,48 @@ pub struct Settings {
     /// フォント名
     pub font: String,
     /// フォントサイズ
+    #[serde(alias = "font_size")]
     pub font_size: i32,
     /// フォント色
+    #[serde(alias = "font_color")]
     pub font_color: String,
     /// 背景色
+    #[serde(alias = "background_color")]
     pub background_color: String,
 
     // 基本設定
     /// 週の開始曜日（"sunday", "monday"）
+    #[serde(alias = "week_start")]
     pub week_start: String,
     /// タイムゾーン
     pub timezone: String,
     /// カスタム期限フィルタ（値と単位。旧形式の日数配列も読み込める）
-    #[serde(default, alias = "custom_due_days")]
+    #[serde(
+        default,
+        alias = "custom_due_filters",
+        alias = "customDueDays",
+        alias = "custom_due_days"
+    )]
     pub custom_due_filters: Vec<CustomDueFilter>,
     /// 繰り返し設定のカスタム項目
-    #[serde(default)]
+    #[serde(default, alias = "custom_recurrence_presets")]
     pub custom_recurrence_presets: Vec<RecurrencePreset>,
     /// 選択した日時フォーマット
+    #[serde(alias = "datetime_format")]
     pub datetime_format: DateTimeFormat,
     /// 日時フォーマット一覧
+    #[serde(alias = "datetime_formats")]
     pub datetime_formats: Vec<DateTimeFormat>,
     /// 時刻ラベル
+    #[serde(alias = "time_labels")]
     pub time_labels: Vec<TimeLabel>,
 
     // 表示設定
     /// 期日ボタンの表示設定
+    #[serde(alias = "due_date_buttons")]
     pub due_date_buttons: Vec<DueDateButtons>,
     /// ビューアイテム設定
+    #[serde(alias = "view_items")]
     pub view_items: Vec<ViewItem>,
 }
 

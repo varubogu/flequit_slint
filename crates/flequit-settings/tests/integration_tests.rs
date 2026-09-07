@@ -61,6 +61,88 @@ fn test_settings_serialization() {
     assert_eq!(deserialized.language, settings.language);
 }
 
+/// 旧 Tauri 版が書いた `settings.yml` をそのまま読み込めること。
+///
+/// 設定ファイルのパスは旧実装と同一なので、旧アプリを使っていた環境では
+/// この形式のファイルが残っている。読めないと起動できない。
+#[test]
+fn test_load_legacy_tauri_settings_file() {
+    // 旧 varubogu/flequit が実際に出力していた内容。
+    let yaml_str = "\
+theme: dark
+language: ja
+font: system
+fontSize: 14
+fontColor: '#000000'
+backgroundColor: '#FFFFFF'
+weekStart: monday
+timezone: Asia/Tokyo
+customDueDays:
+- 1
+- 7
+- 30
+datetimeFormat:
+  id: ''
+  name: ''
+  format: ''
+  group: default
+  order: 0
+datetimeFormats: []
+timeLabels: []
+dueDateButtons: []
+viewItems: []
+";
+
+    let settings: Settings = serde_yaml::from_str(yaml_str).unwrap();
+
+    assert_eq!(settings.theme, "dark");
+    assert_eq!(settings.font_size, 14);
+    assert_eq!(settings.font_color, "#000000");
+    assert_eq!(settings.background_color, "#FFFFFF");
+    assert_eq!(settings.week_start, "monday");
+    // 旧形式の日数配列は「日」単位のフィルタとして読む。
+    assert_eq!(
+        settings.custom_due_filters,
+        [
+            CustomDueFilter::days(1),
+            CustomDueFilter::days(7),
+            CustomDueFilter::days(30),
+        ]
+    );
+    // 旧実装に無かった項目はデフォルトで補われる。
+    assert!(settings.custom_recurrence_presets.is_empty());
+}
+
+/// snake_case で書かれた設定ファイルも alias 経由で読めること。
+#[test]
+fn test_load_snake_case_settings_file() {
+    let yaml_str = serde_yaml::to_string(&Settings::default())
+        .unwrap()
+        .replace("fontSize:", "font_size:")
+        .replace("fontColor:", "font_color:")
+        .replace("backgroundColor:", "background_color:")
+        .replace("weekStart:", "week_start:")
+        .replace("dueDateButtons:", "due_date_buttons:")
+        .replace("viewItems:", "view_items:");
+
+    let settings: Settings = serde_yaml::from_str(&yaml_str).unwrap();
+
+    assert_eq!(settings.font_size, 13);
+    assert_eq!(settings.week_start, "sunday");
+    assert_eq!(settings.due_date_buttons.len(), 9);
+}
+
+/// 書き出しは旧実装と同じ camelCase であること。
+#[test]
+fn test_settings_are_written_in_camel_case() {
+    let yaml_str = serde_yaml::to_string(&Settings::default()).unwrap();
+
+    assert!(yaml_str.contains("fontSize:"));
+    assert!(yaml_str.contains("backgroundColor:"));
+    assert!(yaml_str.contains("weekStart:"));
+    assert!(!yaml_str.contains("font_size:"));
+}
+
 #[tokio::test]
 async fn test_auto_create_config_file() {
     // プロジェクトルール準拠のテストディレクトリを作成
