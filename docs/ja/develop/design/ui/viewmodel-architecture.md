@@ -149,10 +149,18 @@ Slint ウィンドウを生成せずに検証できるようにする。
 
 | 種別 | パス | 例 |
 | --- | --- | --- |
-| Entity ViewModel | `viewmodels/<entity>/mod.rs` | `viewmodels/task/mod.rs` |
-| View State ViewModel | `viewmodels/ui/<feature>.rs` | `viewmodels/ui/selection.rs` |
 | App ViewModel | `viewmodels/app.rs` | - |
+| 機能単位のロジック | `viewmodels/<機能>/` または `viewmodels/<機能>.rs` | `viewmodels/search/`、`viewmodels/reload_gate.rs` |
+| 編集ダイアログの状態 | `viewmodels/<entity>_editor.rs` | `viewmodels/project_editor.rs` |
 | Adapter | `adapters/<entity>.rs` | `adapters/task.rs` |
+
+上の「ViewModel の分類」は役割の分け方であって、型やディレクトリの分け方では
+ない。Entity ViewModel（`TaskViewModel` 等）と View State ViewModel は個別の型に
+していない。Slint のコールバックとプロパティは `AppWindow` 1 つに対して登録する
+ため、分割すると配線がエンティティ横断で散らばるだけで、状態の持ち主は増えない。
+実際に切り出しているのは、**ウィンドウを作らずにテストできる純粋ロジック**
+（検索、並び替え、繰り返しの次回計算、再読込の合流、設定）で、それが
+`viewmodels/<機能>/` にあたる。残る Slint との配線は `viewmodels/app.rs` に集約する。
 
 ### メソッド命名
 

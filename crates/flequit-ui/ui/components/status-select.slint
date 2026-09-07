@@ -1,0 +1,56 @@
+import { Theme } from "../globals/theme.slint";
+import { TaskStatus } from "../globals/types.slint";
+import { SelectField } from "select-field.slint";
+
+// The status field of a task or a subtask.
+//
+// `SelectField` is enum-agnostic, so the mapping to and from `TaskStatus` lives
+// here once instead of in every form that offers the field.
+export component StatusSelect inherits SelectField {
+    in property <TaskStatus> status;
+    callback status-changed(TaskStatus);
+
+    value: root.status == TaskStatus.not-started ? 0
+        : root.status == TaskStatus.in-progress ? 1
+        : root.status == TaskStatus.waiting ? 2
+        : root.status == TaskStatus.completed ? 3
+        : 4;
+
+    value-label: root.status == TaskStatus.not-started ? @tr("Status" => "Not started")
+        : root.status == TaskStatus.in-progress ? @tr("Status" => "In progress")
+        : root.status == TaskStatus.waiting ? @tr("Status" => "Waiting")
+        : root.status == TaskStatus.completed ? @tr("Status" => "Completed")
+        : @tr("Status" => "Cancelled");
+
+    value-color: root.status == TaskStatus.not-started ? Theme.text-muted
+        : root.status == TaskStatus.in-progress ? Theme.accent
+        : root.status == TaskStatus.waiting ? Theme.warning
+        : root.status == TaskStatus.completed ? Theme.success
+        : Theme.danger;
+
+    options: [
+        { value: 0, label: @tr("Status" => "Not started"),
+          action-label: @tr("Status" => "Set status to {0}", @tr("Status" => "Not started")),
+          indicator-color: Theme.text-muted },
+        { value: 1, label: @tr("Status" => "In progress"),
+          action-label: @tr("Status" => "Set status to {0}", @tr("Status" => "In progress")),
+          indicator-color: Theme.accent },
+        { value: 2, label: @tr("Status" => "Waiting"),
+          action-label: @tr("Status" => "Set status to {0}", @tr("Status" => "Waiting")),
+          indicator-color: Theme.warning },
+        { value: 3, label: @tr("Status" => "Completed"),
+          action-label: @tr("Status" => "Set status to {0}", @tr("Status" => "Completed")),
+          indicator-color: Theme.success },
+        { value: 4, label: @tr("Status" => "Cancelled"),
+          action-label: @tr("Status" => "Set status to {0}", @tr("Status" => "Cancelled")),
+          indicator-color: Theme.danger },
+    ];
+
+    selected(picked) => {
+        root.status-changed(picked == 0 ? TaskStatus.not-started
+            : picked == 1 ? TaskStatus.in-progress
+            : picked == 2 ? TaskStatus.waiting
+            : picked == 3 ? TaskStatus.completed
+            : TaskStatus.cancelled);
+    }
+}

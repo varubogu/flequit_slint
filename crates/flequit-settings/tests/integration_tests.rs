@@ -4,33 +4,19 @@ use flequit_settings::{
     CustomDueFilter, CustomDueUnit, PartialSettings, Settings, SettingsManager,
 };
 use flequit_testing::TestPathGenerator;
-use std::env;
-use std::sync::Mutex;
 use tracing::info;
-
-/// `HOME` はプロセス全体で共有されるため、書き換えるテストは直列化する。
-///
-/// TODO: `SettingsManager` が設定ディレクトリを引数で受け取るようになれば
-/// この環境変数の書き換え自体が不要になる。
-/// (`flequit-platform::paths` への移行タスク)
-static ENV_LOCK: Mutex<()> = Mutex::new(());
 
 #[test]
 fn test_config_manager_creation() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-
     // プロジェクトルール準拠のテストディレクトリを作成
     let test_dir = TestPathGenerator::generate_test_dir(file!(), "test_config_manager_creation");
-    std::fs::create_dir_all(&test_dir).unwrap();
 
-    // SAFETY: ENV_LOCK により、環境変数を書き換えるテストは同時に 1 つしか
-    // 走らない。他のテストは HOME を読まないため、この区間の書き換えは安全。
-    unsafe {
-        env::set_var("HOME", test_dir);
-    }
-
-    let config_manager = SettingsManager::new();
+    let config_manager = SettingsManager::new(&test_dir);
     assert!(config_manager.is_ok());
+    assert_eq!(
+        config_manager.unwrap().get_settings_path(),
+        &test_dir.join("settings.yml")
+    );
 }
 
 #[test]
@@ -41,6 +27,7 @@ fn test_default_settings() {
     assert_eq!(settings.language, "ja");
     assert_eq!(settings.font_size, 13);
     assert_eq!(settings.week_start, "sunday");
+    assert!(!settings.vim_mode);
     assert_eq!(settings.timezone, "Asia/Tokyo");
     assert!(settings.custom_due_filters.is_empty());
     assert_eq!(settings.due_date_buttons.len(), 9);
@@ -59,6 +46,174 @@ fn test_settings_serialization() {
     let deserialized: Settings = serde_yaml::from_str(&yaml_str).unwrap();
     assert_eq!(deserialized.theme, settings.theme);
     assert_eq!(deserialized.language, settings.language);
+}
+
+#[test]
+fn reminder_defaults_distinguish_missing_from_explicitly_empty_settings() {
+    let mut yaml = serde_yaml::to_value(Settings::default()).unwrap();
+    yaml.as_mapping_mut()
+        .unwrap()
+        .remove(serde_yaml::Value::String("reminderPresets".into()));
+    let legacy: Settings = serde_yaml::from_value(yaml.clone()).unwrap();
+    assert_eq!(
+        legacy.reminder_presets,
+        Settings::default().reminder_presets
+    );
+    yaml["reminderPresets"] = serde_yaml::Value::Sequence(vec![]);
+    assert!(
+        serde_yaml::from_value::<Settings>(yaml)
+            .unwrap()
+            .reminder_presets
+            .is_empty()
+    );
+    let partial: PartialSettings = serde_yaml::from_str("theme: dark").unwrap();
+    assert!(partial.reminder_presets.is_none());
+    let snake_case = serde_yaml::to_string(&legacy)
+        .unwrap()
+        .replace("reminderPresets:", "reminder_presets:");
+    assert_eq!(
+        serde_yaml::from_str::<Settings>(&snake_case)
+            .unwrap()
+            .reminder_presets,
+        legacy.reminder_presets
+    );
+}
+
+#[test]
+fn invalid_reminder_presets_are_rejected_before_saving() {
+    use flequit_settings::validation::SettingsValidator;
+    use flequit_settings::{ReminderPreset, SettingsReminderUnit};
+    for presets in [
+        vec![ReminderPreset::new(0, SettingsReminderUnit::Minute)],
+        vec![ReminderPreset::new(3651, SettingsReminderUnit::Day)],
+        vec![ReminderPreset::new(1, SettingsReminderUnit::Hour); 21],
+    ] {
+        let settings = Settings {
+            reminder_presets: presets,
+            ..Settings::default()
+        };
+        assert!(SettingsValidator::validate(&settings).is_err());
+    }
+}
+
+#[tokio::test]
+async fn reminder_presets_persist_through_partial_updates() {
+    use flequit_settings::{ReminderPreset, SettingsReminderUnit};
+    let test_dir = TestPathGenerator::generate_test_dir(file!(), "reminder_presets_persist");
+    let manager = SettingsManager::new(test_dir).unwrap();
+    let presets = vec![ReminderPreset::new(2, SettingsReminderUnit::Hour)];
+    manager
+        .update_settings_partially(&PartialSettings {
+            reminder_presets: Some(presets.clone()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        manager.load_settings().await.unwrap().reminder_presets,
+        presets
+    );
+    manager
+        .update_settings_partially(&PartialSettings {
+            reminder_presets: Some(vec![]),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert!(
+        manager
+            .load_settings()
+            .await
+            .unwrap()
+            .reminder_presets
+            .is_empty()
+    );
+}
+
+/// 旧 Tauri 版が書いた `settings.yml` をそのまま読み込めること。
+///
+/// 設定ファイルのパスは旧実装と同一なので、旧アプリを使っていた環境では
+/// この形式のファイルが残っている。読めないと起動できない。
+#[test]
+fn test_load_legacy_tauri_settings_file() {
+    // 旧 varubogu/flequit が実際に出力していた内容。
+    let yaml_str = "\
+theme: dark
+language: ja
+font: system
+fontSize: 14
+fontColor: '#000000'
+backgroundColor: '#FFFFFF'
+weekStart: monday
+timezone: Asia/Tokyo
+customDueDays:
+- 1
+- 7
+- 30
+datetimeFormat:
+  id: ''
+  name: ''
+  format: ''
+  group: default
+  order: 0
+datetimeFormats: []
+timeLabels: []
+dueDateButtons: []
+viewItems: []
+";
+
+    let settings: Settings = serde_yaml::from_str(yaml_str).unwrap();
+
+    assert_eq!(settings.theme, "dark");
+    assert_eq!(settings.font_size, 14);
+    assert_eq!(settings.font_color, "#000000");
+    assert_eq!(settings.background_color, "#FFFFFF");
+    assert_eq!(settings.week_start, "monday");
+    assert!(!settings.vim_mode);
+    // 旧形式の日数配列は「日」単位のフィルタとして読む。
+    assert_eq!(
+        settings.custom_due_filters,
+        [
+            CustomDueFilter::days(1),
+            CustomDueFilter::days(7),
+            CustomDueFilter::days(30),
+        ]
+    );
+    // 旧実装に無かった項目はデフォルトで補われる。
+    assert!(settings.custom_recurrence_presets.is_empty());
+}
+
+/// snake_case で書かれた設定ファイルも alias 経由で読めること。
+#[test]
+fn test_load_snake_case_settings_file() {
+    let yaml_str = serde_yaml::to_string(&Settings::default())
+        .unwrap()
+        .replace("fontSize:", "font_size:")
+        .replace("fontColor:", "font_color:")
+        .replace("backgroundColor:", "background_color:")
+        .replace("weekStart:", "week_start:")
+        .replace("vimMode:", "vim_mode:")
+        .replace("dueDateButtons:", "due_date_buttons:")
+        .replace("viewItems:", "view_items:");
+
+    let settings: Settings = serde_yaml::from_str(&yaml_str).unwrap();
+
+    assert_eq!(settings.font_size, 13);
+    assert_eq!(settings.week_start, "sunday");
+    assert!(!settings.vim_mode);
+    assert_eq!(settings.due_date_buttons.len(), 9);
+}
+
+/// 書き出しは旧実装と同じ camelCase であること。
+#[test]
+fn test_settings_are_written_in_camel_case() {
+    let yaml_str = serde_yaml::to_string(&Settings::default()).unwrap();
+
+    assert!(yaml_str.contains("fontSize:"));
+    assert!(yaml_str.contains("backgroundColor:"));
+    assert!(yaml_str.contains("weekStart:"));
+    assert!(yaml_str.contains("vimMode:"));
+    assert!(!yaml_str.contains("font_size:"));
 }
 
 #[tokio::test]

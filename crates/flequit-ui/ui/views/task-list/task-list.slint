@@ -3,7 +3,8 @@ import { Theme } from "../../globals/theme.slint";
 import { Layout } from "../../globals/layout.slint";
 import { AppState } from "../../globals/app-state.slint";
 import { Actions } from "../../globals/actions.slint";
-import { EditorKind, TaskItem, TaskSort } from "../../globals/types.slint";
+import { SettingsState } from "../../globals/settings.slint";
+import { EditorKind, Pane, TaskItem, TaskSort } from "../../globals/types.slint";
 import { DialogButton } from "../../components/dialog-button.slint";
 import { TaskRow } from "../../components/task-row.slint";
 import { Icon, IconName } from "../../components/icon.slint";
@@ -14,6 +15,11 @@ import { TaskSortBar } from "task-sort-bar.slint";
 // Uses ListView so the row count can grow without cost; rows are recycled.
 export component TaskListView inherits Rectangle {
     background: Theme.background;
+    forward-focus: keyboard-focus;
+
+    private property <int> focus-list-request: AppState.focus-list-request;
+
+    changed focus-list-request => { keyboard-focus.focus(); }
 
     // Reordering rewrites the stored order, which is only what the list shows
     // while it is sorted manually. The derived orderings ignore it.
@@ -77,8 +83,58 @@ export component TaskListView inherits Rectangle {
         AppState.editor-open = true;
     }
 
-    VerticalLayout {
-        spacing: 0px;
+    keyboard-focus := FocusScope {
+        width: 100%;
+        height: 100%;
+
+        init => {
+            if (root.focus-list-request > 0) { self.focus(); }
+        }
+
+        key-pressed(event) => {
+            if (event.text == Key.UpArrow
+                || (SettingsState.vim-mode && event.text == "k")) {
+                Actions.move-task-selection(-1);
+                return accept;
+            } else if (event.text == Key.DownArrow
+                || (SettingsState.vim-mode && event.text == "j")) {
+                Actions.move-task-selection(1);
+                return accept;
+            } else if (event.text == Key.Home
+                || (SettingsState.vim-mode && event.text == "g")) {
+                Actions.select-task-boundary(true);
+                return accept;
+            } else if (event.text == Key.End
+                || (SettingsState.vim-mode && event.text == "G")) {
+                Actions.select-task-boundary(false);
+                return accept;
+            } else if (event.text == Key.Return && AppState.has-selected-task) {
+                AppState.active-pane = Pane.detail;
+                AppState.focus-detail-request += 1;
+                return accept;
+            } else if (event.text == " " && AppState.selected-task-id != "") {
+                Actions.toggle-task-completed(AppState.selected-task-id);
+                return accept;
+            } else if (event.text == Key.LeftArrow) {
+                if (Layout.is-compact || Layout.is-medium) {
+                    AppState.sidebar-open = true;
+                } else {
+                    AppState.sidebar-collapsed = false;
+                }
+                AppState.focus-search-request += 1;
+                return accept;
+            } else if (event.text == Key.RightArrow && AppState.has-selected-task) {
+                AppState.active-pane = Pane.detail;
+                AppState.focus-detail-request += 1;
+                return accept;
+            }
+            return reject;
+        }
+
+        VerticalLayout {
+            spacing: 0px;
+            padding-left: Layout.content-safe-area-left;
+            padding-right: Layout.content-safe-area-right;
 
         TaskSortBar { }
 
@@ -196,6 +252,13 @@ export component TaskListView inherits Rectangle {
                 spacing: Theme.space-sm;
 
                 new-task := LineEdit {
+                    private property <int> focus-new-task-request: AppState.focus-new-task-request;
+                    init => {
+                        if (self.focus-new-task-request > 0 && self.enabled) { self.focus(); }
+                    }
+                    changed focus-new-task-request => {
+                        if (self.enabled) { self.focus(); }
+                    }
                     horizontal-stretch: 1;
                     enabled: AppState.selected-list-id != "";
                     placeholder-text: AppState.selected-list-id == ""
@@ -241,6 +304,7 @@ export component TaskListView inherits Rectangle {
                     }
                 }
             }
+        }
         }
     }
 }

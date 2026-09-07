@@ -92,3 +92,49 @@ fn rollback_restores_the_last_persisted_revision() {
     assert_eq!(rolled_back.week_start, "monday");
     assert_eq!(rolled_back.font_size, original.font_size);
 }
+
+#[test]
+fn reminder_choices_are_sanitized_without_restoring_deleted_defaults() {
+    use super::model::ReminderPreset;
+    use crate::bindings::ReminderUnit::{Day, Hour, Minute};
+
+    let settings = UserSettings {
+        reminder_presets: vec![
+            ReminderPreset::new(2, Day),
+            ReminderPreset::new(90, Minute),
+            ReminderPreset::new(1, Hour),
+            ReminderPreset::new(2, Day),
+            ReminderPreset::new(0, Minute),
+            ReminderPreset::new(3651, Day),
+        ],
+        ..UserSettings::default()
+    }
+    .normalize();
+    assert_eq!(
+        settings.reminder_presets,
+        [
+            ReminderPreset::new(1, Hour),
+            ReminderPreset::new(90, Minute),
+            ReminderPreset::new(2, Day),
+        ]
+    );
+    let mut model = SettingsModel::new(settings.clone());
+    let (_, revision) = model
+        .update(|settings| settings.reminder_presets.clear())
+        .unwrap();
+    assert!(
+        model
+            .current
+            .clone()
+            .normalize()
+            .reminder_presets
+            .is_empty()
+    );
+    assert_eq!(
+        model
+            .rollback_if_current(revision)
+            .unwrap()
+            .reminder_presets,
+        settings.reminder_presets
+    );
+}

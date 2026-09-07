@@ -8,7 +8,6 @@ use flequit_infrastructure_automerge::infrastructure::task_projects::{
     subtask_tag::SubtaskTagLocalAutomergeRepository, tag::TagLocalAutomergeRepository,
     task_tag::TaskTagLocalAutomergeRepository,
 };
-use flequit_infrastructure_sqlite::infrastructure::database_manager::DatabaseManager;
 use flequit_infrastructure_sqlite::infrastructure::task_projects::{
     subtask_tag::SubtaskTagLocalSqliteRepository, tag::TagLocalSqliteRepository,
     task_tag::TaskTagLocalSqliteRepository,
@@ -23,7 +22,7 @@ impl UnifiedManager {
 
         // SQLiteリポジトリの設定
         if self.config.sqlite_search_enabled || self.config.sqlite_storage_enabled {
-            let db_manager = DatabaseManager::instance().await?;
+            let db_manager = self.database_manager()?;
 
             if self.config.sqlite_search_enabled {
                 let sqlite_repo = TagLocalSqliteRepository::new(db_manager.clone());
@@ -69,7 +68,7 @@ impl UnifiedManager {
 
         // SQLiteリポジトリの設定
         if self.config.sqlite_search_enabled || self.config.sqlite_storage_enabled {
-            let db_manager = DatabaseManager::instance().await?;
+            let db_manager = self.database_manager()?;
 
             // 検索にSQLiteリポジトリを追加
             if self.config.sqlite_search_enabled {
@@ -116,7 +115,7 @@ impl UnifiedManager {
 
         // SQLiteリポジトリの設定
         if self.config.sqlite_search_enabled || self.config.sqlite_storage_enabled {
-            let db_manager = DatabaseManager::instance().await?;
+            let db_manager = self.database_manager()?;
 
             if self.config.sqlite_search_enabled {
                 let sqlite_repo = SubtaskTagLocalSqliteRepository::new(db_manager.clone());

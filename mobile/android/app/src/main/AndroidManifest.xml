@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Runtime-requested on API 33+; harmless on older releases. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- The icon is a framework placeholder, so the APK builds before the app
+         ships resources of its own. Tracked in plans/plan.md. -->
+    <application
+        android:label="Flequit"
+        android:icon="@android:drawable/sym_def_app_icon"
+        android:allowBackup="true"
+        android:hasFragileUserData="true"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+
+        <activity
+            android:name=".FlequitActivity"
+            android:exported="true"
+            android:label="Flequit"
+            android:launchMode="singleTask"
+            android:screenOrientation="user"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|density|screenLayout|uiMode">
+
+            <!-- android-activity's NativeActivity loader looks this up. Must match
+                 the `flequit_app` cdylib produced by cargo. -->
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="flequit_app" />
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

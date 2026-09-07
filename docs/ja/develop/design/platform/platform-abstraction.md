@@ -94,8 +94,13 @@ UI は `capabilities.has(Capability::SystemTray)` の形で判定する。
 - 許可されなかった場合は設定画面に理由と再要求導線を表示する
 - デスクトップ版はプラットフォーム層が予約タイマーを所有し、起動時に保存済みの
   未来のリマインダーを再登録する。アプリ終了中に到来した通知は次回起動時に送らない
-- Android / iOS 版では OS のスケジューラへ登録し、アプリのプロセスが生存している
-  ことを前提にしない（Phase 2）
+- iOS は `UNUserNotificationCenter` に登録するため、アプリが停止していても発火する
+- **Android は現状デスクトップと同じプロセス内タイマー**。OS がプロセスを破棄した
+  後に到来したリマインダーは失われる。`AlarmManager` への移行は `plans/plan.md` の
+  P3 に残している
+- Android の通知許可要求は結果が `Activity.onRequestPermissionsResult` に届くため、
+  `request_notification_permission()` はダイアログを出した直後の状態を返す。
+  呼び出し側はダイアログが閉じたあとに再度問い合わせる
 
 ## ファイル選択
 
@@ -153,6 +158,48 @@ OS 固有型は `flequit-platform` の外へ公開しない。
 **終了イベントに依存した保存処理を書いてはならない。**
 モバイルの OS は予告なくプロセスを破棄する。
 
+`Platform::subscribe_lifecycle(observer)` で購読する。`LifecycleHub` が
+オブザーバを **弱参照** で保持するので、呼び出し側が `Arc` を落とせば購読も切れる。
+デスクトップは `PlatformError::Unsupported` を返す（デスクトップのプロセスは
+ユーザーの与り知らぬところで停止されないため、反応すべき遷移が無い）。
+
+イベントは OS のスレッドから届く。オブザーバから Slint を直接触ってはならず、
+`upgrade_in_event_loop()` を経由する。
+
+## ネイティブブリッジ
+
+Android の SAF とライフサイクル、iOS の UIKit 全般は、結果が呼び出し元ではなく
+`Activity` / デリゲートに届くため Rust だけでは完結しない。それぞれ薄いグルーを
+アプリ側に置く。
+
+| OS | グル― | 役割 |
+| --- | --- | --- |
+| Android | `mobile/android/app/src/main/java/com/flequit/app/FlequitActivity.java` | `onActivityResult` と `onPause`/`onResume`/`onTrimMemory` を JNI で Rust へ転送 |
+| iOS | `mobile/ios/Sources/FlequitBridge.swift` | 通知・ドキュメントピッカー・URL 起動・ライフサイクルを `@_cdecl` の C 関数として公開 |
+
+- Android は `ndk-context` から `JavaVM` と `Activity` を取得するので、
+  `flequit-app` からの初期化呼び出しは不要
+- iOS は objc2 を使わず Swift 側に UIKit を寄せている。デリゲートと
+  completion handler を Rust で組むと誤りが実行時まで出ないのに対し、Swift なら
+  Xcode が型検査するため。加えてキーウィンドウはアプリターゲットからしか触れない
+- Rust 側の `extern` 宣言とグルーの実装は**必ず対で変更する**
+
+## ログ出力先
+
+`flequit_platform::SystemLogWriter::current()` がプラットフォームのログシンクを返す。
+`None` は「stderr が既に正しい出力先」という意味。
+
+| プラットフォーム | 出力先 |
+| --- | --- |
+| Desktop | stderr（`None`） |
+| Android | logcat（`__android_log_write`、タグ `flequit`） |
+| iOS | stderr（`None`。Xcode のコンソールに出る） |
+| Web | 開発者コンソール（`console.log`） |
+
+`flequit-app` はこれをファイルシンクと並べて `tracing-subscriber` に渡す。
+出力先の分岐は `cfg(target_os)` を要するため、この判断だけは
+`flequit-platform` の中に置いている。
+
 ## 削除ファイルの扱い
 
 `design/data/automerge-repo-dataflow.md` §6 の `.deleted/` フォルダ方式は
@@ -184,6 +231,9 @@ PlatformError
 - ディレクトリ解決は `tempfile` を使ったテスト用実装に差し替える
 - 各プラットフォーム固有実装は CI のクロスコンパイルでビルド確認する
   （実行はデスクトップと Android エミュレータ）
+- **2026-09-08 時点で Android / iOS の実装は一度も実機・シミュレータで動いていない。**
+  JNI のシグネチャも Swift ブリッジとの ABI も机上のもので、CI のクロスコンパイル
+  以上の裏付けは無い。詳細は `plans/plan.md` の 6 章
 
 ## 関連ドキュメント
 

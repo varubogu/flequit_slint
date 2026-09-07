@@ -6,7 +6,7 @@
 //!
 //! - 設定値の構造体定義
 //! - YAML形式での設定ファイル読み書き
-//! - OS固有の設定フォルダ管理
+//! - 呼び出し元が指定した設定フォルダでの永続化
 //! - 設定値の検証
 //!
 //! # 使用例
@@ -17,7 +17,7 @@
 //! #[tokio::main]
 //! async fn main() {
 //!     // 設定マネージャーを作成（設定フォルダがない場合は自動作成）
-//!     let settings_manager = SettingsManager::new().unwrap();
+//!     let settings_manager = SettingsManager::new("./config").unwrap();
 //!
 //!     // 設定を読み込み（ファイルがない場合は自動的にデフォルト設定ファイルを作成）
 //!     let settings = settings_manager.load_settings().await.unwrap();
@@ -47,7 +47,6 @@
 pub mod errors;
 pub mod manager;
 pub mod models;
-pub mod paths;
 pub mod types;
 pub mod validation;
 
@@ -58,6 +57,7 @@ pub use models::custom_due_filter::{CustomDueFilter, CustomDueUnit};
 pub use models::datetime_format::DateTimeFormat;
 pub use models::due_date_buttons::DueDateButtons;
 pub use models::recurrence_preset::{RecurrencePreset, RecurrenceUnit as SettingsRecurrenceUnit};
+pub use models::reminder_preset::{ReminderPreset, ReminderUnit as SettingsReminderUnit};
 pub use models::settings::{PartialSettings, Settings};
 pub use models::time_label::TimeLabel;
 pub use models::view_item::ViewItem;

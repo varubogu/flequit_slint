@@ -1,5 +1,6 @@
 import { Theme } from "../globals/theme.slint";
 import { Layout } from "../globals/layout.slint";
+import { FocusRing } from "focus-ring.slint";
 
 // One option in an exclusive row of choices, e.g. a task's status or priority.
 //
@@ -45,9 +46,27 @@ export component ChoiceButton inherits Rectangle {
         }
     }
 
-    choice-touch := TouchArea {
-        clicked => { root.clicked(); }
+    key-focus := FocusScope {
+        key-pressed(event) => {
+            if (event.text == " " || event.text == "\n") {
+                root.clicked();
+                return accept;
+            }
+            reject
+        }
     }
+
+    if key-focus.has-focus: FocusRing {
+        radius: root.border-radius;
+    }
+
+    choice-touch := TouchArea {
+        clicked => {
+            key-focus.focus();
+            root.clicked();
+        }
+    }
+    forward-focus: key-focus;
     accessible-role: button;
     accessible-label: root.action-label;
     accessible-action-default => { root.clicked(); }

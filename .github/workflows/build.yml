@@ -24,20 +24,22 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --release -p flequit-app
 
-  # Phase 2 targets. Cross-compilation only: these confirm that the platform
-  # abstraction still builds for mobile, not that the app runs there.
+  # Cross-compilation only: these confirm that the whole application still
+  # builds for mobile, not that it runs there. Device verification is manual
+  # and tracked in plans/plan.md section 6.3.
   mobile:
     name: Mobile (${{ matrix.target }})
     runs-on: ${{ matrix.runner }}
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
         include:
           - target: aarch64-linux-android
             runner: ubuntu-latest
+            features: android
           - target: aarch64-apple-ios
             runner: macos-latest
+            features: ios
     steps:
       - uses: actions/checkout@v4
       - if: runner.os == 'Linux'
@@ -46,5 +48,28 @@ jobs:
         with:
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
-      - name: Check platform layer
+
+      # cargo-ndk configures the NDK linker and sysroot. Without it the first
+      # C dependency (SQLite) fails to link.
+      - if: matrix.target == 'aarch64-linux-android'
+        run: cargo install cargo-ndk --locked
+
+      - name: Check the platform layer
         run: cargo check --target ${{ matrix.target }} -p flequit-platform
+
+      - name: Check the application
+        run: cargo check --target ${{ matrix.target }} -p flequit-app --features ${{ matrix.features }}
+
+  # Stage 1 of the browser build: the UI shell on sample data. See web/README.md
+  # for what it deliberately does not do.
+  web:
+    name: Web (wasm32)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-linux-deps
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release -p flequit-web --target wasm32-unknown-unknown

@@ -87,7 +87,9 @@
 3. **Repository trait 追加**: `flequit-repository/src/repositories/user_preferences/`
 4. **サービス / facade 実装**: `flequit-core/src/services/user_preferences/`、`flequit-core/src/facades/`
 5. **UI 型と Adapter**: `crates/flequit-ui/ui/globals/` の `struct` 定義と `src/adapters/`
-6. **ViewModel 実装**: `crates/flequit-ui/src/viewmodels/user_preferences/`（未作成。最初の追加時に新設する）
+6. **ViewModel 実装**: Slint コールバックの配線は `crates/flequit-ui/src/viewmodels/app.rs`、
+   ウィンドウ無しで検証できる純粋ロジックは `viewmodels/<機能>/` へ切り出す
+   （`viewmodels/settings/` が既存の例）
 
 ## 関連
 

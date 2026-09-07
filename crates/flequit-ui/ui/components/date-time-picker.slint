@@ -1,10 +1,13 @@
-import { DatePickerPopup, TimePickerPopup } from "std-widgets.slint";
 import { Theme } from "../globals/theme.slint";
 import { Layout } from "../globals/layout.slint";
+import { CalendarPopup } from "calendar-popup.slint";
 import { IconButton } from "icon-button.slint";
 import { IconName } from "icon.slint";
 
-// A reusable date-and-time editor backed by Slint's platform-styled pickers.
+// A reusable date-and-time editor.
+//
+// The field itself only shows the stored value; everything is edited inside
+// `CalendarPopup`, which returns the date and the time together.
 export component DateTimePicker inherits Rectangle {
     in property <string> value-label;
     in property <bool> has-value: false;
@@ -18,15 +21,19 @@ export component DateTimePicker inherits Rectangle {
     in property <string> edit-label: @tr("DateTimePicker" => "Edit due date");
     in property <string> clear-label: @tr("DateTimePicker" => "Clear due date");
     in property <string> date-title: @tr("DateTimePicker" => "Select due date");
-    in property <string> time-title: @tr("DateTimePicker" => "Select due time");
+    in property <bool> selection-validation-enabled: false;
+    in property <string> invalid-selection-message;
+
+    pure callback date-selectable(int /* year */, int /* month */, int /* day */) -> bool;
+    pure callback selection-valid(int /* year */, int /* month */, int /* day */,
+                                  int /* hour */, int /* minute */) -> bool;
 
     callback accepted(int /* year */, int /* month */, int /* day */,
                       int /* hour */, int /* minute */);
     callback cleared();
 
-    private property <int> pending-year: root.year;
-    private property <int> pending-month: root.month;
-    private property <int> pending-day: root.day;
+    // Rewinds the calendar to the stored value every time it opens.
+    private property <int> date-open-count: 0;
 
     height: Layout.touch-target;
     background: transparent;
@@ -54,10 +61,8 @@ export component DateTimePicker inherits Rectangle {
 
             edit-touch := TouchArea {
                 clicked => {
-                    root.pending-year = root.year;
-                    root.pending-month = root.month;
-                    root.pending-day = root.day;
                     date-popup.show();
+                    root.date-open-count += 1;
                 }
             }
             accessible-role: button;
@@ -72,26 +77,25 @@ export component DateTimePicker inherits Rectangle {
         }
     }
 
-    date-popup := DatePickerPopup {
+    date-popup := CalendarPopup {
         title: root.date-title;
-        date: { year: root.year, month: root.month, day: root.day };
-
-        accepted(date) => {
-            root.pending-year = date.year;
-            root.pending-month = date.month;
-            root.pending-day = date.day;
-            time-popup.show();
+        open-token: root.date-open-count;
+        year: root.year;
+        month: root.month;
+        day: root.day;
+        hour: root.hour;
+        minute: root.minute;
+        selection-validation-enabled: root.selection-validation-enabled;
+        invalid-selection-message: root.invalid-selection-message;
+        date-selectable(year, month, day) => {
+            return root.date-selectable(year, month, day);
         }
-    }
+        selection-valid(year, month, day, hour, minute) => {
+            return root.selection-valid(year, month, day, hour, minute);
+        }
 
-    time-popup := TimePickerPopup {
-        title: root.time-title;
-        use-24-hour-format: true;
-        time: { hour: root.hour, minute: root.minute, second: 0 };
-
-        accepted(time) => {
-            root.accepted(root.pending-year, root.pending-month, root.pending-day,
-                          time.hour, time.minute);
+        accepted(year, month, day, hour, minute) => {
+            root.accepted(year, month, day, hour, minute);
         }
     }
 }

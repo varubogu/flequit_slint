@@ -5,6 +5,7 @@ import { Actions } from "../../globals/actions.slint";
 import { Capabilities } from "../../globals/capabilities.slint";
 import { SettingsState } from "../../globals/settings.slint";
 import { DueUnit, RecurrenceUnit } from "../../globals/types.slint";
+import { ReminderSettings } from "reminder-settings.slint";
 import { I18n } from "../../globals/i18n.slint";
 import { DialogButton } from "../../components/dialog-button.slint";
 import { CapabilityRow, ChoiceButton, FieldLabel, SectionTitle } from "settings-controls.slint";
@@ -52,6 +53,16 @@ export component BasicSettings inherits Rectangle {
                     selected: SettingsState.week-start == "monday";
                     clicked => { Actions.update-week-start("monday"); }
                 }
+            }
+        }
+
+        VerticalLayout {
+            spacing: Theme.space-sm;
+            FieldLabel { text: @tr("Settings" => "Keyboard"); }
+            CheckBox {
+                text: @tr("Settings" => "Enable Vim task navigation (j/k and g/G)");
+                checked: SettingsState.vim-mode;
+                toggled => { Actions.update-vim-mode(self.checked); }
             }
         }
 
@@ -128,6 +139,8 @@ export component BasicSettings inherits Rectangle {
                 }
             }
         }
+
+        ReminderSettings { }
 
         // Saved repeat patterns. The editor offers these as one-click presets,
         // so a rule used often does not have to be dialled in every time.

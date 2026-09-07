@@ -4,12 +4,14 @@ import { Layout } from "../../globals/layout.slint";
 import { AppState } from "../../globals/app-state.slint";
 import { Actions } from "../../globals/actions.slint";
 import { Capabilities } from "../../globals/capabilities.slint";
-import { TaskItem, TaskPriority, TaskStatus } from "../../globals/types.slint";
+import { TaskItem } from "../../globals/types.slint";
 import { I18n } from "../../globals/i18n.slint";
 import { IconButton } from "../../components/icon-button.slint";
 import { DateTimePicker } from "../../components/date-time-picker.slint";
-import { ChoiceButton } from "../../components/choice-button.slint";
+import { StatusSelect } from "../../components/status-select.slint";
+import { PrioritySelect } from "../../components/priority-select.slint";
 import { Icon, IconName } from "../../components/icon.slint";
+import { ReminderEditor } from "reminder-editor.slint";
 
 
 // Task detail pane.
@@ -21,7 +23,7 @@ export component TaskDetailView inherits Rectangle {
     callback back();
 
     // The selected task, resolved by the caller from AppState.tasks.
-    in property <TaskItem> task;
+    in-out property <TaskItem> task;
     in property <bool> has-task: false;
 
     background: Theme.background;
@@ -40,6 +42,9 @@ export component TaskDetailView inherits Rectangle {
         padding: Layout.content-padding;
         padding-top: Layout.content-padding + Layout.safe-area-top;
         padding-bottom: Layout.content-padding + Layout.safe-area-bottom;
+        padding-left: Layout.content-padding + Layout.content-safe-area-left;
+        // The detail pane is the rightmost one at every breakpoint.
+        padding-right: Layout.content-padding + Layout.safe-area-right;
         spacing: Theme.space-md;
 
         // Header
@@ -76,9 +81,17 @@ export component TaskDetailView inherits Rectangle {
 
                 // Title
                 LineEdit {
-                    text: root.task.title;
+                    private property <int> focus-detail-request: AppState.focus-detail-request;
+                    init => {
+                        if (self.focus-detail-request > 0 && root.has-task) { self.focus(); }
+                    }
+                    changed focus-detail-request => {
+                        if (root.has-task) { self.focus(); }
+                    }
+                    text <=> root.task.title;
                     font-size: Theme.font-size-title;
                     placeholder-text: @tr("TaskDetail" => "Task title");
+                    accessible-label: @tr("TaskDetail" => "Task title");
                     edited(value) => { Actions.update-task-title(root.task.id, value); }
                 }
 
@@ -155,7 +168,6 @@ export component TaskDetailView inherits Rectangle {
                             edit-label: @tr("TaskDetail" => "Edit start date");
                             clear-label: @tr("TaskDetail" => "Clear start date");
                             date-title: @tr("TaskDetail" => "Select start date");
-                            time-title: @tr("TaskDetail" => "Select start time");
                             accepted(year, month, day, hour, minute) => {
                                 Actions.update-task-start(root.task.id, year, month, day, hour, minute);
                             }
@@ -263,115 +275,52 @@ export component TaskDetailView inherits Rectangle {
                             }
                         }
 
-                        DateTimePicker {
-                            value-label: "";
-                            has-value: false;
-                            allow-clear: false;
+                        ReminderEditor {
+                            task-id: root.task.id;
+                            has-start: root.task.has-start;
+                            has-due: root.task.has-due;
                             year: root.task.due-year;
                             month: root.task.due-month;
                             day: root.task.due-day;
                             hour: root.task.due-hour;
                             minute: root.task.due-minute;
-                            edit-label: @tr("TaskDetail" => "Add a reminder");
-                            date-title: @tr("TaskDetail" => "Select reminder date");
-                            time-title: @tr("TaskDetail" => "Select reminder time");
-                            accepted(year, month, day, hour, minute) => {
-                                Actions.add-reminder(root.task.id, year, month, day, hour, minute);
-                            }
                         }
                     }
 
-                    VerticalLayout {
+                    HorizontalLayout {
                         spacing: Theme.space-sm;
                         Text {
                             text: @tr("TaskDetail" => "Status");
                             color: Theme.text-muted;
                             font-size: Theme.font-size-sm;
+                            width: 80px;
+                            vertical-alignment: center;
                         }
-
-                        HorizontalLayout {
-                            spacing: Theme.space-xs;
-
-                            ChoiceButton {
-                                label: @tr("Status" => "Not started");
-                                action-label: @tr("Status" => "Set status to {0}", self.label);
-                                indicator-color: Theme.text-muted;
-                                selected: root.task.status == TaskStatus.not-started;
-                                clicked => { Actions.update-task-status(root.task.id, TaskStatus.not-started); }
-                            }
-                            ChoiceButton {
-                                label: @tr("Status" => "In progress");
-                                action-label: @tr("Status" => "Set status to {0}", self.label);
-                                indicator-color: Theme.accent;
-                                selected: root.task.status == TaskStatus.in-progress;
-                                clicked => { Actions.update-task-status(root.task.id, TaskStatus.in-progress); }
-                            }
-                        }
-
-                        HorizontalLayout {
-                            spacing: Theme.space-xs;
-
-                            ChoiceButton {
-                                label: @tr("Status" => "Waiting");
-                                action-label: @tr("Status" => "Set status to {0}", self.label);
-                                indicator-color: Theme.warning;
-                                selected: root.task.status == TaskStatus.waiting;
-                                clicked => { Actions.update-task-status(root.task.id, TaskStatus.waiting); }
-                            }
-                            ChoiceButton {
-                                label: @tr("Status" => "Completed");
-                                action-label: @tr("Status" => "Set status to {0}", self.label);
-                                indicator-color: Theme.success;
-                                selected: root.task.status == TaskStatus.completed;
-                                clicked => { Actions.update-task-status(root.task.id, TaskStatus.completed); }
-                            }
-                            ChoiceButton {
-                                label: @tr("Status" => "Cancelled");
-                                action-label: @tr("Status" => "Set status to {0}", self.label);
-                                indicator-color: Theme.danger;
-                                selected: root.task.status == TaskStatus.cancelled;
-                                clicked => { Actions.update-task-status(root.task.id, TaskStatus.cancelled); }
+                        StatusSelect {
+                            horizontal-stretch: 1;
+                            label: @tr("TaskDetail" => "Change status");
+                            status: root.task.status;
+                            status-changed(value) => {
+                                Actions.update-task-status(root.task.id, value);
                             }
                         }
                     }
 
-                    VerticalLayout {
+                    HorizontalLayout {
                         spacing: Theme.space-sm;
                         Text {
                             text: @tr("TaskDetail" => "Priority");
                             color: Theme.text-muted;
                             font-size: Theme.font-size-sm;
+                            width: 80px;
+                            vertical-alignment: center;
                         }
-                        HorizontalLayout {
-                            spacing: Theme.space-xs;
-
-                            ChoiceButton {
-                                label: @tr("Priority" => "None");
-                                action-label: @tr("Priority" => "Set priority to {0}", self.label);
-                                indicator-color: transparent;
-                                selected: root.task.priority == TaskPriority.none;
-                                clicked => { Actions.update-task-priority(root.task.id, TaskPriority.none); }
-                            }
-                            ChoiceButton {
-                                label: @tr("Priority" => "Low");
-                                action-label: @tr("Priority" => "Set priority to {0}", self.label);
-                                indicator-color: Theme.priority-low;
-                                selected: root.task.priority == TaskPriority.low;
-                                clicked => { Actions.update-task-priority(root.task.id, TaskPriority.low); }
-                            }
-                            ChoiceButton {
-                                label: @tr("Priority" => "Medium");
-                                action-label: @tr("Priority" => "Set priority to {0}", self.label);
-                                indicator-color: Theme.priority-medium;
-                                selected: root.task.priority == TaskPriority.medium;
-                                clicked => { Actions.update-task-priority(root.task.id, TaskPriority.medium); }
-                            }
-                            ChoiceButton {
-                                label: @tr("Priority" => "High");
-                                action-label: @tr("Priority" => "Set priority to {0}", self.label);
-                                indicator-color: Theme.priority-high;
-                                selected: root.task.priority == TaskPriority.high;
-                                clicked => { Actions.update-task-priority(root.task.id, TaskPriority.high); }
+                        PrioritySelect {
+                            horizontal-stretch: 1;
+                            label: @tr("TaskDetail" => "Change priority");
+                            priority: root.task.priority;
+                            priority-changed(value) => {
+                                Actions.update-task-priority(root.task.id, value);
                             }
                         }
                     }
@@ -386,7 +335,7 @@ export component TaskDetailView inherits Rectangle {
 
                 TextEdit {
                     height: 160px;
-                    text: root.task.notes;
+                    text <=> root.task.notes;
                     wrap: word-wrap;
                     edited => { Actions.update-task-notes(root.task.id, self.text); }
                 }

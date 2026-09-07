@@ -32,6 +32,7 @@ use crate::types::datetime_format_types::DateTimeFormatGroup;
 /// - **UI最適化**: フロントエンドでの選択・表示に最適化
 /// - **拡張性**: 新しいフォーマットグループの追加が容易
 #[derive(Debug, Clone, Serialize, Deserialize, Default, Partial)]
+#[serde(rename_all = "camelCase")]
 #[partially(derive(Debug, Clone, Serialize, Deserialize, Default))]
 pub struct DateTimeFormat {
     /// フォーマットの一意識別子（UUID文字列またはプリセットの負数文字列）
@@ -41,7 +42,9 @@ pub struct DateTimeFormat {
     /// 実際の日時フォーマット文字列（chrono形式）
     pub format: String,
     /// フォーマットグループ（プリセット・カスタム等の分類）
+    #[serde(default)]
     pub group: DateTimeFormatGroup,
     /// 表示順序（昇順ソート用、UI選択肢での順番）
+    #[serde(default)]
     pub order: i32,
 }

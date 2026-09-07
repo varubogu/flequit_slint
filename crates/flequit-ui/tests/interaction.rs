@@ -17,8 +17,9 @@ use flequit_ui::bindings::{
     Actions, AppState, AppWindow, BookmarkedTagItem, Capabilities, ColorOption, DueButtonSetting,
     DueFilterItem, EditorKind, Layout, ProjectItem, RecurrenceEnd, RecurrenceMonthlyMode,
     RecurrencePresetSetting, RecurrenceState, RecurrenceUnit, RecurrenceWeekOfMonth, ReminderItem,
-    SearchSuggestion, SearchSuggestionKind, SettingsCategory, SettingsState, SubTaskItem, TagItem,
-    TaskItem, TaskListItem, TaskPriority, TaskSort, TaskStatus, Theme, ThemeMode,
+    ReminderPresetSetting, ReminderUnit, SearchSuggestion, SearchSuggestionKind, SettingsCategory,
+    SettingsState, SubTaskItem, TagItem, TaskItem, TaskListItem, TaskPriority, TaskSort,
+    TaskStatus, Theme, ThemeMode,
 };
 use i_slint_backend_testing::ElementHandle;
 use slint::{Brush, Color, ComponentHandle, Model, ModelRc, SharedString, VecModel};
@@ -137,6 +138,7 @@ fn recurrence_state(task_id: &str) -> RecurrenceState {
         end_month: 9,
         end_day: 6,
         max_occurrences: 10,
+        preview_count: 5,
     }
 }
 
@@ -275,6 +277,22 @@ fn settle() {
     i_slint_backend_testing::mock_elapsed_time(std::time::Duration::ZERO);
 }
 
+/// Sends one key press and release, the way a keyboard user reaches a control.
+///
+/// Tab traversal and Space activation are handled by Slint itself, so they can
+/// only be exercised through real key events, not through the accessibility
+/// actions the other helpers use.
+fn press_key(window: &AppWindow, key: char) {
+    let text = SharedString::from(key.to_string());
+    window
+        .window()
+        .dispatch_event(slint::platform::WindowEvent::KeyPressed { text: text.clone() });
+    window
+        .window()
+        .dispatch_event(slint::platform::WindowEvent::KeyReleased { text });
+    settle();
+}
+
 /// Steps a control that supports incremental adjustment, such as a drag handle.
 ///
 /// This is the path a keyboard or screen reader takes when a pointer drag is
@@ -291,6 +309,49 @@ fn adjust(window: &AppWindow, label: &str, forward: bool) -> bool {
         }
         None => false,
     }
+}
+
+/// Resizes the real window and lets the shell publish the new width.
+///
+/// `Layout.window-width` follows `Window.width`, so setting the size is what a
+/// resize does; writing the global directly would leave the actual geometry at
+/// the default and put hit testing at coordinates the layout never used.
+fn resize(window: &AppWindow, width: f32, height: f32) {
+    window
+        .window()
+        .set_size(slint::LogicalSize::new(width, height));
+    settle();
+}
+
+/// Clicks the first control carrying `label` with a pointer press and release
+/// at the element's centre; reports whether such a control exists.
+///
+/// Unlike [`activate`], this goes through Slint's hit testing: the events land
+/// on whichever element is topmost at that point. A control that is covered by
+/// a modal scrim, or that has collapsed to zero size, therefore does not
+/// respond — which is the property these tests are for.
+fn click(window: &AppWindow, label: &str) -> bool {
+    match ElementHandle::find_by_accessible_label(window, label).next() {
+        Some(element) => {
+            element.mock_single_click(slint::platform::PointerEventButton::Left);
+            settle();
+            true
+        }
+        None => false,
+    }
+}
+
+/// Opens a `SelectField` and chooses its next option through its accessible
+/// adjustment action. Popup contents have their own item tree, so this is the
+/// keyboard and screen-reader path to the same selection function.
+fn select_next_option(window: &AppWindow, field_label: &str) {
+    let field = ElementHandle::find_by_accessible_label(window, field_label)
+        .next()
+        .unwrap_or_else(|| panic!("select field {field_label:?} is not reachable"));
+    field.invoke_accessible_default_action();
+    settle();
+    field.invoke_accessible_increment_action();
+    settle();
 }
 
 fn selecting_a_project_reaches_its_handler() {
@@ -551,6 +612,7 @@ fn project_and_task_list_management_reaches_its_handlers() {
 fn the_settings_dialog_reaches_its_handlers() {
     let window = window_with_content();
     let week_starts = Rc::new(RefCell::new(Vec::<String>::new()));
+    let vim_modes = Rc::new(RefCell::new(Vec::<bool>::new()));
     let due_buttons = Rc::new(RefCell::new(Vec::<(String, bool)>::new()));
     let custom_due_filters = Rc::new(RefCell::new(Vec::<(i32, DueUnit)>::new()));
     let searches = Rc::new(RefCell::new(Vec::<String>::new()));
@@ -589,6 +651,10 @@ fn the_settings_dialog_reaches_its_handlers() {
         window
             .global::<Actions>()
             .on_update_week_start(move |value| seen.borrow_mut().push(value.to_string()));
+        let seen = Rc::clone(&vim_modes);
+        window
+            .global::<Actions>()
+            .on_update_vim_mode(move |enabled| seen.borrow_mut().push(enabled));
         let seen = Rc::clone(&searches);
         window
             .global::<Actions>()
@@ -660,6 +726,11 @@ fn the_settings_dialog_reaches_its_handlers() {
     assert_eq!(searches.borrow().as_slice(), ["font"]);
     assert!(activate(&window, "Monday"));
     assert_eq!(week_starts.borrow().as_slice(), ["monday"]);
+    assert!(activate(
+        &window,
+        "Enable Vim task navigation (j/k and g/G)"
+    ));
+    assert_eq!(vim_modes.borrow().as_slice(), [true]);
     assert!(activate(&window, "Show Today due filter"));
     assert_eq!(
         due_buttons.borrow().as_slice(),
@@ -820,6 +891,7 @@ fn notification_permission_can_be_requested_from_settings() {
     window.global::<Capabilities>().set_local_notification(true);
     window.global::<SettingsState>().set_open(true);
     settle();
+    scroll_settings_to(&window, "Allow notifications");
 
     let requests = Rc::new(RefCell::new(0));
     {
@@ -909,12 +981,40 @@ fn the_due_date_editor_is_reachable() {
 
 fn reminder_controls_reach_their_handlers() {
     let window = window_with_content();
+    window
+        .global::<SettingsState>()
+        .set_reminder_presets(ModelRc::new(VecModel::from(vec![
+            ReminderPresetSetting {
+                value: 30,
+                unit: ReminderUnit::Minute,
+                minutes_before: 30,
+            },
+            ReminderPresetSetting {
+                value: 1,
+                unit: ReminderUnit::Hour,
+                minutes_before: 60,
+            },
+            ReminderPresetSetting {
+                value: 1,
+                unit: ReminderUnit::Day,
+                minutes_before: 1440,
+            },
+            ReminderPresetSetting {
+                value: 2,
+                unit: ReminderUnit::Day,
+                minutes_before: 2880,
+            },
+        ])));
     window.global::<Capabilities>().set_local_notification(true);
     let state = window.global::<AppState>();
-    let task = state
+    let mut task = state
         .get_tasks()
         .row_data(0)
         .expect("the test task should exist");
+    task.has_start = true;
+    task.start_label = "2026-09-06 11:00".into();
+    task.has_due = true;
+    task.due_label = "2026-09-06 12:00".into();
     state.set_selected_task_id(task.id.clone());
     state.set_selected_task(task);
     state.set_has_selected_task(true);
@@ -931,17 +1031,208 @@ fn reminder_controls_reach_their_handlers() {
             });
     }
 
+    let relative = Rc::new(RefCell::new(Vec::<(String, bool, i32)>::new()));
+    {
+        let relative = Rc::clone(&relative);
+        window.global::<Actions>().on_add_relative_reminder(
+            move |task_id, from_start, minutes_before| {
+                relative
+                    .borrow_mut()
+                    .push((task_id.to_string(), from_start, minutes_before));
+            },
+        );
+    }
+
+    assert!(activate(&window, "Add a reminder"));
     assert!(
-        ElementHandle::find_by_accessible_label(&window, "Add a reminder")
+        ElementHandle::find_by_accessible_label(&window, "Select a specific reminder date")
             .next()
             .is_some(),
-        "the add-reminder picker is not reachable"
+        "the optional calendar entry is not reachable"
+    );
+    assert!(activate(&window, "30 minutes before"));
+    let mut task = state.get_selected_task();
+    task.has_start = false;
+    state.set_selected_task(task);
+    assert!(activate(&window, "Add a reminder"));
+    assert!(activate(&window, "1 hour before"));
+    assert!(activate(&window, "Add a reminder"));
+    assert!(activate(&window, "1 day before"));
+    assert!(activate(&window, "Add a reminder"));
+    assert!(activate(&window, "2 days before"));
+    assert_eq!(
+        relative.borrow().as_slice(),
+        [
+            ("t1".to_string(), true, 30),
+            ("t1".to_string(), false, 60),
+            ("t1".to_string(), false, 1440),
+            ("t1".to_string(), false, 2880)
+        ]
     );
     assert!(activate(&window, "Remove reminder 2026-09-07 12:00"));
     assert_eq!(
         removed.borrow().as_slice(),
         [("t1".to_string(), "2026-09-07T12:00:00+00:00".to_string())]
     );
+
+    // Freeze the reminder boundary at 2026-09-06 12:30. Parsing uses the real
+    // parser; the separate unit tests cover timezone and clock comparisons.
+    window
+        .global::<Actions>()
+        .on_parse_datetime(|text, year, month, day, hour, minute| {
+            use flequit_ui::adapters::{
+                datetime::DateTimeParts, datetime_input::parse_datetime_input,
+            };
+            let reference = DateTimeParts {
+                year,
+                month,
+                day,
+                hour,
+                minute,
+            };
+            parse_datetime_input(&text, reference).map_or_else(Default::default, |parsed| {
+                flequit_ui::bindings::ParsedDateTime {
+                    valid: true,
+                    year: parsed.year,
+                    month: parsed.month,
+                    day: parsed.day,
+                    hour: parsed.hour,
+                    minute: parsed.minute,
+                    has_time: parsed.has_time,
+                }
+            })
+        });
+    window
+        .global::<Actions>()
+        .on_reminder_date_selectable(|year, month, day| (year, month, day) >= (2026, 9, 6));
+    window
+        .global::<Actions>()
+        .on_reminder_datetime_valid(|year, month, day, hour, minute| {
+            (year, month, day, hour, minute) > (2026, 9, 6, 12, 30)
+        });
+    let added = Rc::new(RefCell::new(Vec::new()));
+    let seen = Rc::clone(&added);
+    window
+        .global::<Actions>()
+        .on_add_reminder(move |_, year, month, day, hour, minute| {
+            seen.borrow_mut().push((year, month, day, hour, minute));
+        });
+    assert!(activate(&window, "Add a reminder"));
+    assert!(activate(&window, "Select a specific reminder date"));
+    settle();
+    let input = ElementHandle::find_by_accessible_label(&window, "Type a date and time")
+        .find(|element| element.accessible_value().is_some())
+        .expect("calendar input");
+    let original = input.accessible_value();
+    assert!(activate(&window, "Day 5 of September 2026"));
+    settle();
+    assert_eq!(
+        input.accessible_value(),
+        original,
+        "past days must not change the selection"
+    );
+    assert!(activate(&window, "OK"));
+    settle();
+    assert!(
+        added.borrow().is_empty(),
+        "a past time today must be rejected"
+    );
+    assert!(
+        ElementHandle::find_by_accessible_label(&window, "Type a date and time")
+            .next()
+            .is_some()
+    );
+    for invalid in ["2026/09/05 18:00", "2026/09/06 12:30", "invalid"] {
+        set_value(&window, "Type a date and time", invalid);
+        assert!(activate(&window, "OK"));
+        settle();
+        assert!(added.borrow().is_empty());
+        assert!(
+            ElementHandle::find_by_accessible_label(&window, "Type a date and time")
+                .next()
+                .is_some()
+        );
+    }
+    set_value(&window, "Type a date and time", "2026/09/06 12:31");
+    assert!(activate(&window, "OK"));
+    settle();
+    assert_eq!(added.borrow().as_slice(), [(2026, 9, 6, 12, 31)]);
+    assert!(
+        ElementHandle::find_by_accessible_label(&window, "Type a date and time")
+            .next()
+            .is_none()
+    );
+
+    // The same base component remains unrestricted when editing a due date.
+    let due = Rc::new(RefCell::new(Vec::new()));
+    let seen = Rc::clone(&due);
+    window
+        .global::<Actions>()
+        .on_update_task_due(move |_, year, month, day, _, _| {
+            seen.borrow_mut().push((year, month, day));
+        });
+    assert!(activate(&window, "Edit due date"));
+    settle();
+    assert!(activate(&window, "Day 5 of September 2026"));
+    assert!(activate(&window, "OK"));
+    assert_eq!(due.borrow().as_slice(), [(2026, 9, 5)]);
+}
+
+fn reminder_settings_add_and_remove_choices() {
+    use flequit_ui::viewmodels::settings::SettingsViewModel;
+    let window = window_with_content();
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let viewmodel = SettingsViewModel::new_without_persistence(runtime.handle().clone());
+    viewmodel.bind(&window);
+    viewmodel.apply(&window);
+    slint::select_bundled_translation("en").unwrap();
+    let settings = window.global::<SettingsState>();
+    settings.set_open(true);
+    settle();
+    scroll_settings_to(&window, "Reminder amount");
+    set_value(&window, "Reminder amount", "45");
+    assert!(activate(&window, "Add reminder preset"));
+    settle();
+    assert_eq!(settings.get_reminder_presets().row_count(), 4);
+    assert!(
+        settings
+            .get_reminder_presets()
+            .iter()
+            .any(|preset| preset.minutes_before == 45)
+    );
+    assert!(activate(&window, "Add reminder preset"));
+    assert_eq!(
+        settings.get_reminder_presets().row_count(),
+        4,
+        "duplicates are ignored"
+    );
+    scroll_settings_to(&window, "Remove the 45 minutes before reminder preset");
+    assert!(activate(
+        &window,
+        "Remove the 45 minutes before reminder preset"
+    ));
+    settle();
+    assert_eq!(settings.get_reminder_presets().row_count(), 3);
+}
+
+/// Settings are a scrollable document; only visible controls enter the test tree.
+fn scroll_settings_to(window: &AppWindow, label: &str) {
+    let scroll = ElementHandle::find_by_element_type_name(window, "AllSettings")
+        .next()
+        .expect("the settings scroll view must exist");
+    scroll.scroll(0.0, 10000.0);
+    settle();
+    for _ in 0..30 {
+        if ElementHandle::find_by_accessible_label(window, label)
+            .next()
+            .is_some()
+        {
+            return;
+        }
+        scroll.scroll(0.0, -150.0);
+        settle();
+    }
+    panic!("settings control {label:?} remains unreachable after scrolling");
 }
 
 fn the_priority_editor_reaches_its_handler() {
@@ -965,13 +1256,43 @@ fn the_priority_editor_reaches_its_handler() {
             });
     }
 
-    assert!(
-        activate(&window, "Set priority to High"),
-        "the high-priority button is not reachable"
-    );
+    let field = ElementHandle::find_by_accessible_label(&window, "Change priority")
+        .next()
+        .expect("the priority field is not reachable");
+    assert_eq!(field.accessible_value().as_deref(), Some("None"));
+    select_next_option(&window, "Change priority");
     assert_eq!(
         seen.borrow().as_slice(),
-        [("t1".to_string(), TaskPriority::High)]
+        [("t1".to_string(), TaskPriority::Low)]
+    );
+}
+
+fn the_task_title_editor_reaches_its_handler() {
+    let window = window_with_content();
+    let state = window.global::<AppState>();
+    let task = state
+        .get_tasks()
+        .row_data(0)
+        .expect("the test task should exist");
+    state.set_selected_task_id(task.id.clone());
+    state.set_selected_task(task);
+    state.set_has_selected_task(true);
+
+    let seen = Rc::new(RefCell::new(Vec::<(String, String)>::new()));
+    {
+        let seen = Rc::clone(&seen);
+        window
+            .global::<Actions>()
+            .on_update_task_title(move |task_id, title| {
+                seen.borrow_mut()
+                    .push((task_id.to_string(), title.to_string()));
+            });
+    }
+
+    set_value(&window, "Task title", "Buy oat milk");
+    assert_eq!(
+        seen.borrow().as_slice(),
+        [("t1".to_string(), "Buy oat milk".to_string())]
     );
 }
 
@@ -996,10 +1317,11 @@ fn the_status_editor_reaches_its_handler() {
             });
     }
 
-    assert!(
-        activate(&window, "Set status to In progress"),
-        "the in-progress status button is not reachable"
-    );
+    let field = ElementHandle::find_by_accessible_label(&window, "Change status")
+        .next()
+        .expect("the status field is not reachable");
+    assert_eq!(field.accessible_value().as_deref(), Some("Not started"));
+    select_next_option(&window, "Change status");
     assert_eq!(
         seen.borrow().as_slice(),
         [("t1".to_string(), TaskStatus::InProgress)]
@@ -1074,6 +1396,19 @@ fn a_task_row_shows_its_tags() {
             "the task row does not show {tag}; visible labels: {labels:?}"
         );
     }
+}
+
+fn tag_management_is_available_without_pinned_tags() {
+    let window = window_with_content();
+    let state = window.global::<AppState>();
+    state.set_selected_project_id(SharedString::from("p1"));
+    settle();
+
+    assert!(
+        activate(&window, "Manage tags"),
+        "tag management is not reachable from the pinned-tags section"
+    );
+    assert!(state.get_tag_manager_open());
 }
 
 fn tag_management_and_assignment_reach_their_handlers() {
@@ -1404,6 +1739,34 @@ fn the_repeat_editor_reaches_its_handlers() {
         RecurrenceUnit::Month
     );
 
+    let preview_count = ElementHandle::find_by_accessible_label(&window, "Preview count")
+        .find(|element| element.accessible_value().is_some())
+        .expect("the preview count input is not reachable");
+    assert!(
+        preview_count.size().height <= 48.0,
+        "the one-line preview count input stretched vertically"
+    );
+
+    assert!(activate(&window, "On a date"));
+    let date_editor = ElementHandle::find_by_accessible_label(&window, "Choose the last date")
+        .next()
+        .expect("the end-date editor is not reachable");
+    let end_editor_position = date_editor.absolute_position();
+
+    assert!(activate(&window, "After a number of times"));
+    let count_editor = ElementHandle::find_by_accessible_label(&window, "Number of times")
+        .find(|element| element.accessible_value().is_some())
+        .expect("the occurrence-count editor is not reachable");
+    assert_eq!(
+        count_editor.absolute_position(),
+        end_editor_position,
+        "end-condition editors must occupy the same fixed layout slot"
+    );
+    assert!(
+        count_editor.size().height <= 48.0,
+        "the one-line occurrence-count input stretched vertically"
+    );
+
     assert!(
         activate(&window, "Save"),
         "the save button is not reachable"
@@ -1443,8 +1806,8 @@ fn the_repeat_editor_can_stop_a_schedule() {
     assert!(!window.global::<AppState>().get_recurrence_open());
 }
 
-/// The subtask row used to be a label with a click target and nothing else: no
-/// way to rename, delete, or complete a step without opening its parent.
+/// A subtask row must read as a child of its task and expose pointer-operable
+/// controls for completion and opening the detail editor.
 fn subtask_rows_reach_their_handlers() {
     let window = window_with_content();
     let state = window.global::<AppState>();
@@ -1453,6 +1816,8 @@ fn subtask_rows_reach_their_handlers() {
         .row_data(0)
         .expect("the test task should exist");
     task.subtasks = ModelRc::new(VecModel::from(vec![subtask_item("s1", "Pick up bread")]));
+    task.subtask_count = 1;
+    task.expanded = true;
     state.set_tasks(ModelRc::new(VecModel::from(vec![task.clone()])));
     state.set_selected_task_id(task.id.clone());
     state.set_selected_task(task);
@@ -1471,13 +1836,20 @@ fn subtask_rows_reach_their_handlers() {
         actions.on_select_subtask(move |id| opened.borrow_mut().push(id.to_string()));
     }
 
+    let task_checkbox = ElementHandle::find_by_accessible_label(&window, "Buy milk")
+        .find(|element| element.accessible_checked().is_some())
+        .expect("the parent task checkbox is not reachable");
+    let subtask_checkbox =
+        ElementHandle::find_by_accessible_label(&window, "Complete Pick up bread")
+            .find(|element| element.accessible_checked().is_some())
+            .expect("the subtask checkbox is not reachable");
     assert!(
-        activate(&window, "Complete Pick up bread"),
-        "the subtask checkbox is not reachable: {:?}",
-        accessible_labels(&window)
+        subtask_checkbox.absolute_position().x > task_checkbox.absolute_position().x,
+        "the subtask checkbox must be indented to the right of its parent"
     );
+    assert!(click(&window, "Complete Pick up bread"));
     assert!(activate(&window, "Delete subtask Pick up bread"));
-    assert!(activate(&window, "Open subtask Pick up bread"));
+    assert!(click(&window, "Edit subtask Pick up bread"));
 
     assert_eq!(toggled.borrow().as_slice(), ["s1"]);
     assert_eq!(deleted.borrow().as_slice(), ["s1"]);
@@ -1527,8 +1899,8 @@ fn the_subtask_detail_pane_reaches_its_handlers() {
     }
 
     set_value(&window, "Subtask title", "Pick up rye bread");
-    assert!(activate(&window, "Set status to In progress"));
-    assert!(activate(&window, "Set priority to High"));
+    select_next_option(&window, "Change status");
+    select_next_option(&window, "Change priority");
     assert!(
         activate(&window, "Back to Buy milk"),
         "the parent-task link is not reachable: {:?}",
@@ -1545,7 +1917,7 @@ fn the_subtask_detail_pane_reaches_its_handlers() {
     );
     assert_eq!(
         priorities.borrow().as_slice(),
-        [("s1".to_string(), TaskPriority::High)]
+        [("s1".to_string(), TaskPriority::Low)]
     );
     assert_eq!(*back.borrow(), 1);
 }
@@ -1732,6 +2104,299 @@ fn the_font_picker_lists_what_the_platform_reported() {
     settings.set_open(false);
 }
 
+/// Tabs through an open dialog and reports whether focus ever left it.
+///
+/// Down is the probe because every dialog ignores it while the task list moves
+/// its selection with it, so a recorded move means the focus escaped. The loop
+/// runs far longer than any dialog's control count, so a leak that only shows
+/// up after a full cycle is caught too.
+fn focus_escapes_while_tabbing(window: &AppWindow, moved: &Rc<RefCell<Vec<i32>>>) -> bool {
+    moved.borrow_mut().clear();
+    for _ in 0..40 {
+        press_key(window, '\t');
+        press_key(window, slint::platform::Key::DownArrow.into());
+    }
+    !moved.borrow().is_empty()
+}
+
+/// A modal must not hand keyboard focus to the panes behind it.
+///
+/// Slint's Tab traversal walks the whole window, so without the sentinels
+/// around a dialog the focus leaves it after a few presses and lands in the
+/// task list — where the arrow keys move a selection the user cannot see and
+/// Space completes a task while the dialog is still on screen.
+fn a_modal_keeps_keyboard_focus_inside_itself() {
+    let window = window_with_content();
+    let moved = Rc::new(RefCell::new(Vec::<i32>::new()));
+    {
+        let moved = Rc::clone(&moved);
+        window
+            .global::<Actions>()
+            .on_move_task_selection(move |delta| moved.borrow_mut().push(delta));
+    }
+    // Key events are only delivered to an active window.
+    window
+        .window()
+        .dispatch_event(slint::platform::WindowEvent::WindowActiveChanged(true));
+    // The task list only reacts to Space when a row is selected, so give it
+    // something to react to: the assertion below has to be able to fail.
+    window
+        .global::<AppState>()
+        .set_selected_task_id("t1".into());
+
+    // Positive control: with focus in the list, Down moves the selection.
+    // Without it the assertion below would also pass if key events stopped
+    // arriving at all.
+    window.global::<AppState>().set_focus_list_request(1);
+    settle();
+    press_key(&window, slint::platform::Key::DownArrow.into());
+    assert_eq!(
+        moved.borrow().as_slice(),
+        [1],
+        "the task list no longer moves its selection with the arrow keys"
+    );
+    moved.borrow_mut().clear();
+
+    let app_state = window.global::<AppState>();
+
+    assert!(activate(&window, "New project"));
+    settle();
+    assert!(
+        !focus_escapes_while_tabbing(&window, &moved),
+        "keyboard focus escaped the project editor"
+    );
+    app_state.set_editor_open(false);
+    settle();
+
+    // The delete confirmation replaces the control the focus was on, which is
+    // where a trap is easiest to lose.
+    assert!(activate(&window, "Edit My Tasks"));
+    settle();
+    assert!(activate(&window, "Delete"));
+    settle();
+    assert!(
+        !focus_escapes_while_tabbing(&window, &moved),
+        "keyboard focus escaped the delete confirmation"
+    );
+    app_state.set_editor_open(false);
+    settle();
+
+    app_state.set_tag_manager_open(true);
+    settle();
+    assert!(
+        !focus_escapes_while_tabbing(&window, &moved),
+        "keyboard focus escaped the tag manager"
+    );
+    app_state.set_tag_manager_open(false);
+    settle();
+
+    app_state.set_recurrence(recurrence_state("t1"));
+    app_state.set_recurrence_open(true);
+    settle();
+    assert!(
+        !focus_escapes_while_tabbing(&window, &moved),
+        "keyboard focus escaped the repeat editor"
+    );
+    app_state.set_recurrence_open(false);
+    settle();
+
+    window.global::<SettingsState>().set_open(true);
+    settle();
+    assert!(
+        !focus_escapes_while_tabbing(&window, &moved),
+        "keyboard focus escaped the settings dialog"
+    );
+    window.global::<SettingsState>().set_open(false);
+    settle();
+}
+
+/// A pointer click has to reach the control it lands on.
+///
+/// Every other case here activates controls through the accessibility tree,
+/// which addresses an element directly and so cannot see geometry at all: a
+/// control of zero size, or one buried under another `TouchArea`, passes those
+/// tests and is still dead to the mouse. These cases send real pointer events
+/// at the element's own centre instead, so the result depends on hit testing.
+fn a_pointer_click_reaches_the_control_under_it() {
+    let window = window_with_content();
+    resize(&window, 1200.0, 800.0);
+    let seen = Rc::new(RefCell::new(Vec::<String>::new()));
+    {
+        let seen = Rc::clone(&seen);
+        window
+            .global::<Actions>()
+            .on_select_project(move |id| seen.borrow_mut().push(id.to_string()));
+    }
+
+    assert!(
+        click(&window, "My Tasks"),
+        "the project row is not in the element tree"
+    );
+    assert_eq!(
+        seen.borrow().as_slice(),
+        ["p1"],
+        "the project row does not respond to a click at its own centre"
+    );
+}
+
+/// An open modal has to swallow the clicks aimed at what it covers.
+///
+/// The project editor is a small card in the middle of the window, so the
+/// sidebar rows it covers are covered by its scrim alone — nothing else is
+/// between them and the pointer. The shell keeps its `TouchArea`s while a
+/// dialog is open, and Slint delivers a press to whatever is topmost, so a
+/// scrim that lost its `TouchArea` would let the click through. It would still
+/// look right and still trap the keyboard: only a pointer test notices.
+fn an_open_dialog_absorbs_clicks_meant_for_the_shell() {
+    let window = window_with_content();
+    resize(&window, 1200.0, 800.0);
+    let selected = Rc::new(RefCell::new(Vec::<String>::new()));
+    {
+        let selected = Rc::clone(&selected);
+        window
+            .global::<Actions>()
+            .on_select_project(move |id| selected.borrow_mut().push(id.to_string()));
+    }
+
+    // Positive control: the row reacts to a click, so the assertion after the
+    // dialog opens can fail.
+    assert!(
+        click(&window, "My Tasks"),
+        "the project row is not reachable"
+    );
+    assert_eq!(selected.borrow().as_slice(), ["p1"]);
+    selected.borrow_mut().clear();
+
+    assert!(activate(&window, "New project"), "the editor does not open");
+    settle();
+
+    assert!(
+        click(&window, "My Tasks"),
+        "the project row left the element tree while the dialog was open"
+    );
+    assert!(
+        selected.borrow().is_empty(),
+        "a click passed through the dialog scrim and selected a project"
+    );
+
+    // The dialog's own controls must still be clickable, or the assertion above
+    // would also hold for a dialog that swallows every click including its own.
+    assert!(
+        click(&window, "Cancel"),
+        "the dialog's cancel button is not reachable"
+    );
+    assert!(
+        !window.global::<AppState>().get_editor_open(),
+        "the cancel button does not respond to a click"
+    );
+}
+
+/// The compact sidebar is an overlay, so it has to cover the pane behind it.
+///
+/// It is drawn over the task list rather than beside it, and only its scrim
+/// keeps a tap meant for the sidebar from reaching a task row underneath.
+fn the_compact_sidebar_overlay_covers_the_task_list() {
+    let window = window_with_content();
+    resize(&window, 480.0, 800.0);
+    let selected = Rc::new(RefCell::new(Vec::<String>::new()));
+    {
+        let selected = Rc::clone(&selected);
+        window
+            .global::<Actions>()
+            .on_select_task(move |id| selected.borrow_mut().push(id.to_string()));
+    }
+
+    // Positive control: with the overlay closed the row is clickable, so the
+    // assertion after it can fail.
+    assert!(click(&window, "Buy milk"), "the task row is not reachable");
+    assert_eq!(
+        selected.borrow().as_slice(),
+        ["t1"],
+        "the compact task row does not respond to a tap"
+    );
+    selected.borrow_mut().clear();
+
+    window.global::<AppState>().set_sidebar_open(true);
+    settle();
+
+    assert!(click(&window, "Buy milk"), "the task row left the tree");
+    assert!(
+        selected.borrow().is_empty(),
+        "a tap passed through the sidebar overlay and selected a task"
+    );
+
+    window.global::<AppState>().set_sidebar_open(false);
+    settle();
+}
+
+/// The loading veil has to swallow input, not merely dim the shell.
+///
+/// It goes up while a reload is in flight, when the models behind the rows are
+/// about to be replaced; a click that gets through addresses a row that is on
+/// its way out.
+fn the_loading_veil_swallows_clicks() {
+    let window = window_with_content();
+    resize(&window, 1200.0, 800.0);
+    let seen = Rc::new(RefCell::new(Vec::<String>::new()));
+    {
+        let seen = Rc::clone(&seen);
+        window
+            .global::<Actions>()
+            .on_select_project(move |id| seen.borrow_mut().push(id.to_string()));
+    }
+
+    window.global::<AppState>().set_loading(true);
+    settle();
+
+    assert!(
+        click(&window, "My Tasks"),
+        "the project row left the element tree while loading"
+    );
+    assert!(
+        seen.borrow().is_empty(),
+        "a click passed through the loading veil"
+    );
+}
+
+/// Growing the task list must not grow what the UI builds.
+///
+/// The pane is a `ListView`, which instantiates only the rows inside its
+/// viewport; a plain layout would build one row per task and make a large
+/// project unusable. Counting instantiated rows is what tells the two apart.
+fn a_long_task_list_only_instantiates_visible_rows() {
+    let window = window_with_content();
+
+    let instantiated = |count: usize| {
+        let tasks: Vec<TaskItem> = (0..count)
+            .map(|index| task_item(&format!("t{index}"), &format!("Task {index}")))
+            .collect();
+        window
+            .global::<AppState>()
+            .set_tasks(ModelRc::new(VecModel::from(tasks)));
+        settle();
+        i_slint_backend_testing::ElementQuery::from_root(&window)
+            .match_descendants()
+            .match_accessible_role(i_slint_backend_testing::AccessibleRole::ListItem)
+            .find_all()
+            .len()
+    };
+
+    let small = instantiated(500);
+    let large = instantiated(5_000);
+
+    assert!(small > 0, "no task row was instantiated at all");
+    // Ten times the tasks must not mean ten times the rows: the count is
+    // bounded by the viewport, not by the model.
+    assert!(
+        large <= small,
+        "{small} rows for 500 tasks but {large} for 5000; the list is no longer virtualised"
+    );
+    assert!(
+        small < 500,
+        "every one of the 500 tasks was instantiated; the list is no longer virtualised"
+    );
+}
+
 /// Slint's backend is process-global and its components are `!Send`, so every
 /// case runs inside one test on one thread.
 #[test]
@@ -1741,6 +2406,7 @@ fn the_shell_responds_to_user_actions() {
     a_due_filter_reaches_its_handler();
     a_task_row_can_be_selected_and_completed();
     a_task_row_shows_its_tags();
+    tag_management_is_available_without_pinned_tags();
     tag_management_and_assignment_reach_their_handlers();
     the_sort_bar_reaches_its_handler();
     the_drag_handle_reaches_its_handler();
@@ -1755,6 +2421,8 @@ fn the_shell_responds_to_user_actions() {
     adding_a_subtask_reaches_its_handler();
     the_due_date_editor_is_reachable();
     reminder_controls_reach_their_handlers();
+    reminder_settings_add_and_remove_choices();
+    the_task_title_editor_reaches_its_handler();
     the_priority_editor_reaches_its_handler();
     the_status_editor_reaches_its_handler();
     the_expanded_sidebar_can_be_collapsed_and_reopened();
@@ -1769,6 +2437,12 @@ fn the_shell_responds_to_user_actions() {
     the_language_switch_reaches_its_handler();
     recurrence_presets_reach_their_handlers();
     the_font_picker_lists_what_the_platform_reported();
+    a_modal_keeps_keyboard_focus_inside_itself();
+    a_pointer_click_reaches_the_control_under_it();
+    an_open_dialog_absorbs_clicks_meant_for_the_shell();
+    the_compact_sidebar_overlay_covers_the_task_list();
+    the_loading_veil_swallows_clicks();
+    a_long_task_list_only_instantiates_visible_rows();
 }
 
 /// The colour tokens once ignored `Theme.mode`: nothing derived `Theme.dark`

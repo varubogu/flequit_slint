@@ -1,7 +1,7 @@
 use std::future::Future;
 use std::pin::Pin;
 
-use crate::bindings::{RecurrenceUnit, ThemeMode};
+use crate::bindings::{RecurrenceUnit, ReminderUnit, ThemeMode};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DateTimeFormatKind {
@@ -149,6 +149,56 @@ impl RecurrencePreset {
     }
 }
 
+/// A relative reminder choice saved for reuse in the task detail editor.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ReminderPreset {
+    pub unit: ReminderUnit,
+    pub value: i32,
+}
+
+impl ReminderPreset {
+    pub fn new(value: i32, unit: ReminderUnit) -> Self {
+        Self { unit, value }
+    }
+
+    pub fn is_valid(&self) -> bool {
+        (1..=self.max_value()).contains(&self.value)
+    }
+
+    pub fn minutes_before(&self) -> i32 {
+        match self.unit {
+            ReminderUnit::Minute => self.value,
+            ReminderUnit::Hour => self.value.saturating_mul(60),
+            ReminderUnit::Day => self.value.saturating_mul(24 * 60),
+        }
+    }
+
+    fn max_value(&self) -> i32 {
+        match self.unit {
+            ReminderUnit::Minute => 43_200,
+            ReminderUnit::Hour => 8_760,
+            ReminderUnit::Day => 3_650,
+        }
+    }
+
+    pub(super) fn sort_key(&self) -> (i32, u8, i32) {
+        let unit = match self.unit {
+            ReminderUnit::Minute => 0,
+            ReminderUnit::Hour => 1,
+            ReminderUnit::Day => 2,
+        };
+        (self.minutes_before(), unit, self.value)
+    }
+}
+
+fn default_reminder_presets() -> Vec<ReminderPreset> {
+    vec![
+        ReminderPreset::new(30, ReminderUnit::Minute),
+        ReminderPreset::new(1, ReminderUnit::Hour),
+        ReminderPreset::new(1, ReminderUnit::Day),
+    ]
+}
+
 /// Preferences owned by the settings screen.
 ///
 /// This deliberately contains no `flequit-settings` types. The application
@@ -160,12 +210,14 @@ pub struct UserSettings {
     /// system locale", which `resolve_locale` turns into a supported tag.
     pub language: String,
     pub week_start: String,
+    pub vim_mode: bool,
     pub timezone: String,
     pub datetime_format: DateTimeFormatPreference,
     pub datetime_formats: Vec<DateTimeFormatPreference>,
     pub due_buttons: Vec<DueButtonPreference>,
     pub custom_due_filters: Vec<CustomDueFilter>,
     pub recurrence_presets: Vec<RecurrencePreset>,
+    pub reminder_presets: Vec<ReminderPreset>,
     pub theme_mode: ThemeMode,
     pub font: String,
     pub font_size: i32,
@@ -178,6 +230,7 @@ impl Default for UserSettings {
         Self {
             language: String::new(),
             week_start: "sunday".to_string(),
+            vim_mode: false,
             timezone: "system".to_string(),
             datetime_format: DateTimeFormatPreference::default(),
             datetime_formats: Vec::new(),
@@ -191,6 +244,7 @@ impl Default for UserSettings {
                 .collect(),
             custom_due_filters: Vec::new(),
             recurrence_presets: Vec::new(),
+            reminder_presets: default_reminder_presets(),
             theme_mode: ThemeMode::System,
             font: "system".to_string(),
             font_size: 14,
@@ -231,6 +285,11 @@ impl UserSettings {
             .sort_unstable_by_key(RecurrencePreset::sort_key);
         self.recurrence_presets.dedup();
         self.recurrence_presets.truncate(20);
+        self.reminder_presets.retain(ReminderPreset::is_valid);
+        self.reminder_presets
+            .sort_unstable_by_key(ReminderPreset::sort_key);
+        self.reminder_presets.dedup();
+        self.reminder_presets.truncate(20);
         self.datetime_formats
             .retain(|format| format.kind == DateTimeFormatKind::CustomFormat);
         self.datetime_formats.sort_by_key(|format| format.order);

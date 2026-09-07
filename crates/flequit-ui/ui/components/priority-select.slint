@@ -1,0 +1,49 @@
+import { Theme } from "../globals/theme.slint";
+import { TaskPriority } from "../globals/types.slint";
+import { SelectField } from "select-field.slint";
+
+// The priority field of a task or a subtask.
+//
+// `SelectField` is enum-agnostic, so the mapping to and from `TaskPriority`
+// lives here once instead of in every form that offers the field.
+export component PrioritySelect inherits SelectField {
+    in property <TaskPriority> priority;
+    callback priority-changed(TaskPriority);
+
+    value: root.priority == TaskPriority.none ? 0
+        : root.priority == TaskPriority.low ? 1
+        : root.priority == TaskPriority.medium ? 2
+        : 3;
+
+    value-label: root.priority == TaskPriority.none ? @tr("Priority" => "None")
+        : root.priority == TaskPriority.low ? @tr("Priority" => "Low")
+        : root.priority == TaskPriority.medium ? @tr("Priority" => "Medium")
+        : @tr("Priority" => "High");
+
+    value-color: root.priority == TaskPriority.none ? transparent
+        : root.priority == TaskPriority.low ? Theme.priority-low
+        : root.priority == TaskPriority.medium ? Theme.priority-medium
+        : Theme.priority-high;
+
+    options: [
+        { value: 0, label: @tr("Priority" => "None"),
+          action-label: @tr("Priority" => "Set priority to {0}", @tr("Priority" => "None")),
+          indicator-color: Colors.transparent },
+        { value: 1, label: @tr("Priority" => "Low"),
+          action-label: @tr("Priority" => "Set priority to {0}", @tr("Priority" => "Low")),
+          indicator-color: Theme.priority-low },
+        { value: 2, label: @tr("Priority" => "Medium"),
+          action-label: @tr("Priority" => "Set priority to {0}", @tr("Priority" => "Medium")),
+          indicator-color: Theme.priority-medium },
+        { value: 3, label: @tr("Priority" => "High"),
+          action-label: @tr("Priority" => "Set priority to {0}", @tr("Priority" => "High")),
+          indicator-color: Theme.priority-high },
+    ];
+
+    selected(picked) => {
+        root.priority-changed(picked == 0 ? TaskPriority.none
+            : picked == 1 ? TaskPriority.low
+            : picked == 2 ? TaskPriority.medium
+            : TaskPriority.high);
+    }
+}

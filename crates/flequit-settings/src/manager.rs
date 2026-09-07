@@ -2,12 +2,13 @@
 //!
 //! このモジュールは設定の読み書きと管理を行います。
 
+use std::path::PathBuf;
+
+use tracing::{debug, info, warn};
+
 use crate::errors::{SettingsError, SettingsResult};
 use crate::models::settings::{PartialSettings, Settings};
-use crate::paths::SettingsPaths;
 use crate::validation::SettingsValidator;
-use std::path::PathBuf;
-use tracing::{debug, info, warn};
 
 /// 設定マネージャー
 ///
@@ -16,12 +17,16 @@ use tracing::{debug, info, warn};
 pub struct SettingsManager {
     settings_path: PathBuf,
 }
-
 impl SettingsManager {
-    /// 新しい設定マネージャーを作成
-    pub fn new() -> SettingsResult<Self> {
-        SettingsPaths::ensure_settings_dir_exists()?;
-        let settings_path = SettingsPaths::get_settings_file_path()?;
+    /// プラットフォーム層が解決した設定ディレクトリでマネージャーを作成する。
+    pub fn new(config_dir: impl Into<PathBuf>) -> SettingsResult<Self> {
+        let config_dir = config_dir.into();
+        std::fs::create_dir_all(&config_dir).map_err(|_| {
+            SettingsError::DirectoryCreationError {
+                path: config_dir.display().to_string(),
+            }
+        })?;
+        let settings_path = config_dir.join("settings.yml");
 
         debug!(
             "SettingsManager initialized with path: {}",
@@ -187,6 +192,9 @@ impl SettingsManager {
         if let Some(week_start) = &partial.week_start {
             target.week_start = week_start.clone();
         }
+        if let Some(vim_mode) = partial.vim_mode {
+            target.vim_mode = vim_mode;
+        }
         if let Some(timezone) = &partial.timezone {
             target.timezone = timezone.clone();
         }
@@ -195,6 +203,9 @@ impl SettingsManager {
         }
         if let Some(custom_recurrence_presets) = &partial.custom_recurrence_presets {
             target.custom_recurrence_presets = custom_recurrence_presets.clone();
+        }
+        if let Some(reminder_presets) = &partial.reminder_presets {
+            target.reminder_presets = reminder_presets.clone();
         }
         if let Some(datetime_format) = &partial.datetime_format {
             target.datetime_format = datetime_format.clone();
@@ -213,11 +224,5 @@ impl SettingsManager {
         if let Some(view_items) = &partial.view_items {
             target.view_items = view_items.clone();
         }
-    }
-}
-
-impl Default for SettingsManager {
-    fn default() -> Self {
-        Self::new().expect("SettingsManagerの作成に失敗しました")
     }
 }

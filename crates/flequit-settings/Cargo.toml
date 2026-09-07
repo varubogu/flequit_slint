@@ -11,9 +11,6 @@ serde_yaml = "0.9"
 # エラーハンドリング
 thiserror = "2"
 
-# ファイルパス処理
-directories = "6"
-
 # 日時処理（設定値で使用）
 chrono = { version = "0.4", features = ["serde"] }
 

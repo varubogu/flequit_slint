@@ -12,19 +12,28 @@
 
 use std::sync::Arc;
 
+// Platform entry points. Selected by Cargo feature, not by `cfg(target_os)`:
+// that attribute belongs to `flequit-platform` alone.
+#[cfg(feature = "android")]
+mod entry_android;
+#[cfg(feature = "ios")]
+mod entry_ios;
+
 use flequit_infrastructure::{InfrastructureRepositories, UnifiedConfig};
 use flequit_platform::Platform;
 use flequit_settings::types::datetime_format_types::DateTimeFormatGroup;
 use flequit_settings::{
     CustomDueFilter as StoredDueFilter, CustomDueUnit as StoredDueUnit, DateTimeFormat,
-    DueDateButtons, RecurrencePreset as StoredRecurrencePreset, Settings, SettingsManager,
-    SettingsRecurrenceUnit as StoredRecurrenceUnit,
+    DueDateButtons, RecurrencePreset as StoredRecurrencePreset,
+    ReminderPreset as StoredReminderPreset, Settings, SettingsManager,
+    SettingsRecurrenceUnit as StoredRecurrenceUnit, SettingsReminderUnit as StoredReminderUnit,
 };
-use flequit_ui::bindings::{RecurrenceUnit, ThemeMode};
+use flequit_ui::bindings::{RecurrenceUnit, ReminderUnit, ThemeMode};
 use flequit_ui::{
     AppViewModel, AppWindow, CustomDueFilter, CustomDueUnit, DateTimeFormatKind,
-    DateTimeFormatPreference, DueButtonPreference, RecurrencePreset, SettingsSaveFuture,
-    SettingsStore, SettingsStoreError, UserSettings, resolve_locale, system_locale,
+    DateTimeFormatPreference, DueButtonPreference, RecurrencePreset, ReminderPreset,
+    SettingsSaveFuture, SettingsStore, SettingsStoreError, UserSettings, resolve_locale,
+    system_locale,
 };
 use slint::ComponentHandle;
 
@@ -53,7 +62,8 @@ pub enum BootstrapError {
 /// UI event loop runs on the calling thread.
 pub fn run() -> Result<(), BootstrapError> {
     let platform = flequit_platform::current()?;
-    init_logging(platform.as_ref());
+    // Held for the whole session: dropping it stops the file log being flushed.
+    let _log_guard = init_logging(platform.as_ref());
 
     tracing::info!(
         data_dir = ?platform.paths().data_dir(),
@@ -61,11 +71,8 @@ pub fn run() -> Result<(), BootstrapError> {
         "starting flequit"
     );
 
-    // Must happen before any thread starts; see publish_storage_paths.
-    publish_storage_paths(platform.as_ref())?;
-
     let runtime = build_runtime(platform.as_ref())?;
-    let (user_settings, settings_store) = load_settings(&runtime)?;
+    let (user_settings, settings_store) = load_settings(&runtime, platform.as_ref())?;
     let repositories = runtime.block_on(setup_infrastructure(platform.as_ref()))?;
 
     let window = AppWindow::new()?;
@@ -81,6 +88,9 @@ pub fn run() -> Result<(), BootstrapError> {
     view_model.apply_settings(&window);
     view_model.apply_project_colors(&window);
     view_model.bind(&window);
+    // Held for the whole session: the platform keeps only a weak reference, so
+    // dropping this would silently stop lifecycle delivery. `None` on desktop.
+    let _lifecycle = view_model.observe_lifecycle(&window);
     view_model.load_initial(&window);
 
     window.run()?;
@@ -114,8 +124,9 @@ impl SettingsStore for AppSettingsStore {
 
 fn load_settings(
     runtime: &tokio::runtime::Runtime,
+    platform: &dyn Platform,
 ) -> Result<(UserSettings, Arc<dyn SettingsStore>), BootstrapError> {
-    let manager = Arc::new(SettingsManager::new()?);
+    let manager = Arc::new(SettingsManager::new(platform.paths().config_dir().clone())?);
     let settings = runtime.block_on(manager.load_settings())?;
     let user_settings = to_user_settings(&settings);
     let store = AppSettingsStore {
@@ -141,6 +152,7 @@ fn to_user_settings(settings: &Settings) -> UserSettings {
     UserSettings {
         language: settings.language.clone(),
         week_start: settings.week_start.clone(),
+        vim_mode: settings.vim_mode,
         timezone: settings.timezone.clone(),
         datetime_format: to_datetime_format_preference(&settings.datetime_format),
         datetime_formats: settings
@@ -158,6 +170,20 @@ fn to_user_settings(settings: &Settings) -> UserSettings {
             .custom_recurrence_presets
             .iter()
             .map(|preset| RecurrencePreset::new(preset.interval, to_recurrence_unit(preset.unit)))
+            .collect(),
+        reminder_presets: settings
+            .reminder_presets
+            .iter()
+            .map(|preset| {
+                ReminderPreset::new(
+                    preset.value,
+                    match preset.unit {
+                        StoredReminderUnit::Minute => ReminderUnit::Minute,
+                        StoredReminderUnit::Hour => ReminderUnit::Hour,
+                        StoredReminderUnit::Day => ReminderUnit::Day,
+                    },
+                )
+            })
             .collect(),
         theme_mode: match settings.theme.as_str() {
             "light" => ThemeMode::Light,
@@ -178,6 +204,7 @@ fn apply_user_settings(stored: &mut Settings, settings: UserSettings) {
     // the tag the UI actually resolved to instead.
     stored.language = resolve_locale(&settings.language, system_locale().as_deref()).to_string();
     stored.week_start = settings.week_start;
+    stored.vim_mode = settings.vim_mode;
     stored.timezone = settings.timezone;
     stored.datetime_format = from_datetime_format_preference(settings.datetime_format);
     stored.datetime_formats = settings
@@ -195,6 +222,20 @@ fn apply_user_settings(stored: &mut Settings, settings: UserSettings) {
         .into_iter()
         .map(|preset| {
             StoredRecurrencePreset::new(preset.interval, from_recurrence_unit(preset.unit))
+        })
+        .collect();
+    stored.reminder_presets = settings
+        .reminder_presets
+        .into_iter()
+        .map(|preset| {
+            StoredReminderPreset::new(
+                preset.value,
+                match preset.unit {
+                    ReminderUnit::Minute => StoredReminderUnit::Minute,
+                    ReminderUnit::Hour => StoredReminderUnit::Hour,
+                    ReminderUnit::Day => StoredReminderUnit::Day,
+                },
+            )
         })
         .collect();
     stored.theme = match settings.theme_mode {
@@ -304,45 +345,6 @@ fn due_query(key: &str) -> Option<&'static str> {
     }
 }
 
-/// Points the storage layers at the platform-resolved directories.
-///
-/// `flequit-infrastructure-sqlite` and `flequit-infrastructure-automerge` pick
-/// their own locations from `dirs`, which is wrong on Android and iOS where the
-/// app is confined to a sandbox the OS assigns at runtime. Both honour an
-/// environment variable override, so this is where the platform's answer wins.
-///
-/// # Errors
-///
-/// Returns an error if a resolved path is not valid UTF-8, since the storage
-/// layers take the override as a string.
-///
-/// TODO: replace with explicit configuration once `UnifiedConfig` accepts
-/// paths. The environment is a process-wide global and this indirection only
-/// exists because the storage crates resolve paths themselves.
-fn publish_storage_paths(platform: &dyn Platform) -> Result<(), BootstrapError> {
-    let paths = platform.paths();
-
-    let database = paths.database_file();
-    let automerge = paths.automerge_dir();
-
-    let database = database.to_str().ok_or_else(|| {
-        BootstrapError::Infrastructure(format!("database path is not valid UTF-8: {database:?}"))
-    })?;
-    let automerge = automerge.to_str().ok_or_else(|| {
-        BootstrapError::Infrastructure(format!("automerge path is not valid UTF-8: {automerge:?}"))
-    })?;
-
-    // SAFETY: called before the Tokio runtime and the UI event loop start, so
-    // this process is still single-threaded and no other thread can be reading
-    // the environment concurrently.
-    unsafe {
-        std::env::set_var("FLEQUIT_DB_PATH", database);
-        std::env::set_var("FLEQUIT_AUTOMERGE_PATH", automerge);
-    }
-
-    Ok(())
-}
-
 /// Builds the async runtime, sized for the device class.
 ///
 /// Mobile devices get fewer workers: threads cost memory and battery, and the
@@ -378,25 +380,104 @@ async fn setup_infrastructure(
     })?;
 
     // Local-first: SQLite answers queries, Automerge records history for sync.
-    let config = UnifiedConfig::new(true, true, true);
+    let config = UnifiedConfig::new(true, true, true).with_storage_paths(
+        platform.paths().database_file(),
+        platform.paths().automerge_dir(),
+    );
 
     InfrastructureRepositories::setup_with_sqlite_and_automerge(config)
         .await
         .map_err(|source| BootstrapError::Infrastructure(source.to_string()))
 }
 
+/// How many days of log files are kept before the oldest is deleted.
+///
+/// Long enough to cover a weekend of an issue going unreported, short enough
+/// that an app that is left running does not fill a user's disk.
+const LOG_FILES_KEPT: usize = 7;
+
 /// Installs the tracing subscriber.
 ///
-/// The sink differs per platform (files on desktop, logcat on Android, OSLog on
-/// iOS); the decision belongs here so no other crate needs a `cfg`.
-fn init_logging(_platform: &dyn Platform) {
-    use tracing_subscriber::{EnvFilter, fmt};
+/// Writes go to a console sink, which is what a developer reads, and to a daily
+/// file under `platform.paths().log_dir()`, which is what a user can attach to
+/// a bug report once the terminal is gone. A log directory that cannot be
+/// opened costs the file sink only — starting without logs on screen would be
+/// worse than starting without them on disk.
+///
+/// Which console that is depends on the platform: stderr on desktop and iOS,
+/// logcat on Android, the developer console in a browser. `flequit-platform`
+/// makes that choice, because deciding it here would need a `cfg(target_os)`
+/// outside the one crate allowed to have them.
+///
+/// The returned guard flushes the file writer when it is dropped, so the caller
+/// has to hold it for as long as the application runs. `None` means no file
+/// sink was installed.
+#[must_use = "dropping the guard stops the file log from being flushed"]
+fn init_logging(platform: &dyn Platform) -> Option<tracing_appender::non_blocking::WorkerGuard> {
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::util::SubscriberInitExt;
+    use tracing_subscriber::{EnvFilter, Layer, Registry, fmt};
 
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
-    // TODO(phase2): add a rolling file appender under `platform.paths().log_dir()`
-    // and route Android/iOS to their native sinks.
-    let _ = fmt().with_env_filter(filter).try_init();
+    // The platform sink replaces stderr rather than joining it: on the
+    // platforms that have one, stderr goes nowhere a developer can read.
+    let console: Box<dyn Layer<Registry> + Send + Sync> =
+        match flequit_platform::SystemLogWriter::current() {
+            // A fresh writer per event, so a partial line from one event cannot
+            // be interleaved into the next.
+            Some(writer) => fmt::layer()
+                .with_ansi(false)
+                .with_writer(move || writer.clone())
+                .boxed(),
+            None => fmt::layer().boxed(),
+        };
+
+    let mut layers: Vec<Box<dyn Layer<Registry> + Send + Sync>> = vec![console];
+    let guard = match open_log_file(platform) {
+        Ok(appender) => {
+            let (writer, guard) = tracing_appender::non_blocking(appender);
+            // No ANSI escapes: they are control characters in a file, not colour.
+            layers.push(fmt::layer().with_ansi(false).with_writer(writer).boxed());
+            Some(guard)
+        }
+        Err(error) => {
+            // Reported through the sink that is about to be installed, so it
+            // reaches stderr rather than disappearing.
+            eprintln!("flequit: file logging is disabled: {error}");
+            None
+        }
+    };
+
+    if tracing_subscriber::registry()
+        .with(layers)
+        .with(filter)
+        .try_init()
+        .is_err()
+    {
+        // A subscriber is already installed, e.g. by a test harness that called
+        // `run` twice. The guard is useless then and would flush a sink nobody
+        // writes to.
+        return None;
+    }
+
+    guard
+}
+
+/// Opens the rolling log file for today under the platform's log directory.
+fn open_log_file(
+    platform: &dyn Platform,
+) -> Result<tracing_appender::rolling::RollingFileAppender, String> {
+    let dir = platform.paths().log_dir();
+    std::fs::create_dir_all(dir).map_err(|source| format!("{}: {source}", dir.display()))?;
+
+    tracing_appender::rolling::Builder::new()
+        .rotation(tracing_appender::rolling::Rotation::DAILY)
+        .filename_prefix("flequit")
+        .filename_suffix("log")
+        .max_log_files(LOG_FILES_KEPT)
+        .build(dir)
+        .map_err(|source| format!("{}: {source}", dir.display()))
 }
 
 #[cfg(test)]
@@ -412,6 +493,23 @@ mod tests {
 
         assert_eq!(settings.due_buttons.len(), 9);
         assert!(!settings.due_buttons[1].visible);
+    }
+
+    #[test]
+    fn reminder_settings_round_trip_including_an_empty_list() {
+        let stored = Settings {
+            reminder_presets: vec![StoredReminderPreset::new(2, StoredReminderUnit::Day)],
+            ..Settings::default()
+        };
+        let ui = to_user_settings(&stored);
+        assert_eq!(ui.reminder_presets[0].minutes_before(), 2880);
+        let mut restored = Settings::default();
+        apply_user_settings(&mut restored, ui);
+        assert_eq!(restored.reminder_presets, stored.reminder_presets);
+        let mut ui = to_user_settings(&stored);
+        ui.reminder_presets.clear();
+        apply_user_settings(&mut restored, ui);
+        assert!(to_user_settings(&restored).reminder_presets.is_empty());
     }
 
     #[test]

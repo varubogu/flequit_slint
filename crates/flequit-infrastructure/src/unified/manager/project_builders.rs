@@ -8,7 +8,6 @@ use flequit_infrastructure_automerge::infrastructure::accounts::account::Account
 use flequit_infrastructure_automerge::infrastructure::task_projects::project::ProjectLocalAutomergeRepository;
 use flequit_infrastructure_automerge::infrastructure::users::user::UserLocalAutomergeRepository;
 use flequit_infrastructure_sqlite::infrastructure::accounts::account::AccountLocalSqliteRepository;
-use flequit_infrastructure_sqlite::infrastructure::database_manager::DatabaseManager;
 use flequit_infrastructure_sqlite::infrastructure::task_projects::project::ProjectLocalSqliteRepository;
 use flequit_infrastructure_sqlite::infrastructure::users::user::UserLocalSqliteRepository;
 
@@ -22,7 +21,7 @@ impl UnifiedManager {
         // SQLiteリポジトリの設定
         if self.config.sqlite_search_enabled || self.config.sqlite_storage_enabled {
             // DatabaseManagerを取得して新しいProjectLocalSqliteRepositoryを作成
-            let db_manager = DatabaseManager::instance().await?;
+            let db_manager = self.database_manager()?;
 
             // 検索にSQLiteリポジトリを追加
             if self.config.sqlite_search_enabled {
@@ -73,7 +72,7 @@ impl UnifiedManager {
         // SQLiteリポジトリの設定
         if self.config.sqlite_search_enabled || self.config.sqlite_storage_enabled {
             // DatabaseManagerを取得して新しいAccountLocalSqliteRepositoryを作成
-            let db_manager = DatabaseManager::instance().await?;
+            let db_manager = self.database_manager()?;
 
             // 検索にSQLiteリポジトリを追加
             if self.config.sqlite_search_enabled {
@@ -119,7 +118,7 @@ impl UnifiedManager {
 
         // SQLiteリポジトリの設定
         if self.config.sqlite_search_enabled || self.config.sqlite_storage_enabled {
-            let db_manager = DatabaseManager::instance().await?;
+            let db_manager = self.database_manager()?;
 
             // 検索にSQLiteリポジトリを追加
             if self.config.sqlite_search_enabled {

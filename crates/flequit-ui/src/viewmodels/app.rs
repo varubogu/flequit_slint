@@ -37,8 +37,8 @@ use flequit_model::types::id_types::{
 };
 use flequit_model::types::task_types::TaskStatus as DomainStatus;
 use flequit_platform::{
-    Capability, NotificationId, NotificationRequest, PermissionState, Platform, PlatformError,
-    SystemTheme,
+    Capability, LifecycleEvent, LifecycleObserver, NotificationId, NotificationRequest,
+    PermissionState, Platform, PlatformError, SystemTheme,
 };
 use flequit_types::errors::service_error::ServiceError;
 use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel, Weak};
@@ -62,7 +62,8 @@ use crate::bindings::{
 use crate::viewmodels::TaskListUiViewModel;
 use crate::viewmodels::ordering;
 use crate::viewmodels::project_editor;
-use crate::viewmodels::recurrence::{occurrence, rule_from_state};
+use crate::viewmodels::recurrence::{occurrence, preview_limit, rule_from_state};
+use crate::viewmodels::reload_gate::ReloadGate;
 use crate::viewmodels::search::{
     DueKeyword, SearchQuery, SubTaskCandidate, SuggestionKind, SuggestionSources, TaskCandidate,
     suggestions,
@@ -70,10 +71,49 @@ use crate::viewmodels::search::{
 use crate::viewmodels::settings::{SettingsStore, SettingsViewModel, UserSettings};
 use crate::viewmodels::tag_editor;
 
-/// How many upcoming dates the repeat editor previews.
-const RECURRENCE_PREVIEW_LENGTH: usize = 5;
-
 const HELP_URL: &str = "https://github.com/varubogu/flequit_slint";
+const TEXT_SAVE_DEBOUNCE: Duration = Duration::from_millis(500);
+
+#[derive(Debug)]
+struct PendingEdit<S> {
+    revision: u64,
+    rollback_snapshot: S,
+}
+
+/// Coalesces repeated edits of the same row while retaining the snapshot from
+/// before the first keystroke for a correct rollback.
+#[derive(Debug)]
+struct EditDebouncer<S> {
+    pending: Mutex<HashMap<String, PendingEdit<S>>>,
+}
+
+impl<S> Default for EditDebouncer<S> {
+    fn default() -> Self {
+        Self {
+            pending: Mutex::new(HashMap::new()),
+        }
+    }
+}
+
+impl<S> EditDebouncer<S> {
+    fn schedule(&self, key: String, rollback_snapshot: S) -> u64 {
+        let mut pending = self.pending.lock().expect("edit debouncer poisoned");
+        let entry = pending.entry(key).or_insert(PendingEdit {
+            revision: 0,
+            rollback_snapshot,
+        });
+        entry.revision = entry.revision.wrapping_add(1);
+        entry.revision
+    }
+
+    fn take_if_latest(&self, key: &str, revision: u64) -> Option<S> {
+        let mut pending = self.pending.lock().expect("edit debouncer poisoned");
+        if pending.get(key)?.revision != revision {
+            return None;
+        }
+        pending.remove(key).map(|edit| edit.rollback_snapshot)
+    }
+}
 
 struct ThemeMonitor {
     stop: Arc<AtomicBool>,
@@ -130,6 +170,8 @@ struct SharedState {
     tag_bookmarks: Vec<TagBookmark>,
     /// Author recorded on every write. Resolved from the current account.
     current_user: Option<UserId>,
+    /// Keeps a burst of edits from running one full reload each.
+    reload: ReloadGate,
 }
 
 impl SharedState {
@@ -585,6 +627,28 @@ where
                     // Picking a task leaves whatever subtask was open behind.
                     clear_subtask_selection(&window);
                     select_task(&window, &task_id);
+                    refresh_tags(&window, &state);
+                }
+            });
+        }
+
+        {
+            let weak = window.as_weak();
+            let state = Arc::clone(&self.state);
+            actions.on_move_task_selection(move |delta| {
+                let Some(window) = weak.upgrade() else { return };
+                if select_task_at_offset(&window, delta) {
+                    refresh_tags(&window, &state);
+                }
+            });
+        }
+
+        {
+            let weak = window.as_weak();
+            let state = Arc::clone(&self.state);
+            actions.on_select_task_boundary(move |first| {
+                let Some(window) = weak.upgrade() else { return };
+                if select_task_boundary(&window, first) {
                     refresh_tags(&window, &state);
                 }
             });
@@ -1182,6 +1246,7 @@ where
             let state = Arc::clone(&self.state);
             let repositories = Arc::clone(&self.repositories);
             let runtime = self.runtime.clone();
+            let debouncer = Arc::new(EditDebouncer::default());
             actions.on_update_task_title(move |task_id, title| {
                 let Some(window) = weak.upgrade() else { return };
                 let Some(before) = task_row(&window, &task_id) else {
@@ -1193,16 +1258,18 @@ where
                 let snapshot = TaskRowSnapshot::capture(&before);
 
                 update_task_row(&window, &task_id, |item| item.title = title.clone());
+                sync_selected_task(&window, &task_id);
 
                 let patch = PartialTask {
                     title: Some(title.to_string()),
                     ..Default::default()
                 };
-                spawn_task_patch(
+                spawn_debounced_task_patch(
                     &weak,
                     &state,
                     &repositories,
                     &runtime,
+                    &debouncer,
                     task_id.to_string(),
                     patch,
                     snapshot,
@@ -1306,6 +1373,7 @@ where
             let state = Arc::clone(&self.state);
             let repositories = Arc::clone(&self.repositories);
             let runtime = self.runtime.clone();
+            let debouncer = Arc::new(EditDebouncer::default());
             actions.on_update_task_notes(move |task_id, notes| {
                 let Some(window) = weak.upgrade() else { return };
                 let Some(before) = task_row(&window, &task_id) else {
@@ -1317,16 +1385,18 @@ where
                 let snapshot = TaskRowSnapshot::capture(&before);
 
                 update_task_row(&window, &task_id, |item| item.notes = notes.clone());
+                sync_selected_task(&window, &task_id);
 
                 let patch = PartialTask {
                     description: Some(Some(notes.to_string())),
                     ..Default::default()
                 };
-                spawn_task_patch(
+                spawn_debounced_task_patch(
                     &weak,
                     &state,
                     &repositories,
                     &runtime,
+                    &debouncer,
                     task_id.to_string(),
                     patch,
                     snapshot,
@@ -1409,6 +1479,7 @@ where
             let state = Arc::clone(&self.state);
             let repositories = Arc::clone(&self.repositories);
             let runtime = self.runtime.clone();
+            let debouncer = Arc::new(EditDebouncer::default());
             actions.on_update_subtask_title(move |subtask_id, title| {
                 let Some(window) = weak.upgrade() else { return };
                 let Some(before) = subtask_row(&window, &subtask_id) else {
@@ -1426,11 +1497,12 @@ where
                     title: Some(title.to_string()),
                     ..Default::default()
                 };
-                spawn_subtask_patch(
+                spawn_debounced_subtask_patch(
                     &weak,
                     &state,
                     &repositories,
                     &runtime,
+                    &debouncer,
                     subtask_id.to_string(),
                     patch,
                     snapshot,
@@ -1443,6 +1515,7 @@ where
             let state = Arc::clone(&self.state);
             let repositories = Arc::clone(&self.repositories);
             let runtime = self.runtime.clone();
+            let debouncer = Arc::new(EditDebouncer::default());
             actions.on_update_subtask_notes(move |subtask_id, notes| {
                 let Some(window) = weak.upgrade() else { return };
                 let Some(before) = subtask_row(&window, &subtask_id) else {
@@ -1460,11 +1533,12 @@ where
                     description: Some(Some(notes.to_string())),
                     ..Default::default()
                 };
-                spawn_subtask_patch(
+                spawn_debounced_subtask_patch(
                     &weak,
                     &state,
                     &repositories,
                     &runtime,
+                    &debouncer,
                     subtask_id.to_string(),
                     patch,
                     snapshot,
@@ -1940,13 +2014,17 @@ where
                 // from, so the preview starts from now.
                 let anchor = due.unwrap_or_else(Utc::now);
                 let app_state = window.global::<AppState>();
-                app_state.set_recurrence(to_recurrence_state(
-                    task_id.as_str(),
+                let recurrence =
+                    to_recurrence_state(task_id.as_str(), rule.as_ref(), &anchor, display.timezone);
+                let preview_count = recurrence.preview_count;
+                app_state.set_recurrence(recurrence);
+                publish_recurrence_preview(
+                    &window,
                     rule.as_ref(),
                     &anchor,
-                    display.timezone,
-                ));
-                publish_recurrence_preview(&window, rule.as_ref(), &anchor, &display);
+                    &display,
+                    preview_count,
+                );
                 app_state.set_recurrence_open(true);
             });
         }
@@ -1986,7 +2064,13 @@ where
                     display.timezone,
                     user_id.unwrap_or_else(UserId::new),
                 );
-                publish_recurrence_preview(&window, rule.as_ref(), &anchor, &display);
+                publish_recurrence_preview(
+                    &window,
+                    rule.as_ref(),
+                    &anchor,
+                    &display,
+                    draft.preview_count,
+                );
             });
         }
 
@@ -2155,6 +2239,55 @@ where
                         }
                     }
                 });
+            });
+        }
+
+        {
+            let weak = window.as_weak();
+            actions.on_add_relative_reminder(move |task_id, from_start, minutes_before| {
+                let Some(window) = weak.upgrade() else { return };
+                let Some(task) = task_row(&window, &task_id) else {
+                    report_error(&weak, "input.validation-failed");
+                    return;
+                };
+                let display_timezone = DisplayTimezone::from_setting(
+                    window.global::<UiSettingsState>().get_timezone().as_str(),
+                );
+                let reference_parts = if from_start && task.has_start {
+                    DateTimeParts {
+                        year: task.start_year,
+                        month: task.start_month,
+                        day: task.start_day,
+                        hour: task.start_hour,
+                        minute: task.start_minute,
+                    }
+                } else if !from_start && task.has_due {
+                    DateTimeParts {
+                        year: task.due_year,
+                        month: task.due_month,
+                        day: task.due_day,
+                        hour: task.due_hour,
+                        minute: task.due_minute,
+                    }
+                } else {
+                    report_error(&weak, "input.validation-failed");
+                    return;
+                };
+                let Some(reference) = from_display_parts(reference_parts, display_timezone) else {
+                    report_error(&weak, "input.validation-failed");
+                    return;
+                };
+                let reminder =
+                    reference - chrono::Duration::minutes(i64::from(minutes_before.max(0)));
+                let parts = to_display_parts(&reminder, display_timezone);
+                window.global::<Actions>().invoke_add_reminder(
+                    task_id,
+                    parts.year,
+                    parts.month,
+                    parts.day,
+                    parts.hour,
+                    parts.minute,
+                );
             });
         }
 
@@ -3099,6 +3232,31 @@ where
         drop(previous);
     }
 
+    /// Subscribes to OS lifecycle transitions and returns the subscription.
+    ///
+    /// The caller must keep the returned handle alive for as long as the window
+    /// exists; dropping it unsubscribes. Returns `None` on platforms that do not
+    /// report lifecycle transitions, which is every desktop target.
+    #[must_use = "dropping the observer unsubscribes it"]
+    pub fn observe_lifecycle(&self, window: &AppWindow) -> Option<Arc<dyn LifecycleObserver>> {
+        let observer: Arc<dyn LifecycleObserver> = Arc::new(LifecycleReactor {
+            weak: window.as_weak(),
+            state: Arc::clone(&self.state),
+            repositories: Arc::clone(&self.repositories),
+            runtime: self.runtime.clone(),
+            timezone: self.timezone,
+        });
+
+        match self.platform.subscribe_lifecycle(Arc::clone(&observer)) {
+            Ok(()) => Some(observer),
+            Err(PlatformError::Unsupported(_)) => None,
+            Err(error) => {
+                tracing::warn!(%error, "could not subscribe to lifecycle events");
+                None
+            }
+        }
+    }
+
     /// Loads projects and tasks, then publishes them to the UI.
     ///
     /// Returns immediately; the work happens on the Tokio runtime and the
@@ -3157,6 +3315,44 @@ where
                 schedule_reminders(platform.as_ref(), reminders).await;
             }
         });
+    }
+}
+
+/// Reacts to OS lifecycle transitions on behalf of the ViewModel.
+///
+/// Held by the caller: [`flequit_platform::LifecycleHub`] keeps only a weak
+/// reference, so dropping this unsubscribes.
+struct LifecycleReactor<R> {
+    weak: Weak<AppWindow>,
+    state: Arc<Mutex<SharedState>>,
+    repositories: Arc<R>,
+    runtime: Handle,
+    timezone: DisplayTimezone,
+}
+
+impl<R> LifecycleObserver for LifecycleReactor<R>
+where
+    R: InfrastructureRepositoriesTrait + Send + Sync + 'static,
+{
+    fn on_event(&self, event: LifecycleEvent) {
+        match event {
+            // Nothing to flush: every mutation is persisted as it happens, which
+            // is what makes the app survive the OS killing it while suspended.
+            LifecycleEvent::Suspend => tracing::info!("suspending"),
+            LifecycleEvent::Resume => {
+                // The database may have been changed by a share extension, or
+                // simply be hours stale, so the tree is re-read rather than
+                // trusted.
+                let weak = self.weak.clone();
+                let state = Arc::clone(&self.state);
+                let repositories = Arc::clone(&self.repositories);
+                let timezone = self.timezone;
+                self.runtime.spawn(async move {
+                    reload_projects(&weak, &state, &repositories, timezone).await;
+                });
+            }
+            LifecycleEvent::LowMemory => tracing::warn!("the os asked us to free memory"),
+        }
     }
 }
 
@@ -3267,7 +3463,35 @@ fn clear_notification_permission_loading(weak: &Weak<AppWindow>) {
 /// Mutations reload rather than patching the cached tree: the tree is the source
 /// for task ordering and list membership, and keeping a second copy in sync with
 /// storage is the kind of duplication that drifts silently.
+/// Reloads the project tree, coalescing requests that arrive while one runs.
+///
+/// Callers do not need to know whether another reload is in flight: a request
+/// that arrives during one is absorbed by it and returns `None` immediately.
+/// See [`ReloadGate`] for why.
 async fn reload_projects<R>(
+    weak: &Weak<AppWindow>,
+    state: &Arc<Mutex<SharedState>>,
+    repositories: &Arc<R>,
+    timezone: DisplayTimezone,
+) -> Option<Vec<ReminderSpec>>
+where
+    R: InfrastructureRepositoriesTrait + Send + Sync + 'static,
+{
+    if !state.lock().expect("shared state poisoned").reload.begin() {
+        return None;
+    }
+
+    loop {
+        let reminders = reload_projects_now(weak, state, repositories, timezone).await;
+        if !state.lock().expect("shared state poisoned").reload.finish() {
+            // The last pass is the one that saw every write in the burst.
+            return reminders;
+        }
+    }
+}
+
+/// One pass of the reload: read everything, then publish it to the UI thread.
+async fn reload_projects_now<R>(
     weak: &Weak<AppWindow>,
     state: &Arc<Mutex<SharedState>>,
     repositories: &Arc<R>,
@@ -3705,10 +3929,16 @@ fn publish_recurrence_preview(
     rule: Option<&RecurrenceRule>,
     anchor: &DateTime<Utc>,
     display: &DateTimeDisplaySettings,
+    requested_count: i32,
 ) {
     let dates: Vec<SharedString> = rule
         .map(|rule| {
-            occurrence::next_occurrences(rule, anchor, display.timezone, RECURRENCE_PREVIEW_LENGTH)
+            occurrence::next_occurrences(
+                rule,
+                anchor,
+                display.timezone,
+                preview_limit(rule, requested_count),
+            )
         })
         .unwrap_or_default()
         .iter()
@@ -3982,6 +4212,43 @@ fn subtask_save_result(result: Result<bool, ServiceError>) -> Result<(), UiError
     result.map(drop).map_err(UiError::from)
 }
 
+/// Waits for a pause in task text input, then persists only the newest value.
+#[allow(clippy::too_many_arguments)]
+fn spawn_debounced_task_patch<R>(
+    weak: &Weak<AppWindow>,
+    state: &Arc<Mutex<SharedState>>,
+    repositories: &Arc<R>,
+    runtime: &Handle,
+    debouncer: &Arc<EditDebouncer<TaskRowSnapshot>>,
+    task_id: String,
+    patch: PartialTask,
+    snapshot: TaskRowSnapshot,
+) where
+    R: InfrastructureRepositoriesTrait + Send + Sync + 'static,
+{
+    let revision = debouncer.schedule(task_id.clone(), snapshot);
+    let weak = weak.clone();
+    let state = Arc::clone(state);
+    let repositories = Arc::clone(repositories);
+    let debouncer = Arc::clone(debouncer);
+    let task_runtime = runtime.clone();
+    runtime.spawn(async move {
+        tokio::time::sleep(TEXT_SAVE_DEBOUNCE).await;
+        let Some(snapshot) = debouncer.take_if_latest(&task_id, revision) else {
+            return;
+        };
+        spawn_task_patch(
+            &weak,
+            &state,
+            &repositories,
+            &task_runtime,
+            task_id,
+            patch,
+            snapshot,
+        );
+    });
+}
+
 /// Persists a task patch, rolling the row back if the write fails.
 #[allow(clippy::too_many_arguments)]
 fn spawn_task_patch<R>(
@@ -4107,6 +4374,43 @@ fn rollback_subtask_row(weak: &Weak<AppWindow>, snapshot: SubTaskRowSnapshot) {
     }
 }
 
+/// Waits for a pause in subtask text input, then persists only the newest value.
+#[allow(clippy::too_many_arguments)]
+fn spawn_debounced_subtask_patch<R>(
+    weak: &Weak<AppWindow>,
+    state: &Arc<Mutex<SharedState>>,
+    repositories: &Arc<R>,
+    runtime: &Handle,
+    debouncer: &Arc<EditDebouncer<SubTaskRowSnapshot>>,
+    subtask_id: String,
+    patch: PartialSubTask,
+    snapshot: SubTaskRowSnapshot,
+) where
+    R: InfrastructureRepositoriesTrait + Send + Sync + 'static,
+{
+    let revision = debouncer.schedule(subtask_id.clone(), snapshot);
+    let weak = weak.clone();
+    let state = Arc::clone(state);
+    let repositories = Arc::clone(repositories);
+    let debouncer = Arc::clone(debouncer);
+    let subtask_runtime = runtime.clone();
+    runtime.spawn(async move {
+        tokio::time::sleep(TEXT_SAVE_DEBOUNCE).await;
+        let Some(snapshot) = debouncer.take_if_latest(&subtask_id, revision) else {
+            return;
+        };
+        spawn_subtask_patch(
+            &weak,
+            &state,
+            &repositories,
+            &subtask_runtime,
+            subtask_id,
+            patch,
+            snapshot,
+        );
+    });
+}
+
 /// Persists a subtask patch, rolling the row back when the write fails.
 fn spawn_subtask_patch<R>(
     weak: &Weak<AppWindow>,
@@ -4210,6 +4514,60 @@ fn select_task(window: &AppWindow, task_id: &SharedString) {
     }
 }
 
+/// Moves the task-list selection without leaving the list pane in compact mode.
+fn select_task_at_offset(window: &AppWindow, delta: i32) -> bool {
+    let app_state = window.global::<AppState>();
+    let tasks = app_state.get_tasks();
+    let current = app_state.get_selected_task_id();
+    let selected = tasks.iter().position(|task| task.id == current);
+    let Some(index) = task_selection_index(tasks.row_count(), selected, delta) else {
+        return false;
+    };
+    let Some(task) = tasks.row_data(index) else {
+        return false;
+    };
+
+    clear_subtask_selection(window);
+    select_task(window, &task.id);
+    app_state.set_active_pane(Pane::List);
+    true
+}
+
+/// Selects the first or last visible task without leaving the list pane.
+fn select_task_boundary(window: &AppWindow, first: bool) -> bool {
+    let app_state = window.global::<AppState>();
+    let tasks = app_state.get_tasks();
+    let Some(index) = task_boundary_index(tasks.row_count(), first) else {
+        return false;
+    };
+    let Some(task) = tasks.row_data(index) else {
+        return false;
+    };
+
+    clear_subtask_selection(window);
+    select_task(window, &task.id);
+    app_state.set_active_pane(Pane::List);
+    true
+}
+
+fn task_selection_index(row_count: usize, selected: Option<usize>, delta: i32) -> Option<usize> {
+    if row_count == 0 {
+        return None;
+    }
+    let Some(current) = selected else {
+        return Some(if delta < 0 { row_count - 1 } else { 0 });
+    };
+    Some(
+        current
+            .saturating_add_signed(delta as isize)
+            .min(row_count - 1),
+    )
+}
+
+fn task_boundary_index(row_count: usize, first: bool) -> Option<usize> {
+    (row_count > 0).then_some(if first { 0 } else { row_count - 1 })
+}
+
 /// Reads the current UI row for a subtask, wherever its parent task is.
 fn subtask_row(window: &AppWindow, subtask_id: &SharedString) -> Option<SubTaskItem> {
     window
@@ -4308,6 +4666,34 @@ fn update_project_row(window: &AppWindow, project_id: &str, edit: impl FnOnce(&m
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn edit_debouncer_keeps_first_snapshot_and_only_releases_latest_revision() {
+        let debouncer = EditDebouncer::default();
+
+        let first = debouncer.schedule("task-1".to_string(), "before".to_string());
+        let latest = debouncer.schedule("task-1".to_string(), "intermediate".to_string());
+
+        assert_eq!(debouncer.take_if_latest("task-1", first), None);
+        assert_eq!(
+            debouncer.take_if_latest("task-1", latest),
+            Some("before".to_string())
+        );
+        assert_eq!(debouncer.take_if_latest("task-1", latest), None);
+    }
+
+    #[test]
+    fn keyboard_task_navigation_stays_in_bounds() {
+        assert_eq!(task_selection_index(0, None, 1), None);
+        assert_eq!(task_selection_index(3, None, 1), Some(0));
+        assert_eq!(task_selection_index(3, None, -1), Some(2));
+        assert_eq!(task_selection_index(3, Some(0), -1), Some(0));
+        assert_eq!(task_selection_index(3, Some(1), 1), Some(2));
+        assert_eq!(task_selection_index(3, Some(2), 1), Some(2));
+        assert_eq!(task_boundary_index(0, true), None);
+        assert_eq!(task_boundary_index(3, true), Some(0));
+        assert_eq!(task_boundary_index(3, false), Some(2));
+    }
 
     #[test]
     fn a_new_subtask_has_default_values() {
@@ -4437,6 +4823,227 @@ mod tests {
         assert_eq!(
             result.expect_err("the save should fail").code(),
             "input.validation-failed"
+        );
+    }
+
+    fn task_named(title: &str) -> TaskTree {
+        TaskTree {
+            title: title.to_string(),
+            ..task_with_tags(Vec::new())
+        }
+    }
+
+    fn list_named(name: &str, tasks: Vec<TaskTree>) -> TaskListTree {
+        let now = Utc::now();
+        TaskListTree {
+            id: TaskListId::new(),
+            project_id: ProjectId::new(),
+            name: name.to_string(),
+            description: None,
+            color: None,
+            order_index: 0,
+            is_archived: false,
+            created_at: now,
+            updated_at: now,
+            deleted: false,
+            updated_by: UserId::new(),
+            tasks,
+        }
+    }
+
+    fn project_named(name: &str, task_lists: Vec<TaskListTree>) -> ProjectTree {
+        let now = Utc::now();
+        ProjectTree {
+            id: ProjectId::new(),
+            name: name.to_string(),
+            description: None,
+            color: None,
+            order_index: 0,
+            is_archived: false,
+            status: None,
+            owner_id: None,
+            created_at: now,
+            updated_at: now,
+            deleted: false,
+            updated_by: UserId::new(),
+            task_lists,
+        }
+    }
+
+    #[test]
+    fn an_empty_selection_falls_back_to_the_first_live_project_and_list() {
+        let archived = ProjectTree {
+            is_archived: true,
+            ..project_named("Archive", vec![list_named("Old", Vec::new())])
+        };
+        let live = project_named("Work", vec![list_named("Inbox", Vec::new())]);
+        let expected_project = live.id.as_str();
+        let expected_list = live.task_lists[0].id.as_str();
+        let mut state = SharedState {
+            trees: vec![archived, live],
+            ..SharedState::default()
+        };
+
+        ensure_default_selection(&mut state);
+
+        assert_eq!(state.selected_project_id, expected_project);
+        assert_eq!(state.selected_list_id, expected_list);
+        // The chosen project is opened as well, or its list would be selected
+        // without being visible in the sidebar.
+        assert!(state.expanded_projects.contains(&expected_project));
+    }
+
+    #[test]
+    fn a_selection_that_still_exists_is_left_alone() {
+        let first = project_named("Work", vec![list_named("Inbox", Vec::new())]);
+        let second = project_named("Home", vec![list_named("Errands", Vec::new())]);
+        let chosen_project = second.id.as_str();
+        let chosen_list = second.task_lists[0].id.as_str();
+        let mut state = SharedState {
+            trees: vec![first, second],
+            selected_project_id: chosen_project.clone(),
+            selected_list_id: chosen_list.clone(),
+            ..SharedState::default()
+        };
+
+        ensure_default_selection(&mut state);
+
+        assert_eq!(state.selected_project_id, chosen_project);
+        assert_eq!(state.selected_list_id, chosen_list);
+    }
+
+    #[test]
+    fn a_list_that_disappeared_falls_back_within_its_project() {
+        let project = project_named(
+            "Work",
+            vec![
+                TaskListTree {
+                    deleted: true,
+                    ..list_named("Gone", Vec::new())
+                },
+                list_named("Inbox", Vec::new()),
+            ],
+        );
+        let project_id = project.id.as_str();
+        let gone = project.task_lists[0].id.as_str();
+        let survivor = project.task_lists[1].id.as_str();
+        let mut state = SharedState {
+            trees: vec![project],
+            selected_project_id: project_id.clone(),
+            selected_list_id: gone,
+            ..SharedState::default()
+        };
+
+        ensure_default_selection(&mut state);
+
+        // The project the user was looking at is kept; only the list moves.
+        assert_eq!(state.selected_project_id, project_id);
+        assert_eq!(state.selected_list_id, survivor);
+    }
+
+    #[test]
+    fn nothing_is_selected_when_every_project_is_gone() {
+        let mut state = SharedState {
+            trees: vec![ProjectTree {
+                deleted: true,
+                ..project_named("Work", vec![list_named("Inbox", Vec::new())])
+            }],
+            selected_project_id: "stale".to_string(),
+            selected_list_id: "stale".to_string(),
+            ..SharedState::default()
+        };
+
+        ensure_default_selection(&mut state);
+
+        assert!(state.selected_project_id.is_empty());
+        assert!(state.selected_list_id.is_empty());
+    }
+
+    #[test]
+    fn the_visible_tasks_follow_the_selection_and_skip_what_is_hidden() {
+        let mut project = project_named(
+            "Work",
+            vec![
+                list_named(
+                    "Inbox",
+                    vec![
+                        task_named("Buy milk"),
+                        TaskTree {
+                            deleted: true,
+                            ..task_named("Deleted")
+                        },
+                        TaskTree {
+                            is_archived: true,
+                            ..task_named("Archived")
+                        },
+                    ],
+                ),
+                list_named("Later", vec![task_named("Someday")]),
+            ],
+        );
+        project.task_lists[1].is_archived = true;
+        let other = project_named(
+            "Home",
+            vec![list_named("Errands", vec![task_named("Milk")])],
+        );
+        let project_id = project.id.as_str();
+        let list_id = project.task_lists[0].id.as_str();
+
+        let mut state = SharedState {
+            trees: vec![project, other],
+            ..SharedState::default()
+        };
+
+        // No selection means every project, minus what is deleted or archived.
+        let titles: Vec<&str> = state
+            .tasks_in_scope()
+            .map(|(_, _, task)| task.title.as_str())
+            .collect();
+        assert_eq!(titles, ["Buy milk", "Milk"]);
+
+        state.selected_project_id = project_id;
+        state.selected_list_id = list_id;
+        let titles: Vec<&str> = state
+            .tasks_in_scope()
+            .map(|(_, _, task)| task.title.as_str())
+            .collect();
+        assert_eq!(titles, ["Buy milk"]);
+    }
+
+    #[test]
+    fn reminders_are_only_collected_from_rows_that_still_exist() {
+        let due = Utc::now();
+        let live = TaskTree {
+            reminders: vec![due],
+            ..task_named("Call the dentist")
+        };
+        let live_id = live.id.as_str();
+        let removed = TaskTree {
+            deleted: true,
+            reminders: vec![due],
+            ..task_named("Cancelled")
+        };
+        let hidden_list = TaskListTree {
+            deleted: true,
+            ..list_named(
+                "Gone",
+                vec![TaskTree {
+                    reminders: vec![due],
+                    ..task_named("In a deleted list")
+                }],
+            )
+        };
+        let trees = vec![project_named(
+            "Work",
+            vec![list_named("Inbox", vec![live, removed]), hidden_list],
+        )];
+
+        let specs = reminder_specs_from_trees(&trees);
+
+        assert_eq!(
+            specs,
+            vec![(live_id, "Call the dentist".to_string(), due)],
+            "a reminder on a row the user deleted must not still fire"
         );
     }
 }

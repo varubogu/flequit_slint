@@ -23,6 +23,19 @@ opener.workspace = true
 trash.workspace = true
 tokio = { workspace = true, features = ["rt", "time"] }
 
+# Notification scheduling and the picker's oneshot channel are shared by every
+# backend, so tokio is not desktop-only.
+[target.'cfg(target_os = "android")'.dependencies]
+jni.workspace = true
+ndk-context.workspace = true
+tokio = { workspace = true, features = ["rt", "time", "sync"] }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+tokio = { workspace = true, features = ["rt", "time", "sync"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen.workspace = true
+
 [dev-dependencies]
 tempfile.workspace = true
 tokio = { workspace = true, features = ["rt", "macros"] }

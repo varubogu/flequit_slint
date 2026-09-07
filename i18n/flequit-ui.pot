@@ -72,22 +72,23 @@ msgctxt "DateTimePicker"
 msgid "Select due date"
 msgstr ""
 
-#: crates/flequit-ui/ui/components/date-time-picker.slint:21
-msgctxt "DateTimePicker"
-msgid "Select due time"
-msgstr ""
 
 #: crates/flequit-ui/ui/components/date-time-picker.slint:48
 msgctxt "DateTimePicker"
 msgid "Not set"
 msgstr ""
 
-#: crates/flequit-ui/ui/components/subtask-row.slint:45
+#: crates/flequit-ui/ui/components/subtask-row.slint:54
 msgctxt "TaskList"
 msgid "Complete {0}"
 msgstr ""
 
-#: crates/flequit-ui/ui/components/subtask-row.slint:64
+#: crates/flequit-ui/ui/components/subtask-row.slint:69
+msgctxt "TaskList"
+msgid "Edit subtask {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/subtask-row.slint:75
 msgctxt "TaskList"
 msgid "Open subtask {0}"
 msgstr ""
@@ -582,6 +583,11 @@ msgctxt "Recurrence"
 msgid "Next dates"
 msgstr ""
 
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint
+msgctxt "Recurrence"
+msgid "Preview count"
+msgstr ""
+
 #: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:518
 msgctxt "Recurrence"
 msgid "This schedule has no upcoming dates."
@@ -798,10 +804,6 @@ msgctxt "TaskDetail"
 msgid "Select start date"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:158
-msgctxt "TaskDetail"
-msgid "Select start time"
-msgstr ""
 
 #: crates/flequit-ui/ui/views/task-detail/task-detail.slint:170
 msgctxt "TaskDetail"
@@ -838,6 +840,107 @@ msgctxt "TaskDetail"
 msgid "Remove reminder {0}"
 msgstr ""
 
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:281
+msgctxt "Reminder"
+msgid "1 minute before"
+msgstr ""
+
+msgctxt "Reminder"
+msgid "1 hour before"
+msgstr ""
+
+msgctxt "Reminder"
+msgid "1 day before"
+msgstr ""
+
+msgctxt "Reminder"
+msgid "{0} minutes before"
+msgstr ""
+
+msgctxt "Reminder"
+msgid "{0} hours before"
+msgstr ""
+
+msgctxt "Reminder"
+msgid "{0} days before"
+msgstr ""
+
+msgctxt "Reminder"
+msgid "Choose a future date and time."
+msgstr ""
+
+msgctxt "TaskDetail"
+msgid "Before start"
+msgstr ""
+
+msgctxt "TaskDetail"
+msgid "Before due"
+msgstr ""
+
+msgctxt "Settings"
+msgid "Reminder presets"
+msgstr ""
+
+msgctxt "Settings"
+msgid "Remove the {0} reminder preset"
+msgstr ""
+
+msgctxt "Settings"
+msgid "Reminder amount"
+msgstr ""
+
+msgctxt "Settings"
+msgid "Add reminder preset"
+msgstr ""
+
+msgctxt "Settings"
+msgid "Basic Language Week start Due filters Custom due days Reminder presets Recurrence Platform features"
+msgstr ""
+
+msgctxt "TaskDetail"
+msgid "30 minutes before start"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:74
+msgctxt "TaskDetail"
+msgid "1 hour before start"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:81
+msgctxt "TaskDetail"
+msgid "1 day before start"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:288
+msgctxt "TaskDetail"
+msgid "30 minutes before due"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:102
+msgctxt "TaskDetail"
+msgid "1 hour before due"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:109
+msgctxt "TaskDetail"
+msgid "1 day before due"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:118
+msgctxt "TaskDetail"
+msgid "Set a start or due date to use relative reminders."
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:296
+msgctxt "TaskDetail"
+msgid "Specific date and time (optional)"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:140
+msgctxt "TaskDetail"
+msgid "Select a specific reminder date"
+msgstr ""
+
 #: crates/flequit-ui/ui/views/task-detail/task-detail.slint:275
 msgctxt "TaskDetail"
 msgid "Add a reminder"
@@ -848,10 +951,6 @@ msgctxt "TaskDetail"
 msgid "Select reminder date"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:277
-msgctxt "TaskDetail"
-msgid "Select reminder time"
-msgstr ""
 
 #: crates/flequit-ui/ui/views/task-detail/task-detail.slint:287
 msgctxt "TaskDetail"
@@ -1188,10 +1287,6 @@ msgctxt "Settings"
 msgid "Select preview date"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:79
-msgctxt "Settings"
-msgid "Select preview time"
-msgstr ""
 
 #: crates/flequit-ui/ui/views/settings/datetime-settings.slint:92
 #: crates/flequit-ui/ui/views/settings/datetime-settings.slint:92
@@ -1270,6 +1365,16 @@ msgstr ""
 #: crates/flequit-ui/ui/views/settings/basic-settings.slint:42
 msgctxt "Settings"
 msgid "Week starts on"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:60
+msgctxt "Settings"
+msgid "Keyboard"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:62
+msgctxt "Settings"
+msgid "Enable Vim task navigation (j/k and g/G)"
 msgstr ""
 
 #: crates/flequit-ui/ui/views/settings/basic-settings.slint:46
@@ -1801,4 +1906,144 @@ msgstr ""
 #: crates/flequit-ui/ui/views/sidebar/search-box.slint:153
 msgctxt "SearchSuggestion"
 msgid "Use search suggestion {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:124
+msgctxt "Calendar"
+msgid "Previous month"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:140
+msgctxt "Calendar"
+msgid "Next month"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:198
+msgctxt "Calendar"
+msgid "Day {0} of {1}"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:95
+msgctxt "Calendar"
+msgid "January {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:96
+msgctxt "Calendar"
+msgid "February {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:97
+msgctxt "Calendar"
+msgid "March {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:98
+msgctxt "Calendar"
+msgid "April {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:99
+msgctxt "Calendar"
+msgid "May {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:100
+msgctxt "Calendar"
+msgid "June {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:101
+msgctxt "Calendar"
+msgid "July {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:102
+msgctxt "Calendar"
+msgid "August {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:103
+msgctxt "Calendar"
+msgid "September {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:104
+msgctxt "Calendar"
+msgid "October {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:105
+msgctxt "Calendar"
+msgid "November {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:106
+msgctxt "Calendar"
+msgid "December {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:306
+msgctxt "TaskDetail"
+msgid "Change status"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:325
+msgctxt "TaskDetail"
+msgid "Change priority"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:117
+msgctxt "SubTaskDetail"
+msgid "Change status"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:136
+msgctxt "SubTaskDetail"
+msgid "Change priority"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:157
+msgctxt "Calendar"
+msgid "2026/9/15 13:30"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:158
+msgctxt "Calendar"
+msgid "2026/9/15"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:160
+msgctxt "Calendar"
+msgid "Type a date and time"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:161
+msgctxt "Calendar"
+msgid "Type a date"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:246
+msgctxt "Calendar"
+msgid "Time"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:256
+msgctxt "Calendar"
+msgid "Hour"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:271
+msgctxt "Calendar"
+msgid "Minute"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:283
+msgctxt "Calendar"
+msgid "Cancel"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:288
+msgctxt "Calendar"
+msgid "OK"
 msgstr ""

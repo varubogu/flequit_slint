@@ -6,6 +6,7 @@
 
 pub mod color;
 pub mod datetime;
+pub mod datetime_input;
 pub mod project;
 pub mod recurrence;
 pub mod tag;

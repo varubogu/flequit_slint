@@ -1,5 +1,5 @@
 import { CustomDueFilterSetting, DateTimeFormatSetting, DueButtonSetting, RecurrencePresetSetting,
-         SettingsCategory } from "types.slint";
+         ReminderPresetSetting, SettingsCategory } from "types.slint";
 import { ThemeMode } from "theme.slint";
 
 // Persisted application preferences plus transient settings-dialog state.
@@ -17,10 +17,13 @@ export global SettingsState {
 
     // --- Basic ---
     in-out property <string> week-start: "sunday";
+    in-out property <bool> vim-mode: false;
     in-out property <[DueButtonSetting]> due-buttons;
     in-out property <[CustomDueFilterSetting]> custom-due-filters;
     // Repeat patterns the user saved; the repeat editor offers them as presets.
     in-out property <[RecurrencePresetSetting]> recurrence-presets;
+    // Relative offsets offered by the task reminder editor.
+    in-out property <[ReminderPresetSetting]> reminder-presets;
     // "granted", "denied", or "not-determined".
     in-out property <string> notification-permission: "not-determined";
     in-out property <bool> notification-permission-loading: false;

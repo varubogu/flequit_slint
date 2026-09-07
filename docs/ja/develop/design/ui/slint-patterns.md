@@ -161,6 +161,54 @@ accessible-label: project.name + " " + @tr("Sidebar" => "expand");
 accessible-label: @tr("Sidebar" => "Expand {0}", project.name);
 ```
 
+### フォーカス表示
+
+`TouchArea` だけの要素はキーボードで到達できない。押せる要素には `FocusScope`
+を持たせ、`has-focus` の間だけ `FocusRing`（`components/focus-ring.slint`）を
+描画する。共通ボタン（`IconButton` / `DialogButton` / `RowButton` /
+`ChoiceButton` / `ColorPicker`）は実装済みなので、新規ボタンはこれらを使う。
+
+```slint
+key-focus := FocusScope {
+    key-pressed(event) => {
+        if (event.text == " " || event.text == "\n") {
+            root.clicked();
+            return accept;
+        }
+        reject
+    }
+}
+
+if key-focus.has-focus: FocusRing { radius: root.border-radius; }
+
+touch := TouchArea {
+    // クリックでもフォーカスを移す。次の Tab がその位置から続く
+    clicked => { key-focus.focus(); root.clicked(); }
+}
+```
+
+### フォーカストラップ
+
+Slint の Tab 送りはウィンドウ全体を巡回するため、モーダルを開いていても
+背後のサイドバーやタスク一覧へフォーカスが抜ける。ダイアログのカードの
+**最初と最後の子** に `FocusSentinel`（`components/focus-sentinel.slint`）を置き、
+互いを `focus()` して端で折り返す。
+
+```slint
+head := FocusSentinel { wrapped => { tail.focus(); } }
+// ... ダイアログの中身 ...
+tail := FocusSentinel { wrapped => { head.focus(); } }
+```
+
+あわせて、ダイアログを開いた時点で **内部の要素にフォーカスを置く**
+（対象要素の `init => { self.focus(); }`）。フォーカスが外にあるままでは
+トラップは働かない。`if` で入れ替わる状態（削除確認など）は、切り替え先の
+要素にも `init` フォーカスを持たせる。フォーカスを持っていた要素が消えると、
+フォーカスは行き先を失ってダイアログの外へ出る。
+
+`crates/flequit-ui/tests/interaction.rs` の
+`a_modal_keeps_keyboard_focus_inside_itself` が全ダイアログを検証している。
+
 ## 全画面オーバーレイの注意
 
 `AppState.loading` のような全画面 `TouchArea` は **すべての入力を飲み込む**。
@@ -169,6 +217,28 @@ accessible-label: @tr("Sidebar" => "Expand {0}", project.name);
 - 非同期処理の完了経路が失敗しうる場合、`upgrade_in_event_loop` の
   `Err` を握りつぶさずログに残す
 - オーバーレイを追加したら、それを解除する経路が必ず存在することを確認する
+
+## PopupWindow の制約
+
+`PopupWindow` は独立したウィンドウとして開く。
+そのため**周囲のレイアウトを押し下げずに手前へ重なる**——選択肢リストや
+カレンダーはこれで実装する（`SelectField` / `CalendarPopup`）——一方で
+次の制約がある。
+
+- 外側のコンポーネントからは `show()` / `close()` しか呼べない。
+  独自の `public function` の呼び出しやプロパティ代入は
+  `Cannot access property or callback ... inside of a Window` になる
+- 中身は親ウィンドウのアクセシビリティツリーに現れないため、
+  `ElementHandle::find_by_accessible_label` から到達できない。
+  `tests/interaction.rs` から操作できるのは開くところまで
+- ポップアップの中からさらに別のポップアップを開く連鎖は避ける。
+  日付と時刻は 1 つの `CalendarPopup` で完結させている
+
+「開くたびに初期化したい」状態は、呼び出し側で加算するトークンを
+`in property <int> open-token` で受け、`changed` ハンドラでリセットする。
+
+`std-widgets` の `DatePickerPopup` は月送りボタンが内部で 48px の
+最小高さを持ち行の高さまで伸びるため使わない。
 
 ## アンチパターン
 
@@ -186,6 +256,9 @@ accessible-label: @tr("Sidebar" => "Expand {0}", project.name);
 ## パフォーマンス
 
 - **仮想スクロール**: 大量リストは `ListView`
+- **リストの仮想化を壊さない**: `ListView` の中身を `for` の外側で組み立てない。
+  `interaction.rs` の `a_long_task_list_only_instantiates_visible_rows` が、
+  タスク 500 件と 5000 件で生成される行数が増えないことを検証している
 - **条件付きレンダリング**: `if` で不要な要素を生成しない（`visible: false` は生成される）
 - **差分更新**: `Model` の更新は行単位の通知で行う
 - **画像/SVG**: 頻繁に使うアイコンは `@image-url` で静的に埋め込む

@@ -1,0 +1,21 @@
+# Configuration for `cargo audit` (see .github/workflows/audit.yml).
+#
+# `cargo audit` reads Cargo.lock, which is resolved over every feature and
+# every target. It therefore reports crates that this workspace never
+# compiles. Each entry below has to name the crate that pulls it in and the
+# reason it stays unbuilt, so the list can be re-checked when dependencies
+# move.
+
+[advisories]
+ignore = [
+    # rsa 0.9.x, Marvin attack. Reached only through sqlx-mysql, which is an
+    # optional dependency of sqlx that sea-orm does not enable here: this
+    # workspace only turns on `sqlx-sqlite`. Verified with
+    # `cargo tree -i sqlx-mysql --target all`, which finds nothing.
+    # Drop this entry once rsa ships a fix or sqlx stops listing it.
+    "RUSTSEC-2023-0071",
+]
+
+# Unmaintained crates are reported as warnings and do not fail the run. They
+# are worth reading, but a crate going unmaintained is not a reason to block a
+# pull request that has nothing to do with it.

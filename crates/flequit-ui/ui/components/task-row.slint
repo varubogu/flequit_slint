@@ -151,7 +151,11 @@ export component TaskRow inherits Rectangle {
 
         // --- Subtasks ---
         if root.task.expanded: VerticalLayout {
-            padding-left: Layout.touch-target + Theme.space-sm;
+            // Begin children beyond the parent's checkbox. This keeps the
+            // hierarchy visible even though the parent also has drag and
+            // expansion controls before its checkbox.
+            padding-left: Theme.space-lg + 2 * Theme.space-sm
+                + 2 * Layout.touch-target;
             padding-bottom: Theme.space-xs;
             spacing: 0px;
 

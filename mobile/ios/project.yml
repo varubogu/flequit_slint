@@ -1,0 +1,60 @@
+# XcodeGen specification: `xcodegen generate` in this directory produces
+# Flequit.xcodeproj. The project file itself is not checked in — it is a
+# generated artefact and merges badly.
+name: Flequit
+
+options:
+  bundleIdPrefix: com.flequit
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+
+targets:
+  Flequit:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: Flequit
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # Lets the user reach exported backups from the Files app, which is the
+        # only way off the device for a sandboxed container.
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.flequit.app
+        SWIFT_VERSION: "5.0"
+        # Rust owns `main`; without this the linker also pulls in the one the
+        # Swift runtime would otherwise synthesise.
+        SWIFT_OBJC_INTERFACE_HEADER_NAME: ""
+        LIBRARY_SEARCH_PATHS:
+          - $(inherited)
+          - $(SRCROOT)/../../target/$(FLEQUIT_RUST_TARGET)/$(CONFIGURATION_LOWERCASE)
+        OTHER_LDFLAGS:
+          - $(inherited)
+          - -lflequit_app
+    preBuildScripts:
+      - name: Build the Rust static library
+        basedOnDependencyAnalysis: false
+        script: |
+          set -euo pipefail
+          cd "$SRCROOT/../.."
+          if [ "$CONFIGURATION" = "Debug" ]; then PROFILE=""; else PROFILE="--release"; fi
+          # Simulator on Apple silicon and device share the arm64 architecture
+          # but not the target triple.
+          if [ "$PLATFORM_NAME" = "iphonesimulator" ]; then
+            TARGET="aarch64-apple-ios-sim"
+          else
+            TARGET="aarch64-apple-ios"
+          fi
+          cargo build $PROFILE --target "$TARGET" -p flequit-app --features ios

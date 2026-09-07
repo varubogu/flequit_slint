@@ -1,0 +1,32 @@
+// Boundary marker used to keep keyboard focus inside a modal dialog.
+//
+// Slint's Tab traversal walks the whole window, so without a trap the focus
+// leaves an open dialog and lands on the sidebar or the task list behind it.
+// Place one sentinel as the first child of the dialog and one as the last, and
+// have each `wrapped` handler focus the other:
+//
+//     head := FocusSentinel { wrapped => { tail.focus(); } }
+//     ... dialog content ...
+//     tail := FocusSentinel { wrapped => { head.focus(); } }
+//
+// Focus then bounces back to the opposite end of the dialog instead of
+// escaping. `focus()` on a sentinel is a programmatic focus change, so the
+// sentinel it lands on does not fire `wrapped` again; the next Tab continues
+// from that end into the dialog's own controls.
+//
+// The element carries no size and no touch area, so it is invisible to the
+// pointer and to the layout.
+export component FocusSentinel inherits FocusScope {
+    // Invoked when Tab traversal reached this end of the dialog.
+    callback wrapped();
+
+    width: 0px;
+    height: 0px;
+    focus-on-click: false;
+
+    focus-gained(reason) => {
+        if (reason == FocusReason.tab-navigation) {
+            root.wrapped();
+        }
+    }
+}

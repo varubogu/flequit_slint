@@ -29,6 +29,11 @@ use crate::adapters::datetime::{
 /// — and the preview must still return rather than spin.
 const MAX_PERIODS: usize = 500;
 
+/// A finite requested count may need to skip invalid calendar periods (for
+/// example the 31st of a month), while still remaining bounded for malformed
+/// rules whose conditions can never match.
+const MAX_PERIODS_PER_WANTED_OCCURRENCE: usize = 32;
+
 /// How far a weekday adjustment will look for a day that fits.
 const ADJUSTMENT_SPAN: u64 = 14;
 
@@ -65,9 +70,16 @@ pub fn next_occurrences(
         .as_ref()
         .and_then(|end| to_local(end, timezone));
     let conditions = date_conditions(rule, timezone);
+    let max_periods = if end.is_some() {
+        // The end date is the bound: keep walking until the first candidate
+        // beyond it so every occurrence through that date can be returned.
+        usize::MAX
+    } else {
+        MAX_PERIODS.max(wanted.saturating_mul(MAX_PERIODS_PER_WANTED_OCCURRENCE))
+    };
 
     let mut found: Vec<NaiveDateTime> = Vec::new();
-    'periods: for period in 0..MAX_PERIODS {
+    'periods: for period in 0..max_periods {
         for base in period_candidates(rule, anchor_local, period) {
             let candidate = adjusted(rule, base);
             if candidate <= anchor_local {
@@ -596,6 +608,17 @@ mod tests {
     }
 
     #[test]
+    fn an_end_date_preview_is_not_truncated_to_the_old_five_item_default() {
+        let mut daily = rule(RecurrenceUnit::Day, 1);
+        daily.end_date = Some(at(2026, 9, 13, 23, 59));
+
+        let dates = preview(&daily, at(2026, 9, 6, 9, 0), usize::MAX);
+
+        assert_eq!(dates.len(), 7);
+        assert_eq!(dates.last(), Some(&at(2026, 9, 13, 9, 0)));
+    }
+
+    #[test]
     fn a_count_limit_counts_the_anchor_as_the_first_occurrence() {
         let mut daily = rule(RecurrenceUnit::Day, 1);
         daily.max_occurrences = Some(3);
@@ -603,6 +626,17 @@ mod tests {
         let dates = preview(&daily, at(2026, 9, 6, 9, 0), 5);
 
         assert_eq!(dates, vec![at(2026, 9, 7, 9, 0), at(2026, 9, 8, 9, 0)]);
+    }
+
+    #[test]
+    fn a_count_limited_preview_lists_every_remaining_occurrence() {
+        let mut daily = rule(RecurrenceUnit::Day, 1);
+        daily.max_occurrences = Some(10);
+
+        let dates = preview(&daily, at(2026, 9, 6, 9, 0), usize::MAX);
+
+        assert_eq!(dates.len(), 9);
+        assert_eq!(dates.last(), Some(&at(2026, 9, 15, 9, 0)));
     }
 
     #[test]

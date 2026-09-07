@@ -3,8 +3,8 @@
 // Any interaction that persists data or runs domain logic goes through here.
 // Views must not mutate AppState for those cases.
 
-import { DueUnit, RecurrenceState, RecurrenceUnit, SettingsCategory, TaskPriority, TaskSort,
-         TaskStatus } from "types.slint";
+import { DueUnit, ParsedDateTime, RecurrenceState, RecurrenceUnit, ReminderUnit, SettingsCategory,
+         TaskPriority, TaskSort, TaskStatus } from "types.slint";
 import { ThemeMode } from "theme.slint";
 
 export global Actions {
@@ -12,6 +12,8 @@ export global Actions {
     callback select-project(string /* project_id */);
     callback select-task-list(string /* project_id */, string /* list_id */);
     callback select-task(string /* task_id */);
+    callback move-task-selection(int /* delta */);
+    callback select-task-boundary(bool /* first */);
     callback select-subtask(string /* subtask_id */);
     callback go-to-parent-task();
     callback toggle-project-expansion(string /* project_id */);
@@ -54,6 +56,8 @@ export global Actions {
     callback clear-recurrence(string /* task_id */);
 
     // --- Reminders ---
+    callback add-relative-reminder(string /* task_id */, bool /* from_start */,
+                                   int /* minutes_before */);
     callback add-reminder(string /* task_id */, int /* year */, int /* month */,
                           int /* day */, int /* hour */, int /* minute */);
     callback remove-reminder(string /* task_id */, string /* reminder_key */);
@@ -102,11 +106,14 @@ export global Actions {
     // Switches the UI language and persists the choice.
     callback update-language(string /* locale tag */);
     callback update-week-start(string /* week_start */);
+    callback update-vim-mode(bool /* enabled */);
     callback update-due-button(string /* key */, bool /* visible */);
     callback add-custom-due-filter(int /* value */, DueUnit /* unit */);
     callback remove-custom-due-filter(int /* value */, DueUnit /* unit */);
     callback add-recurrence-preset(int /* interval */, RecurrenceUnit /* unit */);
     callback remove-recurrence-preset(int /* interval */, RecurrenceUnit /* unit */);
+    callback add-reminder-preset(int /* value */, ReminderUnit /* unit */);
+    callback remove-reminder-preset(int /* value */, ReminderUnit /* unit */);
     callback filter-timezones(string /* query */);
     callback filter-fonts(string /* query */);
     callback update-timezone(string /* timezone */);
@@ -117,6 +124,16 @@ export global Actions {
     pure callback datetime-format-index(string /* format */) -> int;
     pure callback preview-datetime(string /* format */, int /* year */, int /* month */,
                                    int /* day */, int /* hour */, int /* minute */) -> string;
+    // Reads a date, and optionally a time, out of what was typed into a picker.
+    // The reference parts fill in whatever the text leaves out.
+    pure callback parse-datetime(string /* text */, int /* year */, int /* month */,
+                                 int /* day */, int /* hour */,
+                                 int /* minute */) -> ParsedDateTime;
+    // Reminder-only constraints injected into the reusable calendar picker.
+    pure callback reminder-date-selectable(int /* year */, int /* month */,
+                                             int /* day */) -> bool;
+    pure callback reminder-datetime-valid(int /* year */, int /* month */, int /* day */,
+                                           int /* hour */, int /* minute */) -> bool;
     callback refresh-datetime-display();
     callback update-theme-mode(ThemeMode /* mode */);
     callback update-font(string /* font */);

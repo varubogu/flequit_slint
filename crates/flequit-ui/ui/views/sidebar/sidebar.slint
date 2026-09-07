@@ -37,6 +37,7 @@ export component Sidebar inherits Rectangle {
 
     VerticalLayout {
         padding-top: Layout.safe-area-top;
+        padding-left: Layout.safe-area-left;
         spacing: 0px;
 
         // --- Header ---
@@ -99,25 +100,6 @@ export component Sidebar inherits Rectangle {
 
                     ProjectTree {
                         collapsed: root.collapsed;
-                    }
-                }
-
-
-                if !root.collapsed && AppState.selected-project-id != "": HorizontalLayout {
-                    spacing: Theme.space-sm;
-
-                    Text {
-                        text: @tr("Sidebar" => "Tags");
-                        color: Theme.text-muted;
-                        font-size: Theme.font-size-sm;
-                        vertical-alignment: center;
-                        horizontal-stretch: 1;
-                    }
-
-                    IconButton {
-                        icon: IconName.tag;
-                        tooltip: @tr("Sidebar" => "Manage tags");
-                        clicked => { AppState.tag-manager-open = true; }
                     }
                 }
             }

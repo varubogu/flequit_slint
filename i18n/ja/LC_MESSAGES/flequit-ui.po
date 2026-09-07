@@ -69,22 +69,23 @@ msgctxt "DateTimePicker"
 msgid "Select due date"
 msgstr "期限日を選択"
 
-#: crates/flequit-ui/ui/components/date-time-picker.slint:20
-msgctxt "DateTimePicker"
-msgid "Select due time"
-msgstr "期限時刻を選択"
 
 #: crates/flequit-ui/ui/components/date-time-picker.slint:47
 msgctxt "DateTimePicker"
 msgid "Not set"
 msgstr "未設定"
 
-#: crates/flequit-ui/ui/components/subtask-row.slint:45
+#: crates/flequit-ui/ui/components/subtask-row.slint:54
 msgctxt "TaskList"
 msgid "Complete {0}"
 msgstr "{0} を完了にする"
 
-#: crates/flequit-ui/ui/components/subtask-row.slint:64
+#: crates/flequit-ui/ui/components/subtask-row.slint:69
+msgctxt "TaskList"
+msgid "Edit subtask {0}"
+msgstr "サブタスク {0} を編集"
+
+#: crates/flequit-ui/ui/components/subtask-row.slint:75
 msgctxt "TaskList"
 msgid "Open subtask {0}"
 msgstr "サブタスク {0} を開く"
@@ -579,6 +580,11 @@ msgctxt "Recurrence"
 msgid "Next dates"
 msgstr "次回以降の日時"
 
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint
+msgctxt "Recurrence"
+msgid "Preview count"
+msgstr "プレビュー件数"
+
 #: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:494
 msgctxt "Recurrence"
 msgid "This schedule has no upcoming dates."
@@ -776,10 +782,6 @@ msgctxt "TaskDetail"
 msgid "Select start date"
 msgstr "開始日を選択"
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:158
-msgctxt "TaskDetail"
-msgid "Select start time"
-msgstr "開始時刻を選択"
 
 #: crates/flequit-ui/ui/views/task-detail/task-detail.slint:170
 msgctxt "TaskDetail"
@@ -816,6 +818,107 @@ msgctxt "TaskDetail"
 msgid "Remove reminder {0}"
 msgstr "リマインダー「{0}」を削除"
 
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:281
+msgctxt "Reminder"
+msgid "1 minute before"
+msgstr "1分前"
+
+msgctxt "Reminder"
+msgid "1 hour before"
+msgstr "1時間前"
+
+msgctxt "Reminder"
+msgid "1 day before"
+msgstr "1日前"
+
+msgctxt "Reminder"
+msgid "{0} minutes before"
+msgstr "{0}分前"
+
+msgctxt "Reminder"
+msgid "{0} hours before"
+msgstr "{0}時間前"
+
+msgctxt "Reminder"
+msgid "{0} days before"
+msgstr "{0}日前"
+
+msgctxt "Reminder"
+msgid "Choose a future date and time."
+msgstr "現在より後の日時を指定してください。"
+
+msgctxt "TaskDetail"
+msgid "Before start"
+msgstr "着手日時から"
+
+msgctxt "TaskDetail"
+msgid "Before due"
+msgstr "完了日時から"
+
+msgctxt "Settings"
+msgid "Reminder presets"
+msgstr "リマインダーのカスタム項目"
+
+msgctxt "Settings"
+msgid "Remove the {0} reminder preset"
+msgstr "「{0}」のリマインダー候補を削除"
+
+msgctxt "Settings"
+msgid "Reminder amount"
+msgstr "リマインダーの値"
+
+msgctxt "Settings"
+msgid "Add reminder preset"
+msgstr "リマインダー候補を追加"
+
+msgctxt "Settings"
+msgid "Basic Language Week start Due filters Custom due days Reminder presets Recurrence Platform features"
+msgstr "基本 言語 週の開始 期限フィルタ カスタム期限 リマインダー カスタム項目 繰り返し プラットフォーム機能"
+
+msgctxt "TaskDetail"
+msgid "30 minutes before start"
+msgstr "着手日時の30分前"
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:74
+msgctxt "TaskDetail"
+msgid "1 hour before start"
+msgstr "着手日時の1時間前"
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:81
+msgctxt "TaskDetail"
+msgid "1 day before start"
+msgstr "着手日時の1日前"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:288
+msgctxt "TaskDetail"
+msgid "30 minutes before due"
+msgstr "完了日時の30分前"
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:102
+msgctxt "TaskDetail"
+msgid "1 hour before due"
+msgstr "完了日時の1時間前"
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:109
+msgctxt "TaskDetail"
+msgid "1 day before due"
+msgstr "完了日時の1日前"
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:118
+msgctxt "TaskDetail"
+msgid "Set a start or due date to use relative reminders."
+msgstr "相対リマインダーを使うには、着手日時または完了日時を設定してください。"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:296
+msgctxt "TaskDetail"
+msgid "Specific date and time (optional)"
+msgstr "日時を直接指定（オプション）"
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:140
+msgctxt "TaskDetail"
+msgid "Select a specific reminder date"
+msgstr "リマインダー日時を直接指定"
+
 #: crates/flequit-ui/ui/views/task-detail/task-detail.slint:241
 msgctxt "TaskDetail"
 msgid "Add a reminder"
@@ -826,10 +929,6 @@ msgctxt "TaskDetail"
 msgid "Select reminder date"
 msgstr "リマインダーの日付を選択"
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:243
-msgctxt "TaskDetail"
-msgid "Select reminder time"
-msgstr "リマインダーの時刻を選択"
 
 #: crates/flequit-ui/ui/views/task-detail/task-detail.slint:253
 msgctxt "TaskDetail"
@@ -1165,10 +1264,6 @@ msgctxt "Settings"
 msgid "Select preview date"
 msgstr "プレビュー日付を選択"
 
-#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:79
-msgctxt "Settings"
-msgid "Select preview time"
-msgstr "プレビュー時刻を選択"
 
 #: crates/flequit-ui/ui/views/settings/datetime-settings.slint:92
 #: crates/flequit-ui/ui/views/settings/datetime-settings.slint:92
@@ -1248,6 +1343,16 @@ msgstr "言語"
 msgctxt "Settings"
 msgid "Week starts on"
 msgstr "週の開始曜日"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:60
+msgctxt "Settings"
+msgid "Keyboard"
+msgstr "キーボード"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:62
+msgctxt "Settings"
+msgid "Enable Vim task navigation (j/k and g/G)"
+msgstr "Vim式のタスク移動（j/k、g/G）を有効にする"
 
 #: crates/flequit-ui/ui/views/settings/basic-settings.slint:29
 msgctxt "Settings"
@@ -1779,3 +1884,143 @@ msgstr "タスクを検索"
 msgctxt "SearchSuggestion"
 msgid "Use search suggestion {0}"
 msgstr "検索候補 {0} を使用"
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:124
+msgctxt "Calendar"
+msgid "Previous month"
+msgstr "前の月"
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:140
+msgctxt "Calendar"
+msgid "Next month"
+msgstr "次の月"
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:198
+msgctxt "Calendar"
+msgid "Day {0} of {1}"
+msgstr "{1} {0}日"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:95
+msgctxt "Calendar"
+msgid "January {0}"
+msgstr "{0}年1月"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:96
+msgctxt "Calendar"
+msgid "February {0}"
+msgstr "{0}年2月"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:97
+msgctxt "Calendar"
+msgid "March {0}"
+msgstr "{0}年3月"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:98
+msgctxt "Calendar"
+msgid "April {0}"
+msgstr "{0}年4月"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:99
+msgctxt "Calendar"
+msgid "May {0}"
+msgstr "{0}年5月"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:100
+msgctxt "Calendar"
+msgid "June {0}"
+msgstr "{0}年6月"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:101
+msgctxt "Calendar"
+msgid "July {0}"
+msgstr "{0}年7月"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:102
+msgctxt "Calendar"
+msgid "August {0}"
+msgstr "{0}年8月"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:103
+msgctxt "Calendar"
+msgid "September {0}"
+msgstr "{0}年9月"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:104
+msgctxt "Calendar"
+msgid "October {0}"
+msgstr "{0}年10月"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:105
+msgctxt "Calendar"
+msgid "November {0}"
+msgstr "{0}年11月"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:106
+msgctxt "Calendar"
+msgid "December {0}"
+msgstr "{0}年12月"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:306
+msgctxt "TaskDetail"
+msgid "Change status"
+msgstr "ステータスを変更"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:325
+msgctxt "TaskDetail"
+msgid "Change priority"
+msgstr "優先度を変更"
+
+#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:117
+msgctxt "SubTaskDetail"
+msgid "Change status"
+msgstr "ステータスを変更"
+
+#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:136
+msgctxt "SubTaskDetail"
+msgid "Change priority"
+msgstr "優先度を変更"
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:157
+msgctxt "Calendar"
+msgid "2026/9/15 13:30"
+msgstr "2026/9/15 13:30"
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:158
+msgctxt "Calendar"
+msgid "2026/9/15"
+msgstr "2026/9/15"
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:160
+msgctxt "Calendar"
+msgid "Type a date and time"
+msgstr "日付と時刻を入力"
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:161
+msgctxt "Calendar"
+msgid "Type a date"
+msgstr "日付を入力"
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:246
+msgctxt "Calendar"
+msgid "Time"
+msgstr "時刻"
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:256
+msgctxt "Calendar"
+msgid "Hour"
+msgstr "時"
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:271
+msgctxt "Calendar"
+msgid "Minute"
+msgstr "分"
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:283
+msgctxt "Calendar"
+msgid "Cancel"
+msgstr "キャンセル"
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:288
+msgctxt "Calendar"
+msgid "OK"
+msgstr "OK"

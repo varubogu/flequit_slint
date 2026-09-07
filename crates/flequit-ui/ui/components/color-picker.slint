@@ -1,6 +1,7 @@
 import { Theme } from "../globals/theme.slint";
 import { Layout } from "../globals/layout.slint";
 import { AppState } from "../globals/app-state.slint";
+import { FocusRing } from "focus-ring.slint";
 
 // Swatches for the project palette, plus "no colour".
 //
@@ -30,9 +31,27 @@ export component ColorPicker inherits HorizontalLayout {
             height: 100%;
         }
 
-        TouchArea {
-            clicked => { root.picked(""); }
+        none-focus := FocusScope {
+            key-pressed(event) => {
+                if (event.text == " " || event.text == "\n") {
+                    root.picked("");
+                    return accept;
+                }
+                reject
+            }
         }
+
+        if none-focus.has-focus: FocusRing {
+            radius: parent.border-radius;
+        }
+
+        TouchArea {
+            clicked => {
+                none-focus.focus();
+                root.picked("");
+            }
+        }
+        forward-focus: none-focus;
         accessible-role: button;
         accessible-label: @tr("Editor" => "No colour");
         accessible-action-default => { root.picked(""); }
@@ -46,9 +65,27 @@ export component ColorPicker inherits HorizontalLayout {
         border-color: Theme.text;
         background: option.swatch;
 
-        TouchArea {
-            clicked => { root.picked(option.value); }
+        swatch-focus := FocusScope {
+            key-pressed(event) => {
+                if (event.text == " " || event.text == "\n") {
+                    root.picked(option.value);
+                    return accept;
+                }
+                reject
+            }
         }
+
+        if swatch-focus.has-focus: FocusRing {
+            radius: parent.border-radius;
+        }
+
+        TouchArea {
+            clicked => {
+                swatch-focus.focus();
+                root.picked(option.value);
+            }
+        }
+        forward-focus: swatch-focus;
         accessible-role: button;
         accessible-label: @tr("Editor" => "Colour {0}", option.value);
         accessible-action-default => { root.picked(option.value); }

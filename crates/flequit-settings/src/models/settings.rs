@@ -9,6 +9,7 @@ use super::custom_due_filter::CustomDueFilter;
 use super::datetime_format::DateTimeFormat;
 use super::due_date_buttons::DueDateButtons;
 use super::recurrence_preset::RecurrencePreset;
+use super::reminder_preset::{ReminderPreset, default_reminder_presets};
 use super::time_label::TimeLabel;
 use super::view_item::ViewItem;
 
@@ -16,7 +17,10 @@ use super::view_item::ViewItem;
 ///
 /// アプリケーションの全設定項目を単一の構造体で管理します。
 /// フロントエンドのSettings型に対応しています。
+/// 設定ファイルは旧 Tauri 版と同じ `settings.yml` を共有するため、
+/// キーは旧実装と同じ camelCase で読み書きし、snake_case も alias で受け付ける。
 #[derive(Debug, Clone, Serialize, Deserialize, Partial)]
+#[serde(rename_all = "camelCase")]
 #[partially(derive(Debug, Clone, Serialize, Deserialize, Default))]
 pub struct Settings {
     // テーマ・外観設定
@@ -27,35 +31,77 @@ pub struct Settings {
     /// フォント名
     pub font: String,
     /// フォントサイズ
+    #[serde(alias = "font_size")]
     pub font_size: i32,
     /// フォント色
+    #[serde(alias = "font_color")]
     pub font_color: String,
     /// 背景色
+    #[serde(alias = "background_color")]
     pub background_color: String,
 
     // 基本設定
     /// 週の開始曜日（"sunday", "monday"）
+    #[serde(alias = "week_start")]
     pub week_start: String,
+    /// Enables Vim-style task-list navigation (j/k and g/G).
+    #[serde(default, alias = "vim_mode")]
+    pub vim_mode: bool,
     /// タイムゾーン
     pub timezone: String,
     /// カスタム期限フィルタ（値と単位。旧形式の日数配列も読み込める）
-    #[serde(default, alias = "custom_due_days")]
+    #[serde(
+        default,
+        alias = "custom_due_filters",
+        alias = "customDueDays",
+        alias = "custom_due_days"
+    )]
     pub custom_due_filters: Vec<CustomDueFilter>,
     /// 繰り返し設定のカスタム項目
-    #[serde(default)]
+    #[serde(default, alias = "custom_recurrence_presets")]
     pub custom_recurrence_presets: Vec<RecurrencePreset>,
+    /// リマインダー追加時に表示する相対時間の候補
+    #[serde(default = "missing_reminder_presets", alias = "reminder_presets")]
+    pub reminder_presets: Vec<ReminderPreset>,
     /// 選択した日時フォーマット
+    #[serde(alias = "datetime_format")]
     pub datetime_format: DateTimeFormat,
     /// 日時フォーマット一覧
+    #[serde(alias = "datetime_formats")]
     pub datetime_formats: Vec<DateTimeFormat>,
     /// 時刻ラベル
+    #[serde(alias = "time_labels")]
     pub time_labels: Vec<TimeLabel>,
 
     // 表示設定
     /// 期日ボタンの表示設定
+    #[serde(alias = "due_date_buttons")]
     pub due_date_buttons: Vec<DueDateButtons>,
     /// ビューアイテム設定
+    #[serde(alias = "view_items")]
     pub view_items: Vec<ViewItem>,
+}
+
+// `partially` forwards serde attributes to Option-wrapped fields. A missing
+// full setting needs the legacy choices; a missing partial update must do nothing.
+trait MissingReminderPresets {
+    fn missing() -> Self;
+}
+
+impl MissingReminderPresets for Vec<ReminderPreset> {
+    fn missing() -> Self {
+        default_reminder_presets()
+    }
+}
+
+impl MissingReminderPresets for Option<Vec<ReminderPreset>> {
+    fn missing() -> Self {
+        None
+    }
+}
+
+fn missing_reminder_presets<T: MissingReminderPresets>() -> T {
+    T::missing()
 }
 
 impl Default for Settings {
@@ -68,9 +114,11 @@ impl Default for Settings {
             font_color: "#000000".to_string(),
             background_color: "#FFFFFF".to_string(),
             week_start: "sunday".to_string(),
+            vim_mode: false,
             timezone: "Asia/Tokyo".to_string(),
             custom_due_filters: vec![],
             custom_recurrence_presets: vec![],
+            reminder_presets: default_reminder_presets(),
             datetime_format: DateTimeFormat::default(),
             datetime_formats: vec![],
             time_labels: vec![],

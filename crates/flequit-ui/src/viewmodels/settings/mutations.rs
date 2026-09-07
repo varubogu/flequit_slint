@@ -1,7 +1,7 @@
 use slint::ComponentHandle;
 
 use super::locale;
-use super::model::{CustomDueFilter, CustomDueUnit, RecurrencePreset};
+use super::model::{CustomDueFilter, CustomDueUnit, RecurrencePreset, ReminderPreset};
 use super::worker::SettingsQueue;
 use crate::bindings::{Actions, AppWindow, DueUnit};
 
@@ -27,6 +27,11 @@ pub(super) fn bind(window: &AppWindow, queue: &SettingsQueue) {
         if week_start == "sunday" || week_start == "monday" {
             updater.update(move |settings| settings.week_start = week_start);
         }
+    });
+
+    let updater = queue.updater(window.as_weak());
+    actions.on_update_vim_mode(move |enabled| {
+        updater.update(move |settings| settings.vim_mode = enabled);
     });
 
     let updater = queue.updater(window.as_weak());
@@ -93,6 +98,33 @@ pub(super) fn bind(window: &AppWindow, queue: &SettingsQueue) {
         updater.update(move |settings| {
             settings
                 .recurrence_presets
+                .retain(|candidate| *candidate != preset);
+        });
+    });
+
+    let updater = queue.updater(window.as_weak());
+    actions.on_add_reminder_preset(move |value, unit| {
+        let preset = ReminderPreset::new(value, unit);
+        if !preset.is_valid() {
+            return;
+        }
+        updater.update(move |settings| {
+            if settings.reminder_presets.len() < 20 && !settings.reminder_presets.contains(&preset)
+            {
+                settings.reminder_presets.push(preset);
+                settings
+                    .reminder_presets
+                    .sort_unstable_by_key(ReminderPreset::sort_key);
+            }
+        });
+    });
+
+    let updater = queue.updater(window.as_weak());
+    actions.on_remove_reminder_preset(move |value, unit| {
+        let preset = ReminderPreset::new(value, unit);
+        updater.update(move |settings| {
+            settings
+                .reminder_presets
                 .retain(|candidate| *candidate != preset);
         });
     });

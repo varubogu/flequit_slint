@@ -1,0 +1,27 @@
+name: Audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # New advisories land against unchanged code, so the audit cannot only run
+  # on pushes. Monday morning JST.
+  schedule:
+    - cron: "0 0 * * 1"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  audit:
+    name: Dependency advisories
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      # Caches ~/.cargo/bin as well, so cargo-audit is only built once.
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo install cargo-audit --locked
+      # Fails on vulnerabilities; unmaintained crates stay warnings.
+      # Exceptions live in .cargo/audit.toml.
+      - run: cargo audit

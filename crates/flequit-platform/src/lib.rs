@@ -30,6 +30,7 @@ pub mod capability;
 pub mod error;
 pub mod file_dialog;
 pub mod lifecycle;
+pub mod logging;
 pub mod notification;
 pub mod paths;
 pub mod platform;
@@ -38,10 +39,13 @@ pub mod theme;
 pub use capability::{Capabilities, Capability, FormFactor};
 pub use error::{PlatformError, PlatformResult};
 pub use file_dialog::{FileFilter, FileHandle};
-pub use lifecycle::{LifecycleEvent, LifecycleObserver};
+pub use lifecycle::{LifecycleEvent, LifecycleHub, LifecycleObserver};
+pub use logging::{LogLineEmitter, SystemLogWriter};
 pub use notification::{NotificationId, NotificationRequest, PermissionState};
 pub use paths::AppPaths;
 pub use theme::{SystemTheme, SystemThemeWatcher};
+
+use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 
@@ -76,6 +80,16 @@ pub trait Platform: Send + Sync {
     /// slow and run it off the UI thread.
     fn available_fonts(&self) -> PlatformResult<Vec<String>> {
         Err(PlatformError::Unsupported("font enumeration"))
+    }
+
+    /// Subscribes to OS lifecycle transitions for as long as `observer` lives.
+    ///
+    /// Only mobile platforms report these. Desktop returns
+    /// [`PlatformError::Unsupported`]: a desktop process is not suspended or
+    /// killed behind the user's back, so there is nothing to react to.
+    fn subscribe_lifecycle(&self, observer: Arc<dyn LifecycleObserver>) -> PlatformResult<()> {
+        let _ = observer;
+        Err(PlatformError::Unsupported("lifecycle events"))
     }
 
     /// Current notification permission state.
@@ -130,6 +144,6 @@ pub trait Platform: Send + Sync {
 }
 
 /// Builds the platform backend for the current target.
-pub fn current() -> PlatformResult<std::sync::Arc<dyn Platform>> {
+pub fn current() -> PlatformResult<Arc<dyn Platform>> {
     platform::build()
 }

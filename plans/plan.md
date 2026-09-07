@@ -3,7 +3,7 @@
 SvelteKit + Tauri 版 [`varubogu/flequit`](https://github.com/varubogu/flequit) から
 Rust + Slint への移植における残作業の記録。
 
-- 最終更新: 2026-09-07
+- 最終更新: 2026-09-08
 - 正本: 本ファイル。設計の詳細は `docs/ja/` を参照する
 - 完了した項目はチェックを入れ、判断が変わった項目は理由を残す
 
@@ -25,7 +25,9 @@ Rust + Slint への移植における残作業の記録。
 | 設定 | 言語 / 週開始 / 期限フィルタ / 繰り返しプリセット / 日時 / 外観（フォント列挙つき） |
 | タグ | 作成・改名・色変更・削除、タスクへの付与 / 解除、サイドバーへのブックマーク |
 | 繰り返し | 単位 / 間隔 / 曜日 / 月内の日 / 終了条件の編集と、次回以降の日時プレビュー |
-| 検証 | `fmt` / `clippy -D warnings` / 351 tests（+ 1 ignored）/ 依存不変条件 / スキル同期すべて green |
+| アクセシビリティ | `accessible-*` に加え、共通ボタンのフォーカス表示とモーダルのフォーカストラップ |
+| ロギング | 標準エラー出力 + `log_dir()` 配下の日次ローテーションファイル（7 世代）。Android は logcat、Web は console |
+| 検証 | `fmt` / `clippy -D warnings` / 371 tests（+ 1 ignored）/ 依存不変条件 / スキル同期 / `cargo audit` すべて green |
 
 > 2026-09-07 の棚卸しで、チェック済みだが設計書の記載を満たしていない項目を
 > 4.1 / 4.5 / 4.8 / 4.10 / 4.11 へ追加し、同日中にすべて実装した。
@@ -38,6 +40,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 ./scripts/check-crate-deps.sh
 ./scripts/sync-agent-skills.sh --check
 ./scripts/test-prepare.sh && cargo test -j 4 --workspace
+cargo audit
 ```
 
 ---
@@ -53,7 +56,8 @@ cargo clippy --workspace --all-targets -- -D warnings
 | ja 先行 | `docs/ja/` のみ整備 | `docs/en/` は実装が固まってから別タスク |
 | PC 先行 | モバイルは Phase 2 | 設計・抽象化は最初から両対応で記述済み |
 | 幅で分岐 | レスポンシブは OS 判定を使わない | デスクトップ上でレイアウト検証が完結する |
-| Web 版は対象外 | WASM ターゲットも当面扱わない | 同期サーバの設計が未確定 |
+| Web 版は UI のみ | wasm32 ビルドはシェルの描画までとし、処理を持たせない | 保存はいずれバックエンドサーバが担うため、ブラウザ内に永続化層を作る必要がない |
+| 保存先はユーザーが選ぶ | ローカル / クラウドストレージ / バックエンドサーバ | デスクトップもモバイルも「ローカル専用」を前提にしない。詳細は 8. |
 
 ---
 
@@ -251,6 +255,18 @@ cargo clippy --workspace --all-targets -- -D warnings
   復元する。Android / iOS の OS スケジューラ接続は Phase 2 の項目で実装する
 - リマインダー削除とタスク削除では安定 ID（タスク ID + UTC 日時）から予約を取り消す
 
+#### 入力 UI の見直し（2026-09-09）
+
+- リマインダー追加は、設定済みの着手日時または完了日時から逆算する選択肢を
+  先に提示する。候補は「30分前・1時間前・1日前」を初期値とし、設定の
+  「リマインダーのカスタム項目」で分・時間・日単位の候補を追加・削除できる
+- カレンダーから絶対日時を指定する入力は「オプション」と明示して残す
+- リマインダーのカレンダーだけ、設定タイムゾーンの今日より前を選択不可とし、
+  過去日時・現在時刻の入力は閉じる前に拒否する。共通カレンダーには呼び出し元が
+  日付の選択可否と確定値の検証を差し込めるようにし、他のカレンダーは制限しない
+- 永続化形式は引き続き UTC の絶対日時とする。相対条件そのものを保持して
+  タスク日時の変更へ追従させる方式への移行は、保存形式の仕様確定後に行う
+
 ### 4.8 設定画面
 
 - [x] 設定モーダルの実装
@@ -283,6 +299,13 @@ cargo clippy --workspace --all-targets -- -D warnings
 - 旧形式（日数だけの配列）の設定ファイルも読めるよう、`CustomDueFilter` は
   整数を「日」として解釈する `Deserialize` を持ち、YAML キーには
   `custom_due_days` の別名を残す
+- 設定ファイルは旧 Tauri 版（`varubogu/flequit`）と同じパス
+  （`ProjectDirs` の config_dir 配下 `settings.yml`）を共有するため、
+  YAML キーは旧実装と同じ **camelCase** で読み書きし、snake_case も
+  `#[serde(alias)]` で受け付ける。`DateTimeFormatGroup` も旧実装に合わせて
+  snake_case（`default` / `custom_format`）で保存する。
+  旧アプリを使っていた環境で `missing field font_size` により起動できなく
+  なるのを防ぐため（2026-09-07）
 - タイムゾーンは絞り込みコンボボックスにした。IANA の候補は数百件あり、
   絞り込みは Rust 側（`viewmodels/settings/timezone.rs`）で行う。`.slint` の
   バインディングで毎キーストローク全件を走査させないため
@@ -375,100 +398,376 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 ### 5.1 アクセシビリティ
 
-- [ ] キーボード操作の実装（要件は全機能をキーボードで操作可能）
+- [x] キーボード操作の実装（要件は全機能をキーボードで操作可能）
   - タスク間移動、ペイン間移動、ショートカット（Ctrl+N ほか）
   - vim モード（オプション）
-- [ ] フォーカス表示とフォーカストラップ
+- [x] フォーカス表示とフォーカストラップ
 - [x] `accessible-role` / `accessible-action-default` の付与
 - 参照: `docs/ja/develop/requirements/accessibility.md`
 
+#### 実装時の判断（2026-09-08）
+
+- `TouchArea` だけの要素は Tab で到達できないため、共通ボタン
+  （`IconButton` / `DialogButton` / `RowButton` / `ChoiceButton` / `ColorPicker`）に
+  `FocusScope` を持たせ、Space / Enter で発火するようにした。
+  フォーカス表示は `Theme.focus-ring` を使う `components/focus-ring.slint`
+- フォーカストラップは `components/focus-sentinel.slint` を
+  ダイアログのカードの最初と最後に置き、端で互いへ折り返す方式。
+  Slint には「次の要素へフォーカスを進める」API がないため、
+  折り返し直後は反対側の番兵にフォーカスが載る（Tab をもう一度押すと
+  ダイアログ内の端の要素へ入る）。フォーカスが外へ出ないことを優先した
+- ダイアログを開いた時点で内部の要素へフォーカスを置く
+  （名前入力、繰り返しのチェックボックス、設定の閉じるボタン、タグの閉じるボタン）。
+  削除確認のように `if` で要素が入れ替わる箇所は、切り替え先にも `init` フォーカスを置く。
+  フォーカスを持っていた要素が消えると行き先を失って外へ出るため
+- 検証は `interaction.rs` の `a_modal_keeps_keyboard_focus_inside_itself`。
+  Tab のたびに Down を送り、背後のタスク一覧が選択を動かさないことを見る
+  （トラップを外すと落ちることを確認済み）
+
 ### 5.2 テスト
 
-- [ ] ViewModel の単体テスト拡充（現在は Adapter と展開状態のみ）
-- [ ] 操作の結合テストにケース追加（新規 UI ごとに必須）
+- [x] ViewModel の単体テスト拡充（現在は Adapter と展開状態のみ）
+- [x] 操作の結合テストにケース追加（新規 UI ごとに必須）
 - [ ] ブレークポイント境界のスクリーンショット比較の仕組み
-- [ ] **ヒットテストの自動検証手段**
-      `send_mouse_click` は `i-slint-backend-testing` の `internal` フィーチャ配下で、
-      公開版はビルド不能（Slint リポジトリ内のパスを `include_dir!` している）。
-      上流の修正待ち、または別手段の検討
+- [x] **ヒットテストの自動検証手段**（2026-09-08）
 - 参照: `docs/ja/develop/design/testing.md` の「操作の結合テスト」
+
+#### 実装時の判断（2026-09-08）
+
+- ViewModel 側は `SharedState` の選択解決（`ensure_default_selection`）、
+  表示対象の絞り込み（`tasks_in_scope`）、リマインダー収集
+  （`reminder_specs_from_trees`）と、再読込の合流（`reload_gate`）を追加した。
+  いずれも Slint ウィンドウを作らずに動く
+- 結合テストには、モーダルのフォーカストラップと `ListView` の仮想化の 2 ケースを追加。
+  どちらもキーイベント（`WindowEvent::KeyPressed`）を使うため、
+  ウィンドウを `WindowActiveChanged(true)` にしないとイベントが届かない
+- 「操作の結合テストにケース追加」は新規 UI ごとに継続して必要。
+  チェックは 2026-09-07 時点の UI をすべて覆っていることを示す
+- スクリーンショット比較は未着手。フォント描画が OS で変わるため、
+  基準画像をリポジトリに置く方式は環境差で落ちる。CI で走らせる前提の設計が要る。
+  なお `i-slint-backend-testing` の `renderer-software` フィーチャ（公開）で
+  `TestingBackendOptions::renderer_name` を指定すればヘッドレス描画と
+  `Window::take_snapshot()` は動く。決定的なフォントを入れる
+  `configure_test_fonts()` だけが `internal` 側にあり、そこが未解決
+
+#### ヒットテストの判断（2026-09-08）
+
+- `send_mouse_click`（任意座標）は `internal` のままだが、
+  **`ElementHandle::mock_single_click` は公開 API** で、要素の中心へ実際の
+  `PointerPressed` / `PointerReleased` を送る。上流を待つ必要はなかった
+- アクセシビリティ経由の駆動は要素を直接指すためジオメトリを見ない。
+  つぶれた要素も、他の `TouchArea` の下に埋まった要素も動いてしまう。
+  そこを埋めるのがヒットテスト側のケース
+- 追加したのは 4 件（素のクリック到達、ダイアログのスクリム、compact の
+  サイドバーオーバーレイ、読み込みベール）。「飲む」3 件は対応する
+  `TouchArea` を消すと落ちることを確認済み
+- ダイアログのスクリムは最初 **設定ダイアログ** で書いたが、
+  カードが画面をほぼ覆うため、スクリムを消しても落ちなかった
+  （カード内の要素がクリックを受けていた）。中央の小さなカードである
+  プロジェクト編集ダイアログに変えて、スクリムだけが覆う位置を突くようにした
+- ウィンドウ幅は `Layout.window-width` を直接書かず `set_size()` で変える。
+  実ジオメトリと分岐がずれた状態でヒットテストしても意味がないため
+  （テスト用ウィンドウの既定は 800x600）
 
 ### 5.3 パス・設定の受け渡し
 
-- [ ] `UnifiedConfig` にディレクトリを渡せるようにする
-      現在は `flequit-app` が起動時に `FLEQUIT_DB_PATH` /
-      `FLEQUIT_AUTOMERGE_PATH` を設定する回避策
-      （`crates/flequit-app/src/lib.rs` の `publish_storage_paths`）
-- [ ] `flequit-settings` の設定ディレクトリを `flequit-platform::paths` 起点にする
-      （現在 `HOME` 依存。テストが環境変数を書き換えており直列化が必要）
+- [x] `UnifiedConfig` にディレクトリを渡せるようにする
+- [x] `flequit-settings` の設定ディレクトリを `flequit-platform::paths` 起点にする
 - [x] `crates/flequit-repository/src/utils/path_service.rs` の削除
+
+#### 実装時の判断（2026-09-07）
+
+- `UnifiedConfig::with_storage_paths` で SQLite ファイルと Automerge ディレクトリを明示し、
+  統合リポジトリ内の全 SQLite Adapter が同じ `DatabaseManager` を共有する。
+  プロセス全体へ影響する `FLEQUIT_DB_PATH` / `FLEQUIT_AUTOMERGE_PATH` は廃止した
+- `flequit-settings` は OS のパスを解決せず、呼び出し元から設定ディレクトリを受け取る。
+  `flequit-app` が `platform.paths().config_dir()` を渡すことで依存方向を維持する
+- テスト出力先は `CARGO_MANIFEST_DIR` からリポジトリ内 `.tmp/tests/cargo` を導出する。
+  実行ディレクトリによってワークスペース外へ逸脱しないようにした
 
 ### 5.4 ロギング
 
-- [ ] ファイル出力（`platform.paths().log_dir()` へローテーション）
-- [ ] Android は logcat、iOS は OSLog へ切り替え
+- [x] ファイル出力（`platform.paths().log_dir()` へローテーション）
+- [x] Android は logcat へ切り替え（P3 のモバイル実装とあわせて実施）
+
+#### 実装時の判断（2026-09-08）
+
+- `flequit-app::init_logging` が標準エラー出力とファイルの 2 層を組み立てる。
+  ファイルは `tracing-appender` の日次ローテーション（`flequit.<日付>.log`、7 世代）
+- 返る `WorkerGuard` は `run()` が握る。先に drop するとバッファが flush されない
+- ログディレクトリを開けない場合はファイル出力だけ諦めて起動する。
+  画面にログが出ないより、ディスクに残らない方が軽い
+- モバイルのシンクは `cfg(target_os)` を必要とし、それは `flequit-platform` にしか
+  置けない。`flequit-platform::SystemLogWriter` として用意し、`flequit-app` は
+  `SystemLogWriter::current()` が `Some` を返したときだけ層を足す形で解決した
+  （2026-09-08）。Android は `__android_log_write`、wasm32 はブラウザの console
+- **iOS は OSLog にしない**。stderr が Xcode のコンソールにそのまま出るため、
+  ブリッジを増やす価値がない。`current()` は `None` を返す
 
 ### 5.5 ドキュメント
 
 - [ ] `docs/en/` の作成（`docs/ja/` が固まってから）
-- [ ] 未実装として注記したパスの解消
-  - `crates/flequit-ui/src/adapters/patch.rs`
-  - `crates/flequit-ui/src/viewmodels/app.rs`（旧 `viewmodels/task/`、`viewmodels/user_preferences/`。
-    2026-09-07 時点でこの 2 ディレクトリは存在せず、実装は `app.rs` に集約されている）
+- [x] 未実装として注記したパスの解消（2026-09-08）
+  - `data/partial-update-implementation.md`: `adapters/patch.rs` は作らないことにし、
+    実際の実装（`viewmodels/app.rs` が操作単位で `PartialXxx` を組み立てる）を書いた
+  - `data/user-preferences.md`: `viewmodels/user_preferences/` の新設をやめ、
+    配線は `app.rs`、純粋ロジックは `viewmodels/<機能>/` という現状の規則に直した
+  - `ui/viewmodel-architecture.md`: 命名・配置の表を実装に合わせ、
+    エンティティごとの ViewModel 型を作らない理由を書いた
 - [x] `i18n/flequit-ui.pot` の未使用エントリ（`msgid "Settings"`）を除去する
 
 ### 5.6 パフォーマンス
 
-- [ ] 変更のたびにプロジェクト全体を再読込している点の見直し
+- [x] 変更のたびにプロジェクト全体を再読込している点の見直し
       （`reload_projects`。正確さを優先した暫定実装）
-- [ ] 大量タスクでの `ListView` 検証
+- [x] 大量タスクでの `ListView` 検証
 - [ ] 起動時の初期クエリ件数上限
+
+#### 実装時の判断（2026-09-08）
+
+- 再読込は「全件を読み直す」ままにし、**回数** を削った
+  （`viewmodels/reload_gate.rs`）。実行中の再読込があれば要求を畳み込み、
+  連続した編集 N 回でも読み直しは 2 回で済む。最後の 1 回はすべての書き込みを見る
+- 差分更新（変更されたプロジェクトだけ読み直す）は見送った。
+  `flequit-core` にプロジェクト単位の facade がなく、
+  検索・件数表示・並び替えが全ツリーをメモリに置く前提で書かれているため、
+  正確さを崩さずに入れるには core 側の追加が要る
+- `ListView` はタスク 500 件と 5000 件で生成される行数が変わらないことを
+  `interaction.rs` で検証した（アクセシビリティツリーの list-item を数える）
+- 起動時の件数上限は未着手。上と同じ理由で、上限を入れると検索と件数表示が
+  「読み込んだ範囲だけ正しい」状態になる。ページングを core に入れてからの作業
 
 ---
 
 ## 6. P3 — Phase 2 モバイル
 
+> **未検証**。以下の実装は Windows 機上で書かれており、Android SDK/NDK・Xcode・
+> wasm ツールチェーンのいずれも無い環境のため、**モバイル / Web 向けには一度も
+> コンパイルされていない**。C ドライブの空き容量不足で `rustup target add` すら
+> 通らなかった（詳細は 10. 環境メモ）。デスクトップ側の回帰が無いことだけは
+> `cargo test --workspace` で確認済み。初回 CI で修正が要ると見込むこと。
+
 ### 6.1 プラットフォーム実装
 
-- [ ] Android: サンドボックスルート取得（`android-activity`）
-- [ ] Android: 通知（チャネル + 実行時許可）
-- [ ] Android: SAF によるファイル選択（`FileHandle::Opaque`）
-- [ ] Android: `Intent.ACTION_VIEW`
-- [ ] iOS: サンドボックスルート取得
-- [ ] iOS: `UNUserNotificationCenter`
-- [ ] iOS: `UIDocumentPickerViewController`
-- [ ] iOS: `UIApplication.open`
-- [ ] ライフサイクル購読（`Suspend` / `Resume` / `LowMemory`）の実装と接続
+- [x] Android: サンドボックスルート取得（`Context.getFilesDir` を JNI 経由）
+- [x] Android: 通知（チャネル + 実行時許可要求）
+- [x] Android: SAF によるファイル選択（`FileHandle::Opaque`）
+- [x] Android: `Intent.ACTION_VIEW`
+- [x] iOS: サンドボックスルート取得
+- [x] iOS: `UNUserNotificationCenter`
+- [x] iOS: `UIDocumentPickerViewController`
+- [x] iOS: `UIApplication.open`
+- [x] ライフサイクル購読（`Suspend` / `Resume` / `LowMemory`）の実装と接続
+- [ ] Android: `AlarmManager` によるプロセス外リマインダー
+- [ ] Android: 通知許可ダイアログの結果を `onRequestPermissionsResult` から受け取る
+
+#### 実装時の判断（2026-09-08）
+
+- Android は `ndk-context` から `JavaVM` と `Activity` を取得する。
+  `android-activity` を直接依存に入れると、Slint が使うバージョンと二重管理に
+  なるため。初期化呼び出しも不要になった
+- SAF とライフサイクルだけは Rust から取れない。結果が呼び出し元ではなく
+  `Activity` に届くため。`FlequitActivity.java` が JNI で転送する。
+  素の `NativeActivity` で動かした場合はメソッドが無いので
+  `PlatformError::Unsupported` になる
+- iOS は objc2 で UIKit を叩かず、**Swift ブリッジ（`mobile/ios/Sources/`）に
+  C ABI 関数を置いて Rust から `extern "C"` で呼ぶ**。デリゲートと
+  completion handler を Rust で組むと実行時まで誤りが出ないが、Swift なら
+  Xcode が型検査する。加えてキーウィンドウはアプリターゲットからしか触れない
+- iOS のコンテナパスだけは `HOME` から解決するのでブリッジ不要。ブリッジが
+  リンクされていなくてもパス解決とログは動く
+- Android の予約通知はプロセス内タイマーのまま。`AlarmManager` にするには
+  `BroadcastReceiver` の追加が要る。iOS は `UNUserNotificationCenter` が OS 側で
+  持つので、アプリが落ちても発火する
+- `open_path` は両 OS とも `Unsupported`。Android は `FileProvider` 未宣言、
+  iOS はコンテナ外から読めないため。capability ではなくエラーで返している
+  唯一の箇所で、UI からは呼ばれない
 
 ### 6.2 ビルド基盤
 
-- [ ] `mobile/android/`（マニフェスト、アイコン、xbuild 設定）
-- [ ] `mobile/ios/`（XcodeGen 設定、Info.plist）
-- [ ] `crates/flequit-app/src/mobile.rs`（`android_main` / iOS エントリ）
-- [ ] SQLite のクロスコンパイル確認（`libsqlite3-sys` の `bundled`）
-- [ ] CI のモバイルジョブを `continue-on-error` から外す
+- [x] `mobile/android/`（Gradle、マニフェスト、`FlequitActivity`）
+- [x] `mobile/ios/`（XcodeGen `project.yml`、Swift ブリッジ、`main` シム）
+- [x] `crates/flequit-app/src/entry_android.rs` / `entry_ios.rs`
+- [x] CI のモバイルジョブを `continue-on-error` から外し、`flequit-app` まで検査
+- [ ] アプリアイコン（現在は Android がフレームワークのプレースホルダ）
+- [ ] SQLite のクロスコンパイル確認（`libsqlite3-sys` の `bundled`）— CI 初回実行待ち
+
+#### 実装時の判断（2026-09-08）
+
+- エントリポイントは `cfg(target_os)` ではなく **Cargo feature**（`android` /
+  `ios`）で切り替える。`#[cfg(target_os = ...)]` は `flequit-platform` 専用という
+  不変条件を崩さずに済む。ただし `slint::android` 自体が `target_os = "android"`
+  で閉じているので、`--features android` はターゲット指定と併用でしか通らない
+- `android_main` は `#[unsafe(no_mangle)]` で書く。`#[slint::android_main]` という
+  マクロは存在しない（Slint 1.17 で確認）
+- `AndroidApp` は `slint::android` の re-export を使う。バージョン追従が不要になる
+- iOS は winit バックエンドが `UIApplicationMain` を自分で呼ぶため、Swift 側に
+  `@main` もアプリデリゲートも置けない。`@_cdecl("main")` が唯一のエントリで、
+  そこからライフサイクル監視を仕掛けて Rust に制御を渡す
+- `crate-type` に `staticlib` を追加（iOS 用）。Android は既存の `cdylib`
+- ログ出力先の選択は `flequit-platform::logging` に移した。Android は stderr が
+  捨てられるので `__android_log_write` で logcat に出す。iOS の stderr は Xcode の
+  コンソールに出るのでそのまま
 
 ### 6.3 実機検証
 
-- [ ] セーフエリア、慣性スクロール、ソフトキーボード
+- [x] セーフエリア（`Window.safe-area-insets` を `Layout.safe-area-top/bottom` に接続）
+- [x] セーフエリアの左右（横向きのノッチ）
+- [ ] 慣性スクロール、ソフトキーボード
 - [ ] 長押しメニュー
 - [ ] バックグラウンド遷移時のデータ保全
+- [ ] Android 実機 / エミュレータでの起動確認
+- [ ] iOS シミュレータでの起動確認
+
+#### 実装時の判断（2026-09-08）
+
+- `Layout.safe-area-top/bottom` は宣言済みで消費側も揃っていたが、値を入れる側が
+  無かった。Slint 1.17 の `Window.safe-area-insets` をそのまま流し込んで解決。
+  デスクトップでは常にゼロなので OS 分岐は不要
+- `changed` は初期値では発火しないため、`init` からも明示的に publish している
+- 左右は `Layout.safe-area-left/right` に加えて、
+  `content-safe-area-left/right`（compact のときだけ非ゼロ）を用意した。
+  画面の横端を占める要素がブレークポイントで変わるため。非 compact では
+  左端はサイドバー、右端は詳細ペインが占め、一覧ペインはどちらにも触れない
+- インセットは各要素の padding に足す。外側の `HorizontalLayout` にまとめて
+  padding を置くと、ノッチの下に背景色が届かず帯になる
+- 設定ダイアログだけはカード自体を左右にずらす（`x` と `width`）。compact では
+  画面いっぱいに開くが、中の 3 ペインすべてに padding を配るより、
+  カードを縮めてノッチの下に背後のスクリムを見せる方が単純
+- 上下と同じくデスクトップでは常にゼロなので、自動テストでは値が動かない。
+  正しさは実機（6.3 の起動確認）でしか見えない
 
 ---
 
-## 7. P4 — 配布・将来
+## 7. Web — UI のみ
+
+`crates/flequit-web` + `web/`。実 `.slint` シェルをサンプルデータで描画する。
+**Web 版はこれ以上の処理を持たせない方針**で、保存が要る段階になったら
+ブラウザ内ではなくバックエンドサーバ（8.）に置く。したがって
+IndexedDB / OPFS 上の Repository 実装は**作らない**。
+
+- [x] `crates/flequit-web`（wasm32 向け UI ビルド、サンプルデータ）
+- [x] `flequit-platform` の `WebPlatform`（capability 全部 false、console ログ）
+- [x] `web/index.html` と手順（`web/README.md`）
+- [x] CI に wasm32 ビルドジョブを追加
+- [ ] バックエンド API クライアント（8. のサーバ設計が固まってから）
+- [ ] Web 用のランタイム（`tokio` current-thread + `wasm-bindgen-futures`）
+
+#### 実装時の判断（2026-09-08）
+
+- `flequit-ui` は wasm32 でビルドできない。`flequit-core` →
+  `flequit-infrastructure` → `sea-orm` + `sqlx-sqlite` を引くため。よって
+  `flequit-web` は `flequit-ui` に依存せず、同じ `.slint` を再コンパイルする
+- `slint-build` の翻訳ドメインは `CARGO_PKG_NAME` 固定で上書きできないため、
+  `build.rs` が `i18n/**/flequit-ui.po` を `OUT_DIR` に `flequit-web.po` として
+  ステージングしてから渡している
+- `#[wasm_bindgen(start)]` はデスクトップでも通る。おかげで wasm ツールチェーン
+  なしでも `cargo test -p flequit-web` でサンプルデータを検証できる
+  （`cfg(target_arch)` を使わずに済む点でも都合が良い）
+- ブラウザ内永続化を捨てたことで、wasm で動かす必要があるのは
+  「UI + HTTP クライアント」だけになる。`sea-orm` を wasm 対応させる話が消え、
+  Web 対応の重さがモバイルより軽くなった
+
+---
+
+## 8. 保存先の選択（将来設計・未着手）
+
+> 保存先の構成と層の割り当ては 2026-09-08 に確定し、
+> `docs/ja/develop/design/data/storage-targets.md` に起こした。
+> API・スキーマ・認証・同期プロトコルは引き続き未設計。
+
+保存先は**ユーザーが選ぶ**。アプリの種別が保存先を決めるのではない。
+
+| 保存先 | Desktop | Mobile | Web | 想定 |
+| --- | --- | --- | --- | --- |
+| ローカル | ○ | ○ | × | SQLite + Automerge。現在の実装 |
+| クラウドストレージ | ○ | ○ | × | ユーザー所有の同期フォルダ等に Automerge ドキュメントを置く |
+| バックエンドサーバ | ○ | ○ | ○ | Flequit が用意するサーバ。Web 版の唯一の保存先 |
+
+- デスクトップ / モバイルは**ローカル専用ではない**。ローカル保存に加えて
+  バックエンドサーバと接続してやりとりできるようにする
+- Web 版はバックエンドサーバ専用。ブラウザ内には保存しない
+- **ローカルが常に正**、クラウドストレージとバックエンドサーバは同期先。
+  併用できる（2026-09-08 決定）。Web だけは例外でサーバが正
+
+### 決めるべきこと
+
+- [x] 複数保存先の同時利用可否と、その場合の正となる保存先（2026-09-08）
+- [x] 保存先の切り替え時に既存データをどうするか（移行 / 併存 / 破棄）
+      → ローカルが常に残るため、切り替えは同期先の追加・削除になり移行は起きない
+- [ ] 認証方式とアカウントの扱い（`Account` モデルと `load_current_account` は既にある）
+- [ ] 同期の粒度と競合解決（Automerge をそのまま転送するのか、API を切るのか）
+- [x] オフライン時の書き込みをどう扱うか（キュー / ローカルへフォールバック）
+      → ローカルが正なので書き込みは常に成功し、キューは要らない
+- [ ] 同期の起動契機（起動時 / 変更時 / 定期 / 手動）と失敗時の再試行
+- [ ] 複数の同期先があるときの順序と、片方だけ失敗したときの扱い
+- [ ] サーバ側の実装言語とホスティング
+
+### 実装作業（設計確定後）
+
+- [ ] バックエンドサーバ本体（別リポジトリになる可能性あり）
+- [ ] `flequit-infrastructure-remote`。デスクトップ / モバイルでは**同期層**として
+      ローカルの後ろに置き、Web では repository trait の実装そのものになる。
+      いずれも `flequit-core` から上は無変更で済ませる
+- [ ] 保存先の選択 UI と永続化（`flequit-settings`）
+- [ ] Web 版のバックエンド API クライアント（7. の残項目）
+- [ ] 接続状態・同期状態の UI 表示
+- [ ] `Capability::BackgroundSync` を実際の同期に接続する
+
+#### 方針を決めた経緯（2026-09-08）
+
+- 正となる保存先は**ローカル**に決めた。ネットワークに関係なく書き込みが成功し、
+  複製同士のマージは Automerge の CRDT がそのまま担い、保存先の切り替えが
+  データ移行にならない。詳細と層構成は
+  `docs/ja/develop/design/data/storage-targets.md`
+- その結果、サーバが repository trait の実装になるのは Web だけになった。
+  デスクトップ / モバイルでは読み取り経路に入らない
+
+- 「ローカル / クラウドストレージ / Web のどこに保存するもユーザーの自由」という
+  前提をユーザーから確認した。これにより 2. の「Web 版は同期サーバ設計の確定後」
+  という保留が、「Web だけの話ではなく全プラットフォーム共通の保存先設計」に変わった
+- 保存先を差し替えるのは repository trait の裏側なので、レイヤ構造は既に対応済み。
+  `flequit-core` 以上を触らずに追加できる想定
+
+---
+
+## 9. P4 — 配布・将来
 
 - [ ] `cargo-packager` の設定と各 OS インストーラ生成
 - [ ] コード署名（Windows / macOS notarization / Android / iOS）
-- [ ] `cargo audit` の CI 組み込み
+- [x] `cargo audit` の CI 組み込み（2026-09-08）
 - [ ] 自動アップデート（`Capability::SelfUpdate`）
 - [ ] システムトレイ / グローバルショートカット（デスクトップのみ）
-- [ ] Automerge によるクラウド同期（roadmap ver1.2 以降）
-- [ ] Web 版（同期サーバ設計の確定後）
+- [ ] Automerge によるクラウド同期（roadmap ver1.2 以降）— 8. と併せて設計する
 
 ---
 
-## 8. 環境メモ
+#### 実装時の判断（2026-09-08）
+
+- `.github/workflows/audit.yml` を新設し、push / PR に加えて毎週月曜にも走らせる。
+  新しい advisory は変更が無くても増えるため
+- 脆弱性で失敗、unmaintained は警告のまま。無関係な PR を止めないため
+- 除外は `.cargo/audit.toml` に理由つきで書く。現時点の 1 件は rsa 0.9.10
+  （RUSTSEC-2023-0071、修正版なし）。sqlx-mysql 経由でしか到達せず、
+  このワークスペースは `sqlx-sqlite` しか有効にしていないためビルドされない
+  （`cargo tree -i sqlx-mysql --target all` が空）。Cargo.lock は
+  フィーチャに関係なく解決されるので、lock にだけ現れる
+
+---
+
+## 10. 環境メモ
 
 - Linux 実行には `libxkbcommon-x11-0` が必要
 - テスト前に `./scripts/test-prepare.sh`（SQLite テンプレート DB を 1 度だけ作成）
+- Windows の開発機では `cargo test` の際に `CARGO_INCREMENTAL=0` を推奨。
+  インクリメンタルディレクトリの書き込みが拒否されて rustc が
+  `STATUS_STACK_BUFFER_OVERRUN` で落ちることがある
+- `cargo test --workspace` で、リンクし直したばかりのテスト実行ファイルが
+  Windows のアプリケーション制御ポリシーにブロックされることがある
+  （`os error 4551`、doctest の場合は出力が空のまま `doctest failed` だけが出る）。
+  対象が実行のたびに変わるのでコードの問題ではない。同じコマンドを
+  もう一度流すか、`-p <crate> --doc` のように絞って再実行すれば通る
+- 開発機の C ドライブの空きは 2026-09-08 時点で 11 GB
+  （同日昼の時点では 0.7 GB しかなく `rustup target add` が失敗していた）。
+  ターゲットの追加自体は容量的に可能になったが、Android SDK/NDK と Xcode は
+  未導入のままで、モバイル / Web の実ビルド検証は引き続き CI 側でのみ可能

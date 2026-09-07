@@ -1,4 +1,4 @@
-import { CheckBox, DatePickerPopup, ScrollView, SpinBox } from "std-widgets.slint";
+import { CheckBox, ScrollView, SpinBox } from "std-widgets.slint";
 import { Theme } from "../../globals/theme.slint";
 import { Layout } from "../../globals/layout.slint";
 import { AppState } from "../../globals/app-state.slint";
@@ -7,7 +7,9 @@ import { I18n } from "../../globals/i18n.slint";
 import { SettingsState } from "../../globals/settings.slint";
 import { RecurrenceEnd, RecurrenceMonthlyMode, RecurrenceState, RecurrenceUnit,
          RecurrenceWeekOfMonth } from "../../globals/types.slint";
+import { CalendarPopup } from "../../components/calendar-popup.slint";
 import { DialogButton } from "../../components/dialog-button.slint";
+import { FocusSentinel } from "../../components/focus-sentinel.slint";
 
 // One choice in a row of mutually exclusive options.
 //
@@ -73,6 +75,9 @@ export component RecurrenceEditor inherits Rectangle {
     property <int> end-month: AppState.recurrence.end-month;
     property <int> end-day: AppState.recurrence.end-day;
     property <int> max-occurrences: AppState.recurrence.max-occurrences;
+    property <int> preview-count: AppState.recurrence.preview-count;
+    // Rewinds the calendar to the stored month every time it opens.
+    property <int> end-open-count: 0;
 
     // The task already repeats, so the editor can offer to stop it.
     property <bool> had-rule: AppState.recurrence.enabled;
@@ -108,6 +113,7 @@ export component RecurrenceEditor inherits Rectangle {
             end-month: root.end-month,
             end-day: root.end-day,
             max-occurrences: root.max-occurrences,
+            preview-count: root.preview-count,
         };
     }
 
@@ -186,6 +192,11 @@ export component RecurrenceEditor inherits Rectangle {
         border-width: 1px;
         border-color: Theme.border;
 
+        // Keeps Tab inside the dialog; see FocusSentinel.
+        head := FocusSentinel {
+            wrapped => { tail.focus(); }
+        }
+
         VerticalLayout {
             padding: Theme.space-lg;
             spacing: Theme.space-md;
@@ -206,6 +217,9 @@ export component RecurrenceEditor inherits Rectangle {
                     CheckBox {
                         text: @tr("Recurrence" => "Repeat this task");
                         checked: root.enabled;
+                        // First control of the dialog: everything below depends
+                        // on it, so keyboard users start here.
+                        init => { self.focus(); }
                         toggled => {
                             root.enabled = self.checked;
                             root.changed();
@@ -216,6 +230,7 @@ export component RecurrenceEditor inherits Rectangle {
                     // Applying one fills in the unit and the interval only; the
                     // weekday and end conditions stay as the task had them.
                     if root.enabled && SettingsState.recurrence-presets.length > 0: VerticalLayout {
+                        vertical-stretch: 0;
                         spacing: Theme.space-sm;
                         Text {
                             text: @tr("Recurrence" => "Presets");
@@ -223,6 +238,8 @@ export component RecurrenceEditor inherits Rectangle {
                             font-size: Theme.font-size-sm;
                         }
                         HorizontalLayout {
+                            height: Layout.touch-target;
+                            vertical-stretch: 0;
                             spacing: Theme.space-xs;
                             for preset in SettingsState.recurrence-presets: OptionButton {
                                 label: I18n.recurrence-summary(preset.unit, preset.interval);
@@ -237,10 +254,15 @@ export component RecurrenceEditor inherits Rectangle {
                     }
 
                     if root.enabled: VerticalLayout {
+                        // Keep every section at its intrinsic height. Otherwise the
+                        // viewport redistributes spare height when an end-condition
+                        // control appears, which makes the sections above it jump.
+                        vertical-stretch: 0;
                         spacing: Theme.space-md;
 
                         // --- How often ---
                         VerticalLayout {
+                            vertical-stretch: 0;
                             spacing: Theme.space-sm;
                             Text {
                                 text: @tr("Recurrence" => "How often");
@@ -249,8 +271,12 @@ export component RecurrenceEditor inherits Rectangle {
                             }
 
                             HorizontalLayout {
+                                height: Layout.touch-target;
+                                vertical-stretch: 0;
                                 spacing: Theme.space-sm;
                                 SpinBox {
+                                    height: Layout.touch-target;
+                                    vertical-stretch: 0;
                                     value: root.interval;
                                     minimum: 1;
                                     maximum: 999;
@@ -271,6 +297,8 @@ export component RecurrenceEditor inherits Rectangle {
                             }
 
                             HorizontalLayout {
+                                height: Layout.touch-target;
+                                vertical-stretch: 0;
                                 spacing: Theme.space-xs;
                                 OptionButton {
                                     label: I18n.recurrence-unit-label(RecurrenceUnit.minute);
@@ -295,6 +323,8 @@ export component RecurrenceEditor inherits Rectangle {
                             }
 
                             HorizontalLayout {
+                                height: Layout.touch-target;
+                                vertical-stretch: 0;
                                 spacing: Theme.space-xs;
                                 OptionButton {
                                     label: I18n.recurrence-unit-label(RecurrenceUnit.month);
@@ -321,6 +351,7 @@ export component RecurrenceEditor inherits Rectangle {
 
                         // --- Weekly: which weekdays ---
                         if root.weekly: VerticalLayout {
+                            vertical-stretch: 0;
                             spacing: Theme.space-sm;
                             Text {
                                 text: @tr("Recurrence" => "On these days");
@@ -328,6 +359,8 @@ export component RecurrenceEditor inherits Rectangle {
                                 font-size: Theme.font-size-sm;
                             }
                             HorizontalLayout {
+                                height: Layout.touch-target;
+                                vertical-stretch: 0;
                                 spacing: Theme.space-xs;
                                 for index in [0, 1, 2, 3, 4, 5, 6]: OptionButton {
                                     label: I18n.weekday-abbreviation(index);
@@ -340,6 +373,7 @@ export component RecurrenceEditor inherits Rectangle {
 
                         // --- Monthly and longer: which day of the period ---
                         if root.monthly: VerticalLayout {
+                            vertical-stretch: 0;
                             spacing: Theme.space-sm;
                             Text {
                                 text: @tr("Recurrence" => "Which day");
@@ -356,6 +390,8 @@ export component RecurrenceEditor inherits Rectangle {
                             }
 
                             HorizontalLayout {
+                                height: Layout.touch-target;
+                                vertical-stretch: 0;
                                 spacing: Theme.space-sm;
                                 OptionButton {
                                     label: @tr("Recurrence" => "Day of the month");
@@ -365,6 +401,8 @@ export component RecurrenceEditor inherits Rectangle {
                                     }
                                 }
                                 SpinBox {
+                                    height: Layout.touch-target;
+                                    vertical-stretch: 0;
                                     value: root.day-of-month;
                                     minimum: 1;
                                     maximum: 31;
@@ -386,6 +424,8 @@ export component RecurrenceEditor inherits Rectangle {
                             }
 
                             if root.by-weekday-of-month: HorizontalLayout {
+                                height: Layout.touch-target;
+                                vertical-stretch: 0;
                                 spacing: Theme.space-xs;
                                 OptionButton {
                                     label: I18n.week-of-month-label(RecurrenceWeekOfMonth.first);
@@ -425,6 +465,8 @@ export component RecurrenceEditor inherits Rectangle {
                             }
 
                             if root.by-weekday-of-month: HorizontalLayout {
+                                height: Layout.touch-target;
+                                vertical-stretch: 0;
                                 spacing: Theme.space-xs;
                                 for index in [0, 1, 2, 3, 4, 5, 6]: OptionButton {
                                     label: I18n.weekday-abbreviation(index);
@@ -440,6 +482,7 @@ export component RecurrenceEditor inherits Rectangle {
 
                         // --- Termination ---
                         VerticalLayout {
+                            vertical-stretch: 0;
                             spacing: Theme.space-sm;
                             Text {
                                 text: @tr("Recurrence" => "Ends");
@@ -448,6 +491,8 @@ export component RecurrenceEditor inherits Rectangle {
                             }
 
                             HorizontalLayout {
+                                height: Layout.touch-target;
+                                vertical-stretch: 0;
                                 spacing: Theme.space-xs;
                                 OptionButton {
                                     label: @tr("Recurrence" => "Never");
@@ -466,52 +511,101 @@ export component RecurrenceEditor inherits Rectangle {
                                 }
                             }
 
-                            if root.end-kind == RecurrenceEnd.on-date: Rectangle {
+                            // Keep one fixed-height editor slot for every end
+                            // condition so changing the condition never moves
+                            // the preview or stretches the surrounding fields.
+                            Rectangle {
                                 height: Layout.touch-target;
-                                background: end-touch.has-hover ? Theme.surface-hover : Theme.surface;
-                                border-radius: Theme.radius-sm;
-                                border-width: 1px;
-                                border-color: Theme.border;
+                                vertical-stretch: 0;
 
-                                Text {
-                                    x: Theme.space-sm;
-                                    width: parent.width - 2 * Theme.space-sm;
-                                    height: 100%;
-                                    text: Actions.preview-datetime(
-                                        SettingsState.current-datetime-format,
-                                        root.end-year, root.end-month, root.end-day, 23, 59);
-                                    color: Theme.text;
-                                    font-size: Theme.font-size-base;
-                                    vertical-alignment: center;
+                                if root.end-kind == RecurrenceEnd.on-date: Rectangle {
+                                    width: 100%;
+                                    height: Layout.touch-target;
+                                    background: end-touch.has-hover ? Theme.surface-hover : Theme.surface;
+                                    border-radius: Theme.radius-sm;
+                                    border-width: 1px;
+                                    border-color: Theme.border;
+
+                                    Text {
+                                        x: Theme.space-sm;
+                                        width: parent.width - 2 * Theme.space-sm;
+                                        height: 100%;
+                                        text: Actions.preview-datetime(
+                                            SettingsState.current-datetime-format,
+                                            root.end-year, root.end-month, root.end-day, 23, 59);
+                                        color: Theme.text;
+                                        font-size: Theme.font-size-base;
+                                        vertical-alignment: center;
+                                    }
+
+                                    end-touch := TouchArea {
+                                        clicked => {
+                                            end-popup.show();
+                                            root.end-open-count += 1;
+                                        }
+                                    }
+                                    accessible-role: button;
+                                    accessible-label: @tr("Recurrence" => "Choose the last date");
+                                    accessible-action-default => { end-touch.clicked(); }
                                 }
 
-                                end-touch := TouchArea {
-                                    clicked => { end-popup.show(); }
-                                }
-                                accessible-role: button;
-                                accessible-label: @tr("Recurrence" => "Choose the last date");
-                                accessible-action-default => { end-touch.clicked(); }
-                            }
-
-                            if root.end-kind == RecurrenceEnd.after-count: SpinBox {
-                                value: root.max-occurrences;
-                                minimum: 1;
-                                maximum: 999;
-                                accessible-label: @tr("Recurrence" => "Number of times");
-                                edited(value) => {
-                                    root.max-occurrences = value;
-                                    root.changed();
+                                if root.end-kind == RecurrenceEnd.after-count: SpinBox {
+                                    x: 0px;
+                                    width: 6 * Theme.space-xl;
+                                    height: Layout.touch-target;
+                                    vertical-stretch: 0;
+                                    value: root.max-occurrences;
+                                    minimum: 1;
+                                    maximum: 999;
+                                    accessible-label: @tr("Recurrence" => "Number of times");
+                                    edited(value) => {
+                                        root.max-occurrences = value;
+                                        root.changed();
+                                    }
                                 }
                             }
                         }
 
                         // --- Preview ---
                         VerticalLayout {
+                            vertical-stretch: 0;
                             spacing: Theme.space-xs;
                             Text {
                                 text: @tr("Recurrence" => "Next dates");
                                 color: Theme.text-muted;
                                 font-size: Theme.font-size-sm;
+                            }
+
+                            Rectangle {
+                                height: Layout.touch-target;
+                                vertical-stretch: 0;
+
+                                if root.end-kind == RecurrenceEnd.never: HorizontalLayout {
+                                    width: 100%;
+                                    height: Layout.touch-target;
+                                    vertical-stretch: 0;
+                                    spacing: Theme.space-sm;
+                                    Text {
+                                        text: @tr("Recurrence" => "Preview count");
+                                        color: Theme.text;
+                                        font-size: Theme.font-size-base;
+                                        vertical-alignment: center;
+                                        horizontal-stretch: 1;
+                                    }
+                                    SpinBox {
+                                        width: 6 * Theme.space-xl;
+                                        height: Layout.touch-target;
+                                        vertical-stretch: 0;
+                                        value: root.preview-count;
+                                        minimum: 1;
+                                        maximum: 999;
+                                        accessible-label: @tr("Recurrence" => "Preview count");
+                                        edited(value) => {
+                                            root.preview-count = value;
+                                            root.changed();
+                                        }
+                                    }
+                                }
                             }
 
                             if AppState.recurrence-preview.length == 0: Text {
@@ -559,16 +653,24 @@ export component RecurrenceEditor inherits Rectangle {
                 }
             }
         }
+
+        tail := FocusSentinel {
+            wrapped => { head.focus(); }
+        }
     }
 
-    end-popup := DatePickerPopup {
+    end-popup := CalendarPopup {
         title: @tr("Recurrence" => "Select the last date");
-        date: { year: root.end-year, month: root.end-month, day: root.end-day };
+        open-token: root.end-open-count;
+        with-time: false;
+        year: root.end-year;
+        month: root.end-month;
+        day: root.end-day;
 
-        accepted(date) => {
-            root.end-year = date.year;
-            root.end-month = date.month;
-            root.end-day = date.day;
+        accepted(year, month, day, hour, minute) => {
+            root.end-year = year;
+            root.end-month = month;
+            root.end-day = day;
             root.changed();
         }
     }

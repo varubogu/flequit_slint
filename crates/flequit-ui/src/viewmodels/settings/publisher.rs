@@ -8,13 +8,15 @@ use super::mutations::apply_locale;
 use crate::adapters::datetime::{DateTimeDisplaySettings, to_display_parts};
 use crate::bindings::{
     AppState, AppWindow, CustomDueFilterSetting, DateTimeFormatSetting, DueButtonSetting,
-    DueFilterItem, DueUnit, I18n, RecurrencePresetSetting, SettingsState as UiSettingsState, Theme,
+    DueFilterItem, DueUnit, I18n, RecurrencePresetSetting, ReminderPresetSetting,
+    SettingsState as UiSettingsState, Theme,
 };
 
 pub(super) fn publish(window: &AppWindow, settings: &UserSettings) {
     let ui = window.global::<UiSettingsState>();
     publish_locale(window, settings);
     ui.set_week_start(settings.week_start.clone().into());
+    ui.set_vim_mode(settings.vim_mode);
     ui.set_due_buttons(ModelRc::new(VecModel::from(
         settings
             .due_buttons
@@ -42,6 +44,17 @@ pub(super) fn publish(window: &AppWindow, settings: &UserSettings) {
             .map(|preset| RecurrencePresetSetting {
                 interval: preset.interval,
                 unit: preset.unit,
+            })
+            .collect::<Vec<_>>(),
+    )));
+    ui.set_reminder_presets(ModelRc::new(VecModel::from(
+        settings
+            .reminder_presets
+            .iter()
+            .map(|preset| ReminderPresetSetting {
+                value: preset.value,
+                unit: preset.unit,
+                minutes_before: preset.minutes_before(),
             })
             .collect::<Vec<_>>(),
     )));
