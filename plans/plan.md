@@ -3,7 +3,7 @@
 SvelteKit + Tauri 版 [`varubogu/flequit`](https://github.com/varubogu/flequit) から
 Rust + Slint への移植における残作業の記録。
 
-- 最終更新: 2026-09-07
+- 最終更新: 2026-09-08
 - 正本: 本ファイル。設計の詳細は `docs/ja/` を参照する
 - 完了した項目はチェックを入れ、判断が変わった項目は理由を残す
 
@@ -25,7 +25,9 @@ Rust + Slint への移植における残作業の記録。
 | 設定 | 言語 / 週開始 / 期限フィルタ / 繰り返しプリセット / 日時 / 外観（フォント列挙つき） |
 | タグ | 作成・改名・色変更・削除、タスクへの付与 / 解除、サイドバーへのブックマーク |
 | 繰り返し | 単位 / 間隔 / 曜日 / 月内の日 / 終了条件の編集と、次回以降の日時プレビュー |
-| 検証 | `fmt` / `clippy -D warnings` / 351 tests（+ 1 ignored）/ 依存不変条件 / スキル同期すべて green |
+| アクセシビリティ | `accessible-*` に加え、共通ボタンのフォーカス表示とモーダルのフォーカストラップ |
+| ロギング | 標準エラー出力 + `log_dir()` 配下の日次ローテーションファイル（7 世代） |
+| 検証 | `fmt` / `clippy -D warnings` / 365 tests（+ 1 ignored）/ 依存不変条件 / スキル同期すべて green |
 
 > 2026-09-07 の棚卸しで、チェック済みだが設計書の記載を満たしていない項目を
 > 4.1 / 4.5 / 4.8 / 4.10 / 4.11 へ追加し、同日中にすべて実装した。
@@ -385,20 +387,53 @@ cargo clippy --workspace --all-targets -- -D warnings
 - [x] キーボード操作の実装（要件は全機能をキーボードで操作可能）
   - タスク間移動、ペイン間移動、ショートカット（Ctrl+N ほか）
   - vim モード（オプション）
-- [ ] フォーカス表示とフォーカストラップ
+- [x] フォーカス表示とフォーカストラップ
 - [x] `accessible-role` / `accessible-action-default` の付与
 - 参照: `docs/ja/develop/requirements/accessibility.md`
 
+#### 実装時の判断（2026-09-08）
+
+- `TouchArea` だけの要素は Tab で到達できないため、共通ボタン
+  （`IconButton` / `DialogButton` / `RowButton` / `ChoiceButton` / `ColorPicker`）に
+  `FocusScope` を持たせ、Space / Enter で発火するようにした。
+  フォーカス表示は `Theme.focus-ring` を使う `components/focus-ring.slint`
+- フォーカストラップは `components/focus-sentinel.slint` を
+  ダイアログのカードの最初と最後に置き、端で互いへ折り返す方式。
+  Slint には「次の要素へフォーカスを進める」API がないため、
+  折り返し直後は反対側の番兵にフォーカスが載る（Tab をもう一度押すと
+  ダイアログ内の端の要素へ入る）。フォーカスが外へ出ないことを優先した
+- ダイアログを開いた時点で内部の要素へフォーカスを置く
+  （名前入力、繰り返しのチェックボックス、設定の閉じるボタン、タグの閉じるボタン）。
+  削除確認のように `if` で要素が入れ替わる箇所は、切り替え先にも `init` フォーカスを置く。
+  フォーカスを持っていた要素が消えると行き先を失って外へ出るため
+- 検証は `interaction.rs` の `a_modal_keeps_keyboard_focus_inside_itself`。
+  Tab のたびに Down を送り、背後のタスク一覧が選択を動かさないことを見る
+  （トラップを外すと落ちることを確認済み）
+
 ### 5.2 テスト
 
-- [ ] ViewModel の単体テスト拡充（現在は Adapter と展開状態のみ）
-- [ ] 操作の結合テストにケース追加（新規 UI ごとに必須）
+- [x] ViewModel の単体テスト拡充（現在は Adapter と展開状態のみ）
+- [x] 操作の結合テストにケース追加（新規 UI ごとに必須）
 - [ ] ブレークポイント境界のスクリーンショット比較の仕組み
 - [ ] **ヒットテストの自動検証手段**
       `send_mouse_click` は `i-slint-backend-testing` の `internal` フィーチャ配下で、
       公開版はビルド不能（Slint リポジトリ内のパスを `include_dir!` している）。
       上流の修正待ち、または別手段の検討
 - 参照: `docs/ja/develop/design/testing.md` の「操作の結合テスト」
+
+#### 実装時の判断（2026-09-08）
+
+- ViewModel 側は `SharedState` の選択解決（`ensure_default_selection`）、
+  表示対象の絞り込み（`tasks_in_scope`）、リマインダー収集
+  （`reminder_specs_from_trees`）と、再読込の合流（`reload_gate`）を追加した。
+  いずれも Slint ウィンドウを作らずに動く
+- 結合テストには、モーダルのフォーカストラップと `ListView` の仮想化の 2 ケースを追加。
+  どちらもキーイベント（`WindowEvent::KeyPressed`）を使うため、
+  ウィンドウを `WindowActiveChanged(true)` にしないとイベントが届かない
+- 「操作の結合テストにケース追加」は新規 UI ごとに継続して必要。
+  チェックは 2026-09-07 時点の UI をすべて覆っていることを示す
+- スクリーンショット比較は未着手。フォント描画が OS で変わるため、
+  基準画像をリポジトリに置く方式は環境差で落ちる。CI で走らせる前提の設計が要る
 
 ### 5.3 パス・設定の受け渡し
 
@@ -418,8 +453,18 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 ### 5.4 ロギング
 
-- [ ] ファイル出力（`platform.paths().log_dir()` へローテーション）
-- [ ] Android は logcat、iOS は OSLog へ切り替え
+- [x] ファイル出力（`platform.paths().log_dir()` へローテーション）
+- [ ] Android は logcat、iOS は OSLog へ切り替え（P3 のモバイル実装とあわせて）
+
+#### 実装時の判断（2026-09-08）
+
+- `flequit-app::init_logging` が標準エラー出力とファイルの 2 層を組み立てる。
+  ファイルは `tracing-appender` の日次ローテーション（`flequit.<日付>.log`、7 世代）
+- 返る `WorkerGuard` は `run()` が握る。先に drop するとバッファが flush されない
+- ログディレクトリを開けない場合はファイル出力だけ諦めて起動する。
+  画面にログが出ないより、ディスクに残らない方が軽い
+- モバイルのシンクは `cfg(target_os)` を必要とし、それは `flequit-platform` にしか
+  置けない。`flequit-app` から使える形をそちらに用意するまで保留
 
 ### 5.5 ドキュメント
 
@@ -432,10 +477,24 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 ### 5.6 パフォーマンス
 
-- [ ] 変更のたびにプロジェクト全体を再読込している点の見直し
+- [x] 変更のたびにプロジェクト全体を再読込している点の見直し
       （`reload_projects`。正確さを優先した暫定実装）
-- [ ] 大量タスクでの `ListView` 検証
+- [x] 大量タスクでの `ListView` 検証
 - [ ] 起動時の初期クエリ件数上限
+
+#### 実装時の判断（2026-09-08）
+
+- 再読込は「全件を読み直す」ままにし、**回数** を削った
+  （`viewmodels/reload_gate.rs`）。実行中の再読込があれば要求を畳み込み、
+  連続した編集 N 回でも読み直しは 2 回で済む。最後の 1 回はすべての書き込みを見る
+- 差分更新（変更されたプロジェクトだけ読み直す）は見送った。
+  `flequit-core` にプロジェクト単位の facade がなく、
+  検索・件数表示・並び替えが全ツリーをメモリに置く前提で書かれているため、
+  正確さを崩さずに入れるには core 側の追加が要る
+- `ListView` はタスク 500 件と 5000 件で生成される行数が変わらないことを
+  `interaction.rs` で検証した（アクセシビリティツリーの list-item を数える）
+- 起動時の件数上限は未着手。上と同じ理由で、上限を入れると検索と件数表示が
+  「読み込んだ範囲だけ正しい」状態になる。ページングを core に入れてからの作業
 
 ---
 

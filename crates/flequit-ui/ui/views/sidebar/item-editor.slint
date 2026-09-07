@@ -5,6 +5,7 @@ import { Actions } from "../../globals/actions.slint";
 import { EditorKind } from "../../globals/types.slint";
 import { DialogButton } from "../../components/dialog-button.slint";
 import { ColorPicker } from "../../components/color-picker.slint";
+import { FocusSentinel } from "../../components/focus-sentinel.slint";
 
 // Modal editor for a project or a task list.
 //
@@ -69,6 +70,12 @@ export component ItemEditor inherits Rectangle {
         border-width: 1px;
         border-color: Theme.border;
 
+        // Keyboard focus stays between these two: the sidebar and the task list
+        // behind the dialog must not be reachable with Tab.
+        head := FocusSentinel {
+            wrapped => { tail.focus(); }
+        }
+
         dialog := VerticalLayout {
             padding: Theme.space-lg;
             spacing: Theme.space-md;
@@ -88,6 +95,8 @@ export component ItemEditor inherits Rectangle {
                 accessible-label: @tr("Editor" => "Name");
                 text <=> root.name;
                 accepted => { root.save(); }
+                // The name is what the dialog exists for, so it starts focused.
+                init => { self.focus(); }
             }
 
             // Colour is a project-only attribute; lists inherit their look.
@@ -140,6 +149,9 @@ export component ItemEditor inherits Rectangle {
                 if root.confirming-delete: DialogButton {
                     label: @tr("Editor" => "Delete for good");
                     destructive: true;
+                    // Confirming replaces the name field, which is where the
+                    // focus was: without this it would fall out of the dialog.
+                    init => { self.focus(); }
                     clicked => { root.remove(); }
                 }
 
@@ -150,6 +162,10 @@ export component ItemEditor inherits Rectangle {
                     clicked => { root.save(); }
                 }
             }
+        }
+
+        tail := FocusSentinel {
+            wrapped => { head.focus(); }
         }
     }
 }

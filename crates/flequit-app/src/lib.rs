@@ -53,7 +53,8 @@ pub enum BootstrapError {
 /// UI event loop runs on the calling thread.
 pub fn run() -> Result<(), BootstrapError> {
     let platform = flequit_platform::current()?;
-    init_logging(platform.as_ref());
+    // Held for the whole session: dropping it stops the file log being flushed.
+    let _log_guard = init_logging(platform.as_ref());
 
     tracing::info!(
         data_dir = ?platform.paths().data_dir(),
@@ -349,18 +350,81 @@ async fn setup_infrastructure(
         .map_err(|source| BootstrapError::Infrastructure(source.to_string()))
 }
 
+/// How many days of log files are kept before the oldest is deleted.
+///
+/// Long enough to cover a weekend of an issue going unreported, short enough
+/// that an app that is left running does not fill a user's disk.
+const LOG_FILES_KEPT: usize = 7;
+
 /// Installs the tracing subscriber.
 ///
 /// The sink differs per platform (files on desktop, logcat on Android, OSLog on
 /// iOS); the decision belongs here so no other crate needs a `cfg`.
-fn init_logging(_platform: &dyn Platform) {
-    use tracing_subscriber::{EnvFilter, fmt};
+///
+/// Writes go to stderr, which is what a developer reads, and to a daily file
+/// under `platform.paths().log_dir()`, which is what a user can attach to a bug
+/// report once the terminal is gone. A log directory that cannot be opened
+/// costs the file sink only — starting without logs on screen would be worse
+/// than starting without them on disk.
+///
+/// The returned guard flushes the file writer when it is dropped, so the caller
+/// has to hold it for as long as the application runs. `None` means no file
+/// sink was installed.
+#[must_use = "dropping the guard stops the file log from being flushed"]
+fn init_logging(platform: &dyn Platform) -> Option<tracing_appender::non_blocking::WorkerGuard> {
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::util::SubscriberInitExt;
+    use tracing_subscriber::{EnvFilter, Layer, Registry, fmt};
 
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
-    // TODO(phase2): add a rolling file appender under `platform.paths().log_dir()`
-    // and route Android/iOS to their native sinks.
-    let _ = fmt().with_env_filter(filter).try_init();
+    let mut layers: Vec<Box<dyn Layer<Registry> + Send + Sync>> = vec![fmt::layer().boxed()];
+    let guard = match open_log_file(platform) {
+        Ok(appender) => {
+            let (writer, guard) = tracing_appender::non_blocking(appender);
+            // No ANSI escapes: they are control characters in a file, not colour.
+            layers.push(fmt::layer().with_ansi(false).with_writer(writer).boxed());
+            Some(guard)
+        }
+        Err(error) => {
+            // Reported through the sink that is about to be installed, so it
+            // reaches stderr rather than disappearing.
+            eprintln!("flequit: file logging is disabled: {error}");
+            None
+        }
+    };
+
+    // TODO(phase2): route Android to logcat and iOS to OSLog. Both need a sink
+    // that only `flequit-platform` may build, since `cfg(target_os)` lives there.
+    if tracing_subscriber::registry()
+        .with(layers)
+        .with(filter)
+        .try_init()
+        .is_err()
+    {
+        // A subscriber is already installed, e.g. by a test harness that called
+        // `run` twice. The guard is useless then and would flush a sink nobody
+        // writes to.
+        return None;
+    }
+
+    guard
+}
+
+/// Opens the rolling log file for today under the platform's log directory.
+fn open_log_file(
+    platform: &dyn Platform,
+) -> Result<tracing_appender::rolling::RollingFileAppender, String> {
+    let dir = platform.paths().log_dir();
+    std::fs::create_dir_all(dir).map_err(|source| format!("{}: {source}", dir.display()))?;
+
+    tracing_appender::rolling::Builder::new()
+        .rotation(tracing_appender::rolling::Rotation::DAILY)
+        .filename_prefix("flequit")
+        .filename_suffix("log")
+        .max_log_files(LOG_FILES_KEPT)
+        .build(dir)
+        .map_err(|source| format!("{}: {source}", dir.display()))
 }
 
 #[cfg(test)]

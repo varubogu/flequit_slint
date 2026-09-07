@@ -1,5 +1,6 @@
 import { Theme } from "../globals/theme.slint";
 import { Layout } from "../globals/layout.slint";
+import { FocusRing } from "focus-ring.slint";
 
 // Labelled button for a dialog's action row.
 //
@@ -37,10 +38,30 @@ export component DialogButton inherits Rectangle {
         height: 100%;
     }
 
+    key-focus := FocusScope {
+        // A disabled button is skipped by Tab as well as by the pointer.
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if (event.text == " " || event.text == "\n") {
+                root.clicked();
+                return accept;
+            }
+            reject
+        }
+    }
+
+    if key-focus.has-focus: FocusRing {
+        radius: root.border-radius;
+    }
+
     touch := TouchArea {
         enabled: root.enabled;
-        clicked => { root.clicked(); }
+        clicked => {
+            key-focus.focus();
+            root.clicked();
+        }
     }
+    forward-focus: key-focus;
     accessible-role: button;
     accessible-label: root.label;
     accessible-enabled: root.enabled;

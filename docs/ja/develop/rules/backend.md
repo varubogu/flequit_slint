@@ -77,6 +77,14 @@ flequit-types
 - `tracing` を使う。`log` クレートは使用しない
 - facade の公開 API には `#[tracing::instrument]` を付与する
 - ログメッセージは英語固定（翻訳対象外）
+- 出力先は `flequit-app::init_logging` が組み立てる。標準エラー出力と、
+  `platform.paths().log_dir()` 配下の日次ローテーションファイル
+  （`flequit.<日付>.log`、7 世代で自動削除）の 2 系統
+- ファイル書き込みは `tracing-appender` のノンブロッキング。返される
+  `WorkerGuard` は `run()` が握り続ける。先に drop すると末尾のログが消える
+- ログディレクトリを開けない場合はファイル出力のみ諦めて起動を続ける
+- Android（logcat）/ iOS（OSLog）は未実装。`cfg(target_os)` は
+  `flequit-platform` 限定のため、シンクの構築もそちら側に置く必要がある
 
 ## 開発ワークフロー
 

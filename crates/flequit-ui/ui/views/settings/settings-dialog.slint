@@ -11,6 +11,7 @@ import { AppearanceSettings } from "appearance-settings.slint";
 import { BasicSettings } from "basic-settings.slint";
 import { DateTimeSettings } from "datetime-settings.slint";
 import { SettingsCategories } from "settings-categories.slint";
+import { FocusSentinel } from "../../components/focus-sentinel.slint";
 
 component SelectedSettings inherits Rectangle {
     background: Theme.background;
@@ -58,6 +59,11 @@ export component SettingsDialog inherits Rectangle {
         background: Theme.background;
         clip: true;
 
+        // Keeps Tab inside the dialog; see FocusSentinel.
+        head := FocusSentinel {
+            wrapped => { tail.focus(); }
+        }
+
         VerticalLayout {
             spacing: 0px;
             Rectangle {
@@ -69,6 +75,9 @@ export component SettingsDialog inherits Rectangle {
                     spacing: Theme.space-md;
                     IconButton {
                         icon: IconName.chevron-left;
+                        // First control of the dialog: opening settings with the
+                        // keyboard leaves the way back within one key press.
+                        init => { self.focus(); }
                         tooltip: Layout.is-compact && SettingsState.compact-detail-open
                             ? @tr("Settings" => "Back to settings categories")
                             : @tr("Settings" => "Close settings");
@@ -108,6 +117,10 @@ export component SettingsDialog inherits Rectangle {
                 Rectangle { width: 1px; background: Theme.border; }
                 AllSettings { horizontal-stretch: 1; }
             }
+        }
+
+        tail := FocusSentinel {
+            wrapped => { head.focus(); }
         }
     }
 }

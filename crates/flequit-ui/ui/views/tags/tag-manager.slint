@@ -7,6 +7,7 @@ import { DialogButton } from "../../components/dialog-button.slint";
 import { ColorPicker } from "../../components/color-picker.slint";
 import { RowButton } from "../../components/row-button.slint";
 import { IconName } from "../../components/icon.slint";
+import { FocusSentinel } from "../../components/focus-sentinel.slint";
 
 export component TagManager inherits Rectangle {
     property <bool> editing: false;
@@ -59,6 +60,11 @@ export component TagManager inherits Rectangle {
         border-radius: Theme.radius-md;
         border-width: 1px;
         border-color: Theme.border;
+
+        // Keeps Tab inside the dialog; see FocusSentinel.
+        head := FocusSentinel {
+            wrapped => { tail.focus(); }
+        }
 
         VerticalLayout {
             padding: Theme.space-lg;
@@ -158,6 +164,8 @@ export component TagManager inherits Rectangle {
                     placeholder-text: @tr("Tags" => "Tag name");
                     accessible-label: @tr("Tags" => "Tag name");
                     accepted => { root.save(); }
+                    // Entering the editor puts the caret in the name field.
+                    init => { self.focus(); }
                 }
 
                 ColorPicker {
@@ -185,6 +193,11 @@ export component TagManager inherits Rectangle {
 
                 DialogButton {
                     label: root.editing ? @tr("Tags" => "Cancel") : @tr("Tags" => "Close");
+                    // The only control the dialog always has, so it is what
+                    // holds the focus when the manager opens on the tag list.
+                    // Without it the focus stays behind the dialog and the trap
+                    // has nothing to keep in.
+                    init => { self.focus(); }
                     clicked => {
                         if (root.confirming-delete) {
                             root.confirming-delete = false;
@@ -199,6 +212,9 @@ export component TagManager inherits Rectangle {
                 if root.confirming-delete: DialogButton {
                     label: @tr("Tags" => "Delete for good");
                     destructive: true;
+                    // Confirming replaces the name field, which is where the
+                    // focus was: without this it would fall out of the dialog.
+                    init => { self.focus(); }
                     clicked => {
                         Actions.delete-tag(AppState.selected-project-id, root.editing-tag-id);
                         root.close-editor();
@@ -212,6 +228,10 @@ export component TagManager inherits Rectangle {
                     clicked => { root.save(); }
                 }
             }
+        }
+
+        tail := FocusSentinel {
+            wrapped => { head.focus(); }
         }
     }
 }

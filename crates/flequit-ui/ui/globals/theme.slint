@@ -39,6 +39,11 @@ export global Theme {
     out property <brush> warning: #fd7e14;
     out property <brush> success: #40c057;
 
+    // Keyboard focus indicator. Deliberately not `accent`: the ring has to stay
+    // visible on top of an accent-filled control such as a primary button.
+    out property <brush> focus-ring: root.dark ? #91a7ff : #1c3faa;
+    out property <length> focus-ring-width: 2px;
+
     // Priority colours, indexed by TaskPriority
     out property <brush> priority-high: #fa5252;
     out property <brush> priority-medium: #fd7e14;

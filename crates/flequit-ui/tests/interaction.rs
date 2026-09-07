@@ -275,6 +275,22 @@ fn settle() {
     i_slint_backend_testing::mock_elapsed_time(std::time::Duration::ZERO);
 }
 
+/// Sends one key press and release, the way a keyboard user reaches a control.
+///
+/// Tab traversal and Space activation are handled by Slint itself, so they can
+/// only be exercised through real key events, not through the accessibility
+/// actions the other helpers use.
+fn press_key(window: &AppWindow, key: char) {
+    let text = SharedString::from(key.to_string());
+    window
+        .window()
+        .dispatch_event(slint::platform::WindowEvent::KeyPressed { text: text.clone() });
+    window
+        .window()
+        .dispatch_event(slint::platform::WindowEvent::KeyReleased { text });
+    settle();
+}
+
 /// Steps a control that supports incremental adjustment, such as a drag handle.
 ///
 /// This is the path a keyboard or screen reader takes when a pointer drag is
@@ -665,7 +681,10 @@ fn the_settings_dialog_reaches_its_handlers() {
     assert_eq!(searches.borrow().as_slice(), ["font"]);
     assert!(activate(&window, "Monday"));
     assert_eq!(week_starts.borrow().as_slice(), ["monday"]);
-    assert!(activate(&window, "Enable Vim task navigation (j/k and g/G)"));
+    assert!(activate(
+        &window,
+        "Enable Vim task navigation (j/k and g/G)"
+    ));
     assert_eq!(vim_modes.borrow().as_slice(), [true]);
     assert!(activate(&window, "Show Today due filter"));
     assert_eq!(
@@ -1739,6 +1758,151 @@ fn the_font_picker_lists_what_the_platform_reported() {
     settings.set_open(false);
 }
 
+/// Tabs through an open dialog and reports whether focus ever left it.
+///
+/// Down is the probe because every dialog ignores it while the task list moves
+/// its selection with it, so a recorded move means the focus escaped. The loop
+/// runs far longer than any dialog's control count, so a leak that only shows
+/// up after a full cycle is caught too.
+fn focus_escapes_while_tabbing(window: &AppWindow, moved: &Rc<RefCell<Vec<i32>>>) -> bool {
+    moved.borrow_mut().clear();
+    for _ in 0..40 {
+        press_key(window, '\t');
+        press_key(window, slint::platform::Key::DownArrow.into());
+    }
+    !moved.borrow().is_empty()
+}
+
+/// A modal must not hand keyboard focus to the panes behind it.
+///
+/// Slint's Tab traversal walks the whole window, so without the sentinels
+/// around a dialog the focus leaves it after a few presses and lands in the
+/// task list — where the arrow keys move a selection the user cannot see and
+/// Space completes a task while the dialog is still on screen.
+fn a_modal_keeps_keyboard_focus_inside_itself() {
+    let window = window_with_content();
+    let moved = Rc::new(RefCell::new(Vec::<i32>::new()));
+    {
+        let moved = Rc::clone(&moved);
+        window
+            .global::<Actions>()
+            .on_move_task_selection(move |delta| moved.borrow_mut().push(delta));
+    }
+    // Key events are only delivered to an active window.
+    window
+        .window()
+        .dispatch_event(slint::platform::WindowEvent::WindowActiveChanged(true));
+    // The task list only reacts to Space when a row is selected, so give it
+    // something to react to: the assertion below has to be able to fail.
+    window
+        .global::<AppState>()
+        .set_selected_task_id("t1".into());
+
+    // Positive control: with focus in the list, Down moves the selection.
+    // Without it the assertion below would also pass if key events stopped
+    // arriving at all.
+    window.global::<AppState>().set_focus_list_request(1);
+    settle();
+    press_key(&window, slint::platform::Key::DownArrow.into());
+    assert_eq!(
+        moved.borrow().as_slice(),
+        [1],
+        "the task list no longer moves its selection with the arrow keys"
+    );
+    moved.borrow_mut().clear();
+
+    let app_state = window.global::<AppState>();
+
+    assert!(activate(&window, "New project"));
+    settle();
+    assert!(
+        !focus_escapes_while_tabbing(&window, &moved),
+        "keyboard focus escaped the project editor"
+    );
+    app_state.set_editor_open(false);
+    settle();
+
+    // The delete confirmation replaces the control the focus was on, which is
+    // where a trap is easiest to lose.
+    assert!(activate(&window, "Edit My Tasks"));
+    settle();
+    assert!(activate(&window, "Delete"));
+    settle();
+    assert!(
+        !focus_escapes_while_tabbing(&window, &moved),
+        "keyboard focus escaped the delete confirmation"
+    );
+    app_state.set_editor_open(false);
+    settle();
+
+    app_state.set_tag_manager_open(true);
+    settle();
+    assert!(
+        !focus_escapes_while_tabbing(&window, &moved),
+        "keyboard focus escaped the tag manager"
+    );
+    app_state.set_tag_manager_open(false);
+    settle();
+
+    app_state.set_recurrence(recurrence_state("t1"));
+    app_state.set_recurrence_open(true);
+    settle();
+    assert!(
+        !focus_escapes_while_tabbing(&window, &moved),
+        "keyboard focus escaped the repeat editor"
+    );
+    app_state.set_recurrence_open(false);
+    settle();
+
+    window.global::<SettingsState>().set_open(true);
+    settle();
+    assert!(
+        !focus_escapes_while_tabbing(&window, &moved),
+        "keyboard focus escaped the settings dialog"
+    );
+    window.global::<SettingsState>().set_open(false);
+    settle();
+}
+
+/// Growing the task list must not grow what the UI builds.
+///
+/// The pane is a `ListView`, which instantiates only the rows inside its
+/// viewport; a plain layout would build one row per task and make a large
+/// project unusable. Counting instantiated rows is what tells the two apart.
+fn a_long_task_list_only_instantiates_visible_rows() {
+    let window = window_with_content();
+
+    let instantiated = |count: usize| {
+        let tasks: Vec<TaskItem> = (0..count)
+            .map(|index| task_item(&format!("t{index}"), &format!("Task {index}")))
+            .collect();
+        window
+            .global::<AppState>()
+            .set_tasks(ModelRc::new(VecModel::from(tasks)));
+        settle();
+        i_slint_backend_testing::ElementQuery::from_root(&window)
+            .match_descendants()
+            .match_accessible_role(i_slint_backend_testing::AccessibleRole::ListItem)
+            .find_all()
+            .len()
+    };
+
+    let small = instantiated(500);
+    let large = instantiated(5_000);
+
+    assert!(small > 0, "no task row was instantiated at all");
+    // Ten times the tasks must not mean ten times the rows: the count is
+    // bounded by the viewport, not by the model.
+    assert!(
+        large <= small,
+        "{small} rows for 500 tasks but {large} for 5000; the list is no longer virtualised"
+    );
+    assert!(
+        small < 500,
+        "every one of the 500 tasks was instantiated; the list is no longer virtualised"
+    );
+}
+
 /// Slint's backend is process-global and its components are `!Send`, so every
 /// case runs inside one test on one thread.
 #[test]
@@ -1776,6 +1940,8 @@ fn the_shell_responds_to_user_actions() {
     the_language_switch_reaches_its_handler();
     recurrence_presets_reach_their_handlers();
     the_font_picker_lists_what_the_platform_reported();
+    a_modal_keeps_keyboard_focus_inside_itself();
+    a_long_task_list_only_instantiates_visible_rows();
 }
 
 /// The colour tokens once ignored `Theme.mode`: nothing derived `Theme.dark`

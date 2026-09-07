@@ -8,6 +8,7 @@ import { SettingsState } from "../../globals/settings.slint";
 import { RecurrenceEnd, RecurrenceMonthlyMode, RecurrenceState, RecurrenceUnit,
          RecurrenceWeekOfMonth } from "../../globals/types.slint";
 import { DialogButton } from "../../components/dialog-button.slint";
+import { FocusSentinel } from "../../components/focus-sentinel.slint";
 
 // One choice in a row of mutually exclusive options.
 //
@@ -186,6 +187,11 @@ export component RecurrenceEditor inherits Rectangle {
         border-width: 1px;
         border-color: Theme.border;
 
+        // Keeps Tab inside the dialog; see FocusSentinel.
+        head := FocusSentinel {
+            wrapped => { tail.focus(); }
+        }
+
         VerticalLayout {
             padding: Theme.space-lg;
             spacing: Theme.space-md;
@@ -206,6 +212,9 @@ export component RecurrenceEditor inherits Rectangle {
                     CheckBox {
                         text: @tr("Recurrence" => "Repeat this task");
                         checked: root.enabled;
+                        // First control of the dialog: everything below depends
+                        // on it, so keyboard users start here.
+                        init => { self.focus(); }
                         toggled => {
                             root.enabled = self.checked;
                             root.changed();
@@ -558,6 +567,10 @@ export component RecurrenceEditor inherits Rectangle {
                     }
                 }
             }
+        }
+
+        tail := FocusSentinel {
+            wrapped => { head.focus(); }
         }
     }
 

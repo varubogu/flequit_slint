@@ -1,0 +1,16 @@
+import { Theme } from "../globals/theme.slint";
+
+// Visual indicator for the element that currently has keyboard focus.
+//
+// Purely decorative: it carries no `TouchArea`, so it never intercepts input
+// and can be laid over the control it belongs to. Wrap it in
+// `if <scope>.has-focus:` so it only exists while the control is focused.
+export component FocusRing inherits Rectangle {
+    // Matched to the owner's own corner radius so the ring hugs its outline.
+    in property <length> radius: Theme.radius-sm;
+
+    background: transparent;
+    border-width: Theme.focus-ring-width;
+    border-color: Theme.focus-ring;
+    border-radius: root.radius;
+}

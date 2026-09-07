@@ -63,6 +63,7 @@ use crate::viewmodels::TaskListUiViewModel;
 use crate::viewmodels::ordering;
 use crate::viewmodels::project_editor;
 use crate::viewmodels::recurrence::{occurrence, rule_from_state};
+use crate::viewmodels::reload_gate::ReloadGate;
 use crate::viewmodels::search::{
     DueKeyword, SearchQuery, SubTaskCandidate, SuggestionKind, SuggestionSources, TaskCandidate,
     suggestions,
@@ -130,6 +131,8 @@ struct SharedState {
     tag_bookmarks: Vec<TagBookmark>,
     /// Author recorded on every write. Resolved from the current account.
     current_user: Option<UserId>,
+    /// Keeps a burst of edits from running one full reload each.
+    reload: ReloadGate,
 }
 
 impl SharedState {
@@ -3289,7 +3292,35 @@ fn clear_notification_permission_loading(weak: &Weak<AppWindow>) {
 /// Mutations reload rather than patching the cached tree: the tree is the source
 /// for task ordering and list membership, and keeping a second copy in sync with
 /// storage is the kind of duplication that drifts silently.
+/// Reloads the project tree, coalescing requests that arrive while one runs.
+///
+/// Callers do not need to know whether another reload is in flight: a request
+/// that arrives during one is absorbed by it and returns `None` immediately.
+/// See [`ReloadGate`] for why.
 async fn reload_projects<R>(
+    weak: &Weak<AppWindow>,
+    state: &Arc<Mutex<SharedState>>,
+    repositories: &Arc<R>,
+    timezone: DisplayTimezone,
+) -> Option<Vec<ReminderSpec>>
+where
+    R: InfrastructureRepositoriesTrait + Send + Sync + 'static,
+{
+    if !state.lock().expect("shared state poisoned").reload.begin() {
+        return None;
+    }
+
+    loop {
+        let reminders = reload_projects_now(weak, state, repositories, timezone).await;
+        if !state.lock().expect("shared state poisoned").reload.finish() {
+            // The last pass is the one that saw every write in the burst.
+            return reminders;
+        }
+    }
+}
+
+/// One pass of the reload: read everything, then publish it to the UI thread.
+async fn reload_projects_now<R>(
     weak: &Weak<AppWindow>,
     state: &Arc<Mutex<SharedState>>,
     repositories: &Arc<R>,
@@ -4526,6 +4557,227 @@ mod tests {
         assert_eq!(
             result.expect_err("the save should fail").code(),
             "input.validation-failed"
+        );
+    }
+
+    fn task_named(title: &str) -> TaskTree {
+        TaskTree {
+            title: title.to_string(),
+            ..task_with_tags(Vec::new())
+        }
+    }
+
+    fn list_named(name: &str, tasks: Vec<TaskTree>) -> TaskListTree {
+        let now = Utc::now();
+        TaskListTree {
+            id: TaskListId::new(),
+            project_id: ProjectId::new(),
+            name: name.to_string(),
+            description: None,
+            color: None,
+            order_index: 0,
+            is_archived: false,
+            created_at: now,
+            updated_at: now,
+            deleted: false,
+            updated_by: UserId::new(),
+            tasks,
+        }
+    }
+
+    fn project_named(name: &str, task_lists: Vec<TaskListTree>) -> ProjectTree {
+        let now = Utc::now();
+        ProjectTree {
+            id: ProjectId::new(),
+            name: name.to_string(),
+            description: None,
+            color: None,
+            order_index: 0,
+            is_archived: false,
+            status: None,
+            owner_id: None,
+            created_at: now,
+            updated_at: now,
+            deleted: false,
+            updated_by: UserId::new(),
+            task_lists,
+        }
+    }
+
+    #[test]
+    fn an_empty_selection_falls_back_to_the_first_live_project_and_list() {
+        let archived = ProjectTree {
+            is_archived: true,
+            ..project_named("Archive", vec![list_named("Old", Vec::new())])
+        };
+        let live = project_named("Work", vec![list_named("Inbox", Vec::new())]);
+        let expected_project = live.id.as_str();
+        let expected_list = live.task_lists[0].id.as_str();
+        let mut state = SharedState {
+            trees: vec![archived, live],
+            ..SharedState::default()
+        };
+
+        ensure_default_selection(&mut state);
+
+        assert_eq!(state.selected_project_id, expected_project);
+        assert_eq!(state.selected_list_id, expected_list);
+        // The chosen project is opened as well, or its list would be selected
+        // without being visible in the sidebar.
+        assert!(state.expanded_projects.contains(&expected_project));
+    }
+
+    #[test]
+    fn a_selection_that_still_exists_is_left_alone() {
+        let first = project_named("Work", vec![list_named("Inbox", Vec::new())]);
+        let second = project_named("Home", vec![list_named("Errands", Vec::new())]);
+        let chosen_project = second.id.as_str();
+        let chosen_list = second.task_lists[0].id.as_str();
+        let mut state = SharedState {
+            trees: vec![first, second],
+            selected_project_id: chosen_project.clone(),
+            selected_list_id: chosen_list.clone(),
+            ..SharedState::default()
+        };
+
+        ensure_default_selection(&mut state);
+
+        assert_eq!(state.selected_project_id, chosen_project);
+        assert_eq!(state.selected_list_id, chosen_list);
+    }
+
+    #[test]
+    fn a_list_that_disappeared_falls_back_within_its_project() {
+        let project = project_named(
+            "Work",
+            vec![
+                TaskListTree {
+                    deleted: true,
+                    ..list_named("Gone", Vec::new())
+                },
+                list_named("Inbox", Vec::new()),
+            ],
+        );
+        let project_id = project.id.as_str();
+        let gone = project.task_lists[0].id.as_str();
+        let survivor = project.task_lists[1].id.as_str();
+        let mut state = SharedState {
+            trees: vec![project],
+            selected_project_id: project_id.clone(),
+            selected_list_id: gone,
+            ..SharedState::default()
+        };
+
+        ensure_default_selection(&mut state);
+
+        // The project the user was looking at is kept; only the list moves.
+        assert_eq!(state.selected_project_id, project_id);
+        assert_eq!(state.selected_list_id, survivor);
+    }
+
+    #[test]
+    fn nothing_is_selected_when_every_project_is_gone() {
+        let mut state = SharedState {
+            trees: vec![ProjectTree {
+                deleted: true,
+                ..project_named("Work", vec![list_named("Inbox", Vec::new())])
+            }],
+            selected_project_id: "stale".to_string(),
+            selected_list_id: "stale".to_string(),
+            ..SharedState::default()
+        };
+
+        ensure_default_selection(&mut state);
+
+        assert!(state.selected_project_id.is_empty());
+        assert!(state.selected_list_id.is_empty());
+    }
+
+    #[test]
+    fn the_visible_tasks_follow_the_selection_and_skip_what_is_hidden() {
+        let mut project = project_named(
+            "Work",
+            vec![
+                list_named(
+                    "Inbox",
+                    vec![
+                        task_named("Buy milk"),
+                        TaskTree {
+                            deleted: true,
+                            ..task_named("Deleted")
+                        },
+                        TaskTree {
+                            is_archived: true,
+                            ..task_named("Archived")
+                        },
+                    ],
+                ),
+                list_named("Later", vec![task_named("Someday")]),
+            ],
+        );
+        project.task_lists[1].is_archived = true;
+        let other = project_named(
+            "Home",
+            vec![list_named("Errands", vec![task_named("Milk")])],
+        );
+        let project_id = project.id.as_str();
+        let list_id = project.task_lists[0].id.as_str();
+
+        let mut state = SharedState {
+            trees: vec![project, other],
+            ..SharedState::default()
+        };
+
+        // No selection means every project, minus what is deleted or archived.
+        let titles: Vec<&str> = state
+            .tasks_in_scope()
+            .map(|(_, _, task)| task.title.as_str())
+            .collect();
+        assert_eq!(titles, ["Buy milk", "Milk"]);
+
+        state.selected_project_id = project_id;
+        state.selected_list_id = list_id;
+        let titles: Vec<&str> = state
+            .tasks_in_scope()
+            .map(|(_, _, task)| task.title.as_str())
+            .collect();
+        assert_eq!(titles, ["Buy milk"]);
+    }
+
+    #[test]
+    fn reminders_are_only_collected_from_rows_that_still_exist() {
+        let due = Utc::now();
+        let live = TaskTree {
+            reminders: vec![due],
+            ..task_named("Call the dentist")
+        };
+        let live_id = live.id.as_str();
+        let removed = TaskTree {
+            deleted: true,
+            reminders: vec![due],
+            ..task_named("Cancelled")
+        };
+        let hidden_list = TaskListTree {
+            deleted: true,
+            ..list_named(
+                "Gone",
+                vec![TaskTree {
+                    reminders: vec![due],
+                    ..task_named("In a deleted list")
+                }],
+            )
+        };
+        let trees = vec![project_named(
+            "Work",
+            vec![list_named("Inbox", vec![live, removed]), hidden_list],
+        )];
+
+        let specs = reminder_specs_from_trees(&trees);
+
+        assert_eq!(
+            specs,
+            vec![(live_id, "Call the dentist".to_string(), due)],
+            "a reminder on a row the user deleted must not still fire"
         );
     }
 }
