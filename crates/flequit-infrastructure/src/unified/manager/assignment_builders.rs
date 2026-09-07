@@ -8,7 +8,6 @@ use flequit_infrastructure_automerge::infrastructure::task_projects::{
     subtask_assignments::SubtaskAssignmentLocalAutomergeRepository,
     task_assignments::TaskAssignmentLocalAutomergeRepository,
 };
-use flequit_infrastructure_sqlite::infrastructure::database_manager::DatabaseManager;
 use flequit_infrastructure_sqlite::infrastructure::task_projects::{
     subtask_assignments::SubtaskAssignmentLocalSqliteRepository,
     task_assignments::TaskAssignmentLocalSqliteRepository,
@@ -23,7 +22,7 @@ impl UnifiedManager {
 
         // SQLiteリポジトリの設定
         if self.config.sqlite_search_enabled || self.config.sqlite_storage_enabled {
-            let db_manager = DatabaseManager::instance().await?;
+            let db_manager = self.database_manager()?;
 
             if self.config.sqlite_search_enabled {
                 let sqlite_repo = TaskAssignmentLocalSqliteRepository::new(db_manager.clone());
@@ -70,7 +69,7 @@ impl UnifiedManager {
 
         // SQLiteリポジトリの設定
         if self.config.sqlite_search_enabled || self.config.sqlite_storage_enabled {
-            let db_manager = DatabaseManager::instance().await?;
+            let db_manager = self.database_manager()?;
 
             if self.config.sqlite_search_enabled {
                 let sqlite_repo = SubtaskAssignmentLocalSqliteRepository::new(db_manager.clone());

@@ -28,15 +28,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("🔧 マイグレーション実行開始: {}", db_path);
     }
 
-    // 環境変数でデータベースパスを指定
-    //
-    // SAFETY: この時点ではまだスレッドを起動していない単一スレッド実行のため、
-    // 他スレッドから環境変数を読み書きされる可能性がない。
-    // edition 2024 では `set_var` が unsafe になったため明示する。
-    unsafe {
-        env::set_var("FLEQUIT_DB_PATH", db_path);
-    }
-
     // 強制モードの場合は、既存のDBファイルを削除
     if force_mode && std::path::Path::new(db_path).exists() {
         println!("⚠️  既存のデータベースファイルを削除します");
@@ -44,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // DatabaseManagerを作成（シングルトンではない新しいインスタンスが必要）
-    let db_manager = DatabaseManager::new_for_test(db_path);
+    let db_manager = DatabaseManager::new_with_path(db_path);
     let db = db_manager.get_connection().await?;
 
     // マイグレーション実行（通常モード・強制モード共に同じ処理）

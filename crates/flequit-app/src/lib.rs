@@ -61,11 +61,8 @@ pub fn run() -> Result<(), BootstrapError> {
         "starting flequit"
     );
 
-    // Must happen before any thread starts; see publish_storage_paths.
-    publish_storage_paths(platform.as_ref())?;
-
     let runtime = build_runtime(platform.as_ref())?;
-    let (user_settings, settings_store) = load_settings(&runtime)?;
+    let (user_settings, settings_store) = load_settings(&runtime, platform.as_ref())?;
     let repositories = runtime.block_on(setup_infrastructure(platform.as_ref()))?;
 
     let window = AppWindow::new()?;
@@ -114,8 +111,9 @@ impl SettingsStore for AppSettingsStore {
 
 fn load_settings(
     runtime: &tokio::runtime::Runtime,
+    platform: &dyn Platform,
 ) -> Result<(UserSettings, Arc<dyn SettingsStore>), BootstrapError> {
-    let manager = Arc::new(SettingsManager::new()?);
+    let manager = Arc::new(SettingsManager::new(platform.paths().config_dir().clone())?);
     let settings = runtime.block_on(manager.load_settings())?;
     let user_settings = to_user_settings(&settings);
     let store = AppSettingsStore {
@@ -304,45 +302,6 @@ fn due_query(key: &str) -> Option<&'static str> {
     }
 }
 
-/// Points the storage layers at the platform-resolved directories.
-///
-/// `flequit-infrastructure-sqlite` and `flequit-infrastructure-automerge` pick
-/// their own locations from `dirs`, which is wrong on Android and iOS where the
-/// app is confined to a sandbox the OS assigns at runtime. Both honour an
-/// environment variable override, so this is where the platform's answer wins.
-///
-/// # Errors
-///
-/// Returns an error if a resolved path is not valid UTF-8, since the storage
-/// layers take the override as a string.
-///
-/// TODO: replace with explicit configuration once `UnifiedConfig` accepts
-/// paths. The environment is a process-wide global and this indirection only
-/// exists because the storage crates resolve paths themselves.
-fn publish_storage_paths(platform: &dyn Platform) -> Result<(), BootstrapError> {
-    let paths = platform.paths();
-
-    let database = paths.database_file();
-    let automerge = paths.automerge_dir();
-
-    let database = database.to_str().ok_or_else(|| {
-        BootstrapError::Infrastructure(format!("database path is not valid UTF-8: {database:?}"))
-    })?;
-    let automerge = automerge.to_str().ok_or_else(|| {
-        BootstrapError::Infrastructure(format!("automerge path is not valid UTF-8: {automerge:?}"))
-    })?;
-
-    // SAFETY: called before the Tokio runtime and the UI event loop start, so
-    // this process is still single-threaded and no other thread can be reading
-    // the environment concurrently.
-    unsafe {
-        std::env::set_var("FLEQUIT_DB_PATH", database);
-        std::env::set_var("FLEQUIT_AUTOMERGE_PATH", automerge);
-    }
-
-    Ok(())
-}
-
 /// Builds the async runtime, sized for the device class.
 ///
 /// Mobile devices get fewer workers: threads cost memory and battery, and the
@@ -378,7 +337,10 @@ async fn setup_infrastructure(
     })?;
 
     // Local-first: SQLite answers queries, Automerge records history for sync.
-    let config = UnifiedConfig::new(true, true, true);
+    let config = UnifiedConfig::new(true, true, true).with_storage_paths(
+        platform.paths().database_file(),
+        platform.paths().automerge_dir(),
+    );
 
     InfrastructureRepositories::setup_with_sqlite_and_automerge(config)
         .await

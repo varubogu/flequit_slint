@@ -38,6 +38,13 @@ impl DatabaseManager {
         Self::new(database_path)
     }
 
+    /// 指定パスで新しいDatabaseManagerを作成する。
+    ///
+    /// アプリケーションがプラットフォーム層で解決したパスを明示的に渡す場合に使用する。
+    pub fn new_with_path(database_path: impl Into<String>) -> Self {
+        Self::new(database_path)
+    }
+
     /// シングルトンインスタンスを取得
     pub async fn instance() -> Result<Arc<RwLock<DatabaseManager>>, SQLiteError> {
         DATABASE_MANAGER
@@ -112,13 +119,6 @@ impl DatabaseManager {
 
 /// デフォルトデータベースパスを取得
 fn get_default_database_path() -> Option<String> {
-    use std::env;
-
-    // 環境変数からデータベースパスを取得
-    if let Ok(db_path) = env::var("FLEQUIT_DB_PATH") {
-        return Some(db_path);
-    }
-
     // ユーザーディレクトリ内のアプリデータディレクトリを使用
     if let Some(home_dir) = dirs::data_dir() {
         let app_data_dir = home_dir.join("flequit");

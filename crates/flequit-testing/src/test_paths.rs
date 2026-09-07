@@ -1,12 +1,18 @@
-use chrono::Utc;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+use chrono::Utc;
+
+static NEXT_TEST_DIR_ID: AtomicU64 = AtomicU64::new(0);
 
 /// テストフォルダパスを生成するユーティリティ
 pub struct TestPathGenerator;
 
 impl TestPathGenerator {
     pub fn generate_test_base_dir() -> PathBuf {
-        PathBuf::from("../../../.tmp/tests/cargo")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join(".tmp/tests/cargo")
     }
 
     pub fn generate_test_crate_dir(crate_name: &str) -> PathBuf {
@@ -29,7 +35,8 @@ impl TestPathGenerator {
     /// `<project_root>/.tmp/tests/cargo/[クレート名]/[テストファイルの相対パス]/[テスト関数名]/[実行日時]/`
     pub fn generate_test_dir(file_path: &str, test_function_name: &str) -> PathBuf {
         // 並列実行時のディレクトリ衝突を避けるため、マイクロ秒まで含める
-        let timestamp = Utc::now().format("%Y%m%d_%H%M%S_%6f").to_string();
+        let sequence = NEXT_TEST_DIR_ID.fetch_add(1, Ordering::Relaxed);
+        let timestamp = format!("{}_{sequence}", Utc::now().format("%Y%m%d_%H%M%S_%6f"));
 
         // クレート名を抽出
         let crate_name = Self::extract_crate_name(file_path);

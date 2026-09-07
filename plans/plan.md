@@ -402,13 +402,19 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 ### 5.3 パス・設定の受け渡し
 
-- [ ] `UnifiedConfig` にディレクトリを渡せるようにする
-      現在は `flequit-app` が起動時に `FLEQUIT_DB_PATH` /
-      `FLEQUIT_AUTOMERGE_PATH` を設定する回避策
-      （`crates/flequit-app/src/lib.rs` の `publish_storage_paths`）
-- [ ] `flequit-settings` の設定ディレクトリを `flequit-platform::paths` 起点にする
-      （現在 `HOME` 依存。テストが環境変数を書き換えており直列化が必要）
+- [x] `UnifiedConfig` にディレクトリを渡せるようにする
+- [x] `flequit-settings` の設定ディレクトリを `flequit-platform::paths` 起点にする
 - [x] `crates/flequit-repository/src/utils/path_service.rs` の削除
+
+#### 実装時の判断（2026-09-07）
+
+- `UnifiedConfig::with_storage_paths` で SQLite ファイルと Automerge ディレクトリを明示し、
+  統合リポジトリ内の全 SQLite Adapter が同じ `DatabaseManager` を共有する。
+  プロセス全体へ影響する `FLEQUIT_DB_PATH` / `FLEQUIT_AUTOMERGE_PATH` は廃止した
+- `flequit-settings` は OS のパスを解決せず、呼び出し元から設定ディレクトリを受け取る。
+  `flequit-app` が `platform.paths().config_dir()` を渡すことで依存方向を維持する
+- テスト出力先は `CARGO_MANIFEST_DIR` からリポジトリ内 `.tmp/tests/cargo` を導出する。
+  実行ディレクトリによってワークスペース外へ逸脱しないようにした
 
 ### 5.4 ロギング
 

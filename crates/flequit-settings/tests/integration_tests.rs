@@ -4,33 +4,19 @@ use flequit_settings::{
     CustomDueFilter, CustomDueUnit, PartialSettings, Settings, SettingsManager,
 };
 use flequit_testing::TestPathGenerator;
-use std::env;
-use std::sync::Mutex;
 use tracing::info;
-
-/// `HOME` はプロセス全体で共有されるため、書き換えるテストは直列化する。
-///
-/// TODO: `SettingsManager` が設定ディレクトリを引数で受け取るようになれば
-/// この環境変数の書き換え自体が不要になる。
-/// (`flequit-platform::paths` への移行タスク)
-static ENV_LOCK: Mutex<()> = Mutex::new(());
 
 #[test]
 fn test_config_manager_creation() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-
     // プロジェクトルール準拠のテストディレクトリを作成
     let test_dir = TestPathGenerator::generate_test_dir(file!(), "test_config_manager_creation");
-    std::fs::create_dir_all(&test_dir).unwrap();
 
-    // SAFETY: ENV_LOCK により、環境変数を書き換えるテストは同時に 1 つしか
-    // 走らない。他のテストは HOME を読まないため、この区間の書き換えは安全。
-    unsafe {
-        env::set_var("HOME", test_dir);
-    }
-
-    let config_manager = SettingsManager::new();
+    let config_manager = SettingsManager::new(&test_dir);
     assert!(config_manager.is_ok());
+    assert_eq!(
+        config_manager.unwrap().get_settings_path(),
+        &test_dir.join("settings.yml")
+    );
 }
 
 #[test]

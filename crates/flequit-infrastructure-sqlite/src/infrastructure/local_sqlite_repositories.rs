@@ -44,12 +44,9 @@ pub struct LocalSqliteRepositories {
 }
 
 impl LocalSqliteRepositories {
-    /// 新しいSQLiteリポジトリ群を作成
-    pub async fn new() -> Result<Self, SQLiteError> {
-        // シングルトンのデータベースマネージャーを取得
-        let db_manager = DatabaseManager::instance().await?;
-
-        Ok(Self {
+    /// 指定されたデータベースマネージャーを共有するリポジトリ群を作成する。
+    pub fn new_with_manager(db_manager: Arc<RwLock<DatabaseManager>>) -> Self {
+        Self {
             db_manager: db_manager.clone(),
             projects: ProjectLocalSqliteRepository::new(db_manager.clone()),
             task_lists: TaskListLocalSqliteRepository::new(db_manager.clone()),
@@ -64,7 +61,15 @@ impl LocalSqliteRepositories {
             accounts: AccountLocalSqliteRepository::new(db_manager.clone()),
             users: UserLocalSqliteRepository::new(db_manager.clone()),
             tag_bookmarks: TagBookmarkLocalSqliteRepository::new(db_manager),
-        })
+        }
+    }
+
+    /// 新しいSQLiteリポジトリ群を作成
+    pub async fn new() -> Result<Self, SQLiteError> {
+        // シングルトンのデータベースマネージャーを取得
+        let db_manager = DatabaseManager::instance().await?;
+
+        Ok(Self::new_with_manager(db_manager))
     }
 
     /// デフォルト設定でリポジトリ群を設定

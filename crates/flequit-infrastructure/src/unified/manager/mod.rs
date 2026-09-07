@@ -8,11 +8,14 @@ mod recurrence_builders;
 mod tag_builders;
 mod task_builders;
 
+use std::sync::Arc;
+
+use tokio::sync::{Mutex, RwLock};
+
 use flequit_infrastructure_automerge::LocalAutomergeRepositories;
 use flequit_infrastructure_automerge::infrastructure::document_manager::DocumentManager;
+use flequit_infrastructure_sqlite::infrastructure::database_manager::DatabaseManager;
 use flequit_infrastructure_sqlite::infrastructure::local_sqlite_repositories::LocalSqliteRepositories;
-use std::sync::Arc;
-use tokio::sync::{Mutex, RwLock};
 
 use crate::unified::UnifiedConfig;
 
@@ -23,6 +26,7 @@ use crate::unified::UnifiedConfig;
 pub struct UnifiedManager {
     pub(super) config: UnifiedConfig,
     pub(super) sqlite_repositories: Option<Arc<RwLock<LocalSqliteRepositories>>>,
+    pub(super) shared_database_manager: Option<Arc<RwLock<DatabaseManager>>>,
     pub(super) automerge_repositories: Option<Arc<RwLock<LocalAutomergeRepositories>>>,
     /// 共有DocumentManager - Automerge Repoの重複を避けるため
     pub(super) shared_document_manager: Option<Arc<Mutex<DocumentManager>>>,
@@ -34,6 +38,7 @@ impl UnifiedManager {
         Self {
             config: UnifiedConfig::default(),
             sqlite_repositories: None,
+            shared_database_manager: None,
             automerge_repositories: None,
             shared_document_manager: None,
         }
@@ -46,6 +51,7 @@ impl UnifiedManager {
         let mut manager = Self {
             config: config.clone(),
             sqlite_repositories: None,
+            shared_database_manager: None,
             automerge_repositories: None,
             shared_document_manager: None,
         };
@@ -69,19 +75,33 @@ impl UnifiedManager {
     async fn initialize_backends(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         // SQLiteリポジトリの初期化
         if self.config.sqlite_search_enabled || self.config.sqlite_storage_enabled {
-            let sqlite_repos = LocalSqliteRepositories::setup().await?;
+            let db_manager = if let Some(database_path) = &self.config.database_path {
+                let database_path = database_path.to_str().ok_or_else(|| {
+                    format!("database path is not valid UTF-8: {database_path:?}")
+                })?;
+                Arc::new(RwLock::new(DatabaseManager::new_with_path(database_path)))
+            } else {
+                DatabaseManager::instance().await?
+            };
+            let sqlite_repos = LocalSqliteRepositories::new_with_manager(db_manager.clone());
+            self.shared_database_manager = Some(db_manager);
             self.sqlite_repositories = Some(Arc::new(RwLock::new(sqlite_repos)));
             tracing::info!("SQLiteリポジトリを初期化しました");
         } else {
             self.sqlite_repositories = None;
+            self.shared_database_manager = None;
             tracing::info!("SQLiteリポジトリを無効にしました");
         }
 
         // Automergeリポジトリの初期化
         if self.config.automerge_storage_enabled {
             // 共有DocumentManagerを初期化（SQLiteと同じディレクトリ構造を使用）
-            let base_path =
-                get_default_automerge_path().ok_or("Failed to get default Automerge path")?;
+            let base_path = self
+                .config
+                .automerge_path
+                .clone()
+                .or_else(get_default_automerge_path)
+                .ok_or("Failed to get default Automerge path")?;
 
             // ディレクトリが存在しない場合は作成
             if !base_path.exists() {
@@ -125,6 +145,14 @@ impl UnifiedManager {
     pub fn automerge_repositories(&self) -> Option<&Arc<RwLock<LocalAutomergeRepositories>>> {
         self.automerge_repositories.as_ref()
     }
+
+    pub(super) fn database_manager(
+        &self,
+    ) -> Result<Arc<RwLock<DatabaseManager>>, Box<dyn std::error::Error>> {
+        self.shared_database_manager
+            .clone()
+            .ok_or_else(|| "SQLite database manager is not initialized".into())
+    }
 }
 
 impl Default for UnifiedManager {
@@ -136,13 +164,6 @@ impl Default for UnifiedManager {
 /// デフォルトのAutomergeデータディレクトリパスを取得
 /// SQLiteと同じディレクトリ構造を使用: ~/.local/share/flequit/automerge/
 pub(super) fn get_default_automerge_path() -> Option<std::path::PathBuf> {
-    use std::env;
-
-    // 環境変数からAutomergeパスを取得
-    if let Ok(automerge_path) = env::var("FLEQUIT_AUTOMERGE_PATH") {
-        return Some(std::path::PathBuf::from(automerge_path));
-    }
-
     // SQLiteと同じベースディレクトリを使用
     if let Some(data_dir) = dirs::data_dir() {
         let app_data_dir = data_dir.join("flequit");
