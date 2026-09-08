@@ -16,109 +16,107 @@ export struct SelectOption {
     indicator-color: brush,
 }
 
-// A single-choice field that reveals its options below itself.
+// A single-choice field that opens its options in front of the form.
 //
 // Used where a row of buttons would eat a whole line of the form for a value
-// the user rarely changes. The list expands in place rather than floating, the
-// way `SearchComboBox` does: a floating popup is a separate window, so it falls
-// outside the form's scroll area and outside its accessibility tree.
+// the user rarely changes. The list is a `PopupWindow` so it floats above the
+// surrounding fields instead of pushing them down.
 //
 // The caller resolves the current option itself (`value-label` / `value-color`),
 // because .slint cannot look a model entry up by key.
-export component SelectField inherits VerticalLayout {
+export component SelectField inherits Rectangle {
     in property <[SelectOption]> options;
     // The currently selected `SelectOption.value`.
     in property <int> value;
     in property <string> value-label;
     in property <brush> value-color: transparent;
-    // Names the field itself for assistive technology, e.g. "Status".
+    // Names the field itself for assistive technology, e.g. "Change status".
     in property <string> label;
 
     callback selected(int /* value */);
 
-    private property <bool> open: false;
+    height: Layout.touch-target;
+    background: field-touch.has-hover ? Theme.surface-hover : Theme.surface;
+    border-radius: Theme.radius-sm;
+    border-width: 1px;
+    border-color: Theme.border;
+    forward-focus: key-focus;
+    accessible-role: combobox;
+    accessible-label: root.label;
+    accessible-value: root.value-label;
+    accessible-expandable: true;
+    accessible-action-default => { list-popup.show(); }
+    accessible-action-expand => { list-popup.show(); }
 
-    spacing: Theme.space-xs;
-    alignment: start;
+    HorizontalLayout {
+        padding-left: Theme.space-sm;
+        padding-right: Theme.space-sm;
+        spacing: Theme.space-sm;
 
-    field := Rectangle {
-        height: Layout.touch-target;
-        background: field-touch.has-hover ? Theme.surface-hover : Theme.surface;
-        border-radius: Theme.radius-sm;
-        border-width: 1px;
-        border-color: Theme.border;
-        forward-focus: key-focus;
-        accessible-role: combobox;
-        accessible-label: root.label;
-        accessible-value: root.value-label;
-        accessible-expandable: true;
-        accessible-expanded: root.open;
-        accessible-action-default => { root.open = !root.open; }
-        accessible-action-expand => { root.open = !root.open; }
-
-        HorizontalLayout {
-            padding-left: Theme.space-sm;
-            padding-right: Theme.space-sm;
-            spacing: Theme.space-sm;
-
-            Rectangle {
-                width: 4px;
-                height: 16px;
-                y: (parent.height - self.height) / 2;
-                border-radius: 2px;
-                background: root.value-color;
-            }
-
-            Text {
-                text: root.value-label;
-                color: Theme.text;
-                font-size: Theme.font-size-base;
-                vertical-alignment: center;
-                horizontal-stretch: 1;
-                overflow: elide;
-            }
-
-            Icon {
-                name: root.open ? IconName.chevron-up : IconName.chevron-down;
-                tint: Theme.text-muted;
-                y: (parent.height - self.height) / 2;
-            }
+        Rectangle {
+            width: 4px;
+            height: 16px;
+            y: (parent.height - self.height) / 2;
+            border-radius: 2px;
+            background: root.value-color;
         }
 
-        key-focus := FocusScope {
-            key-pressed(event) => {
-                if (event.text == " " || event.text == "\n") {
-                    root.open = !root.open;
-                    return accept;
-                }
-                if (event.text == Key.Escape && root.open) {
-                    root.open = false;
-                    return accept;
-                }
-                reject
-            }
+        Text {
+            text: root.value-label;
+            color: Theme.text;
+            font-size: Theme.font-size-base;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+            overflow: elide;
         }
 
-        if key-focus.has-focus: FocusRing {
-            radius: parent.border-radius;
-        }
-
-        field-touch := TouchArea {
-            clicked => {
-                key-focus.focus();
-                root.open = !root.open;
-            }
+        Icon {
+            name: IconName.chevron-down;
+            tint: Theme.text-muted;
+            y: (parent.height - self.height) / 2;
         }
     }
 
-    if root.open: Rectangle {
+    key-focus := FocusScope {
+        key-pressed(event) => {
+            if (event.text == " " || event.text == "\n") {
+                list-popup.show();
+                return accept;
+            }
+            reject
+        }
+    }
+
+    if key-focus.has-focus: FocusRing {
+        radius: root.border-radius;
+    }
+
+    field-touch := TouchArea {
+        clicked => {
+            key-focus.focus();
+            list-popup.show();
+        }
+    }
+
+    list-popup := PopupWindow {
+        x: 0;
+        y: root.height + Theme.space-xs;
+        width: root.width;
         height: root.options.length * Layout.touch-target + 2 * Theme.space-xs;
-        background: Theme.surface-raised;
-        border-radius: Theme.radius-sm;
-        border-width: 1px;
-        border-color: Theme.border;
+        close-policy: PopupClosePolicy.close-on-click-outside;
+
+        Rectangle {
+            width: 100%;
+            height: 100%;
+            background: Theme.surface-raised;
+            border-radius: Theme.radius-sm;
+            border-width: 1px;
+            border-color: Theme.border;
+        }
 
         VerticalLayout {
+            width: 100%;
+            height: 100%;
             padding: Theme.space-xs;
 
             for option in root.options: Rectangle {
@@ -153,7 +151,7 @@ export component SelectField inherits VerticalLayout {
 
                 option-touch := TouchArea {
                     clicked => {
-                        root.open = false;
+                        list-popup.close();
                         root.selected(option.value);
                     }
                 }

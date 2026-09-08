@@ -6,7 +6,8 @@ use super::worker::SettingsQueue;
 use crate::adapters::datetime::{
     DateTimeDisplaySettings, DateTimeParts, from_display_parts, try_format,
 };
-use crate::bindings::{Actions, AppWindow};
+use crate::adapters::datetime_input::parse_datetime_input;
+use crate::bindings::{Actions, AppWindow, ParsedDateTime};
 
 pub(super) fn built_in_formats() -> Vec<DateTimeFormatPreference> {
     vec![
@@ -159,6 +160,37 @@ pub(super) fn bind(window: &AppWindow, queue: &SettingsQueue) {
             .and_then(|datetime| try_format(&datetime, &display))
             .unwrap_or_default()
             .into()
+    });
+
+    actions.on_parse_datetime(|text, year, month, day, hour, minute| {
+        let reference = DateTimeParts {
+            year,
+            month,
+            day,
+            hour,
+            minute,
+        };
+
+        parse_datetime_input(text.as_str(), reference).map_or_else(
+            || ParsedDateTime {
+                valid: false,
+                year,
+                month,
+                day,
+                hour,
+                minute,
+                has_time: false,
+            },
+            |parsed| ParsedDateTime {
+                valid: true,
+                year: parsed.year,
+                month: parsed.month,
+                day: parsed.day,
+                hour: parsed.hour,
+                minute: parsed.minute,
+                has_time: parsed.has_time,
+            },
+        )
     });
 }
 

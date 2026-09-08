@@ -1,51 +1,73 @@
+import { LineEdit, SpinBox } from "std-widgets.slint";
 import { Theme } from "../globals/theme.slint";
 import { Layout } from "../globals/layout.slint";
+import { Actions } from "../globals/actions.slint";
 import { SettingsState } from "../globals/settings.slint";
 import { I18n } from "../globals/i18n.slint";
+import { ParsedDateTime } from "../globals/types.slint";
+import { DialogButton } from "dialog-button.slint";
 import { IconButton } from "icon-button.slint";
 import { IconName } from "icon.slint";
 
-// A month grid the user picks a day from.
+// Picks a date, and optionally a time, either by typing or from a month grid.
 //
-// Replaces `std-widgets`' `DatePickerPopup`, whose month arrows are built from
-// an internal icon button with a 48px minimum around a 12px glyph, so they end
-// up far taller than the row they sit in. Owning the grid also lets the first
-// column follow the week-start setting.
+// Replaces `std-widgets`' `DatePickerPopup`, which cannot be restyled from the
+// outside (its month arrows are an internal icon button with a 48px minimum
+// around a 12px glyph, so they stretch to the height of their row) and which
+// had to be chained into a second popup for the time of day.
 //
-// The caller sets `year` / `month` / `day`, bumps `open-token` and calls
-// `show()`; paging only moves `month-offset`, so the stored value is untouched
-// until a day is picked.
+// The caller sets `year` … `minute`, bumps `open-token` and calls `show()`.
+// A popup can only be driven from the enclosing component through `show()` and
+// `close()`, so the token is how the editor is rewound to the stored value on
+// every open. Nothing leaves the popup until `accepted` fires.
 export component CalendarPopup inherits PopupWindow {
     in property <string> title;
     in property <int> year: 2026;
     in property <int> month: 1;
     in property <int> day: 1;
-    // Bumped by the caller right before `show()`. A popup cannot be driven from
-    // the enclosing component by anything but `show()` / `close()`, so this is
-    // how paging is rewound to the stored month on every open.
+    in property <int> hour: 0;
+    in property <int> minute: 0;
+    // False where only a date is meaningful, such as the last date of a repeat
+    // rule.
+    in property <bool> with-time: true;
     in property <int> open-token;
 
-    callback accepted(int /* year */, int /* month */, int /* day */);
+    callback accepted(int /* year */, int /* month */, int /* day */,
+                      int /* hour */, int /* minute */);
 
-    // Months paged away from the stored one, so the grid follows `year` /
-    // `month` until the user steps through it.
+    // The value being edited. Kept apart from the `in` properties so paging the
+    // calendar or typing never writes back until the user confirms.
+    private property <int> edit-year: 2026;
+    private property <int> edit-month: 1;
+    private property <int> edit-day: 1;
+    private property <int> edit-hour: 0;
+    private property <int> edit-minute: 0;
+    // Months paged away from the one being edited.
     private property <int> month-offset: 0;
-    private property <int> display-index: root.year * 12 + root.month - 1 + root.month-offset;
-    private property <int> display-year: Math.floor(root.display-index / 12);
-    private property <int> display-month: Math.mod(root.display-index, 12) + 1;
-    private property <bool> monday-first: SettingsState.week-start == "monday";
 
+    private property <bool> monday-first: SettingsState.week-start == "monday";
     private property <length> cell-size: Layout.touch-target;
     private property <length> title-height: Theme.font-size-base + 8px;
     private property <length> weekday-height: Theme.font-size-sm + 8px;
 
-    width: Math.max(7 * root.cell-size, 224px) + 2 * Theme.space-sm;
-    height: 2 * Theme.space-sm + 3 * Theme.space-xs
-        + root.title-height + Layout.touch-target + root.weekday-height
-        + 6 * root.cell-size;
+    width: Math.max(7 * root.cell-size, 260px) + 2 * Theme.space-sm;
+    // Seven stacked rows — title, text field, month header, weekday header,
+    // grid, footer — plus the optional time row.
+    height: 2 * Theme.space-sm + 5 * Theme.space-xs
+        + root.title-height + 3 * Layout.touch-target + root.weekday-height
+        + 6 * root.cell-size
+        + (root.with-time ? Layout.touch-target + Theme.space-xs : 0px);
     close-policy: PopupClosePolicy.close-on-click-outside;
 
-    changed open-token => { root.month-offset = 0; }
+    changed open-token => {
+        root.edit-year = root.year;
+        root.edit-month = root.month;
+        root.edit-day = root.day;
+        root.edit-hour = root.hour;
+        root.edit-minute = root.minute;
+        root.month-offset = 0;
+        typed.text = "";
+    }
 
     pure function leap-year(y: int) -> bool {
         return Math.mod(y, 4) == 0 && (Math.mod(y, 100) != 0 || Math.mod(y, 400) == 0);
@@ -75,6 +97,10 @@ export component CalendarPopup inherits PopupWindow {
             7);
     }
 
+    private property <int> display-index:
+        root.edit-year * 12 + root.edit-month - 1 + root.month-offset;
+    private property <int> display-year: Math.floor(root.display-index / 12);
+    private property <int> display-month: Math.mod(root.display-index, 12) + 1;
     // Empty cells before the first of the month.
     private property <int> lead-offset:
         Math.mod(root.first-weekday(root.display-year, root.display-month)
@@ -84,12 +110,30 @@ export component CalendarPopup inherits PopupWindow {
     private property <string> month-label:
         I18n.calendar-month-label(root.display-year, root.display-month);
 
-    function show-previous() {
-        root.month-offset -= 1;
+    // Applies what the user typed. Text that is not a date leaves the editor
+    // alone, which is the normal state halfway through typing one.
+    function apply(text: string) -> bool {
+        let parsed: ParsedDateTime = Actions.parse-datetime(text, root.edit-year, root.edit-month,
+                                                            root.edit-day, root.edit-hour,
+                                                            root.edit-minute);
+        if (!parsed.valid) {
+            return false;
+        }
+        root.edit-year = parsed.year;
+        root.edit-month = parsed.month;
+        root.edit-day = parsed.day;
+        if (parsed.has-time && root.with-time) {
+            root.edit-hour = parsed.hour;
+            root.edit-minute = parsed.minute;
+        }
+        root.month-offset = 0;
+        return true;
     }
 
-    function show-next() {
-        root.month-offset += 1;
+    function commit() {
+        root.close();
+        root.accepted(root.edit-year, root.edit-month, root.edit-day,
+                      root.edit-hour, root.edit-minute);
     }
 
     Rectangle {
@@ -116,6 +160,22 @@ export component CalendarPopup inherits PopupWindow {
             overflow: elide;
         }
 
+        typed := LineEdit {
+            height: Layout.touch-target;
+            placeholder-text: root.with-time
+                ? @tr("Calendar" => "2026/9/15 13:30")
+                : @tr("Calendar" => "2026/9/15");
+            accessible-label: root.with-time
+                ? @tr("Calendar" => "Type a date and time")
+                : @tr("Calendar" => "Type a date");
+            edited(text) => { root.apply(text); }
+            accepted(text) => {
+                if (root.apply(text)) {
+                    root.commit();
+                }
+            }
+        }
+
         HorizontalLayout {
             height: Layout.touch-target;
             spacing: Theme.space-xs;
@@ -123,7 +183,7 @@ export component CalendarPopup inherits PopupWindow {
             IconButton {
                 icon: IconName.chevron-left;
                 tooltip: @tr("Calendar" => "Previous month");
-                clicked => { root.show-previous(); }
+                clicked => { root.month-offset -= 1; }
             }
 
             Text {
@@ -139,7 +199,7 @@ export component CalendarPopup inherits PopupWindow {
             IconButton {
                 icon: IconName.chevron-right;
                 tooltip: @tr("Calendar" => "Next month");
-                clicked => { root.show-next(); }
+                clicked => { root.month-offset += 1; }
             }
         }
 
@@ -158,48 +218,109 @@ export component CalendarPopup inherits PopupWindow {
             }
         }
 
-        for week in 6: HorizontalLayout {
-            height: root.cell-size;
+        // One layout around the weeks, so the rows sit flush against each
+        // other and the popup's height only has to count this as a single row.
+        VerticalLayout {
+            height: 6 * root.cell-size;
 
-            for column in 7: Rectangle {
-                private property <int> day-number: week * 7 + column - root.lead-offset + 1;
-                private property <bool> in-month:
-                    self.day-number >= 1 && self.day-number <= root.display-length;
-                private property <bool> is-selected: self.in-month
-                    && self.day-number == root.day
-                    && root.display-month == root.month
-                    && root.display-year == root.year;
+            for week in 6: HorizontalLayout {
+                height: root.cell-size;
 
-                horizontal-stretch: 1;
-                border-radius: Theme.radius-sm;
-                background: self.is-selected ? Theme.surface-selected
-                    : (self.in-month && day-touch.has-hover) ? Theme.surface-hover
-                    : transparent;
+                for column in 7: Rectangle {
+                    private property <int> day-number: week * 7 + column - root.lead-offset + 1;
+                    private property <bool> in-month:
+                        self.day-number >= 1 && self.day-number <= root.display-length;
+                    private property <bool> is-selected: self.in-month
+                        && self.day-number == root.edit-day
+                        && root.display-month == root.edit-month
+                        && root.display-year == root.edit-year;
 
-                Text {
-                    text: parent.in-month ? "\{parent.day-number}" : "";
-                    color: Theme.text;
-                    font-size: Theme.font-size-base;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
-                    width: 100%;
-                    height: 100%;
-                }
+                    horizontal-stretch: 1;
+                    border-radius: Theme.radius-sm;
+                    background: self.is-selected ? Theme.surface-selected
+                        : (self.in-month && day-touch.has-hover) ? Theme.surface-hover
+                        : transparent;
 
-                day-touch := TouchArea {
-                    clicked => {
-                        if (parent.in-month) {
-                            root.close();
-                            root.accepted(root.display-year, root.display-month,
-                                          parent.day-number);
+                    Text {
+                        text: parent.in-month ? "\{parent.day-number}" : "";
+                        color: Theme.text;
+                        font-size: Theme.font-size-base;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        width: 100%;
+                        height: 100%;
+                    }
+
+                    day-touch := TouchArea {
+                        clicked => {
+                            if (parent.in-month) {
+                                root.edit-year = root.display-year;
+                                root.edit-month = root.display-month;
+                                root.edit-day = parent.day-number;
+                                root.month-offset = 0;
+                            }
                         }
                     }
+                    accessible-role: button;
+                    accessible-label: self.in-month
+                        ? @tr("Calendar" => "Day {0} of {1}", self.day-number, root.month-label)
+                        : "";
+                    accessible-action-default => { day-touch.clicked(); }
                 }
-                accessible-role: button;
-                accessible-label: self.in-month
-                    ? @tr("Calendar" => "Day {0} of {1}", self.day-number, root.month-label)
-                    : "";
-                accessible-action-default => { day-touch.clicked(); }
+            }
+        }
+
+        if root.with-time: HorizontalLayout {
+            height: Layout.touch-target;
+            spacing: Theme.space-xs;
+
+            Text {
+                text: @tr("Calendar" => "Time");
+                color: Theme.text-muted;
+                font-size: Theme.font-size-sm;
+                vertical-alignment: center;
+            }
+
+            SpinBox {
+                horizontal-stretch: 1;
+                value: root.edit-hour;
+                minimum: 0;
+                maximum: 23;
+                accessible-label: @tr("Calendar" => "Hour");
+                edited(value) => { root.edit-hour = value; }
+            }
+
+            Text {
+                text: ":";
+                color: Theme.text;
+                font-size: Theme.font-size-base;
+                vertical-alignment: center;
+            }
+
+            SpinBox {
+                horizontal-stretch: 1;
+                value: root.edit-minute;
+                minimum: 0;
+                maximum: 59;
+                accessible-label: @tr("Calendar" => "Minute");
+                edited(value) => { root.edit-minute = value; }
+            }
+        }
+
+        HorizontalLayout {
+            height: Layout.touch-target;
+            spacing: Theme.space-sm;
+            alignment: end;
+
+            DialogButton {
+                label: @tr("Calendar" => "Cancel");
+                clicked => { root.close(); }
+            }
+
+            DialogButton {
+                label: @tr("Calendar" => "OK");
+                primary: true;
+                clicked => { root.commit(); }
             }
         }
     }

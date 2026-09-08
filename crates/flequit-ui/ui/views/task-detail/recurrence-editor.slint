@@ -583,11 +583,12 @@ export component RecurrenceEditor inherits Rectangle {
     end-popup := CalendarPopup {
         title: @tr("Recurrence" => "Select the last date");
         open-token: root.end-open-count;
+        with-time: false;
         year: root.end-year;
         month: root.end-month;
         day: root.end-day;
 
-        accepted(year, month, day) => {
+        accepted(year, month, day, hour, minute) => {
             root.end-year = year;
             root.end-month = month;
             root.end-day = day;

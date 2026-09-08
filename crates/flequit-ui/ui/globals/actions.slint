@@ -3,8 +3,8 @@
 // Any interaction that persists data or runs domain logic goes through here.
 // Views must not mutate AppState for those cases.
 
-import { DueUnit, RecurrenceState, RecurrenceUnit, SettingsCategory, TaskPriority, TaskSort,
-         TaskStatus } from "types.slint";
+import { DueUnit, ParsedDateTime, RecurrenceState, RecurrenceUnit, SettingsCategory, TaskPriority,
+         TaskSort, TaskStatus } from "types.slint";
 import { ThemeMode } from "theme.slint";
 
 export global Actions {
@@ -120,6 +120,11 @@ export global Actions {
     pure callback datetime-format-index(string /* format */) -> int;
     pure callback preview-datetime(string /* format */, int /* year */, int /* month */,
                                    int /* day */, int /* hour */, int /* minute */) -> string;
+    // Reads a date, and optionally a time, out of what was typed into a picker.
+    // The reference parts fill in whatever the text leaves out.
+    pure callback parse-datetime(string /* text */, int /* year */, int /* month */,
+                                 int /* day */, int /* hour */,
+                                 int /* minute */) -> ParsedDateTime;
     callback refresh-datetime-display();
     callback update-theme-mode(ThemeMode /* mode */);
     callback update-font(string /* font */);

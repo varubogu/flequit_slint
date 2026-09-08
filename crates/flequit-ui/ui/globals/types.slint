@@ -98,6 +98,22 @@ export struct ReminderItem {
     label: string,
 }
 
+// What a hand-typed date resolved to.
+//
+// `valid` is false when the text does not describe a real date, which is the
+// normal state while the user is still typing. `has-time` says whether the text
+// carried a time of day at all, so a date-only entry keeps the time the picker
+// already held.
+export struct ParsedDateTime {
+    valid: bool,
+    year: int,
+    month: int,
+    day: int,
+    hour: int,
+    minute: int,
+    has-time: bool,
+}
+
 export struct SubTaskItem {
     id: string,
     task-id: string,

@@ -220,21 +220,22 @@ tail := FocusSentinel { wrapped => { head.focus(); } }
 
 ## PopupWindow の制約
 
-`PopupWindow` は独立したウィンドウとして開くため、次の制約がある。
+`PopupWindow` は独立したウィンドウとして開く。
+そのため**周囲のレイアウトを押し下げずに手前へ重なる**——選択肢リストや
+カレンダーはこれで実装する（`SelectField` / `CalendarPopup`）——一方で
+次の制約がある。
 
 - 外側のコンポーネントからは `show()` / `close()` しか呼べない。
   独自の `public function` の呼び出しやプロパティ代入は
   `Cannot access property or callback ... inside of a Window` になる
 - 中身は親ウィンドウのアクセシビリティツリーに現れないため、
-  `ElementHandle::find_by_accessible_label` から到達できずテストできない
+  `ElementHandle::find_by_accessible_label` から到達できない。
+  `tests/interaction.rs` から操作できるのは開くところまで
+- ポップアップの中からさらに別のポップアップを開く連鎖は避ける。
+  日付と時刻は 1 つの `CalendarPopup` で完結させている
 
-そのため**選択肢リストはポップアップにしない**。`SearchComboBox` /
-`SelectField` のようにその場で下方向へ展開する。
-
-月グリッドのように大きく、フォーム全体を押し下げてしまうものだけ
-`PopupWindow`（`components/calendar-popup.slint`）を使う。
-「開くたびに初期化したい」状態は呼び出し側で加算するトークンを
-`in property` で受け、`changed` ハンドラでリセットする。
+「開くたびに初期化したい」状態は、呼び出し側で加算するトークンを
+`in property <int> open-token` で受け、`changed` ハンドラでリセットする。
 
 `std-widgets` の `DatePickerPopup` は月送りボタンが内部で 48px の
 最小高さを持ち行の高さまで伸びるため使わない。

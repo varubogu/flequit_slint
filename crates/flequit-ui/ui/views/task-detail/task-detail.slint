@@ -166,7 +166,6 @@ export component TaskDetailView inherits Rectangle {
                             edit-label: @tr("TaskDetail" => "Edit start date");
                             clear-label: @tr("TaskDetail" => "Clear start date");
                             date-title: @tr("TaskDetail" => "Select start date");
-                            time-title: @tr("TaskDetail" => "Select start time");
                             accepted(year, month, day, hour, minute) => {
                                 Actions.update-task-start(root.task.id, year, month, day, hour, minute);
                             }
@@ -285,7 +284,6 @@ export component TaskDetailView inherits Rectangle {
                             minute: root.task.due-minute;
                             edit-label: @tr("TaskDetail" => "Add a reminder");
                             date-title: @tr("TaskDetail" => "Select reminder date");
-                            time-title: @tr("TaskDetail" => "Select reminder time");
                             accepted(year, month, day, hour, minute) => {
                                 Actions.add-reminder(root.task.id, year, month, day, hour, minute);
                             }
@@ -294,16 +292,12 @@ export component TaskDetailView inherits Rectangle {
 
                     HorizontalLayout {
                         spacing: Theme.space-sm;
-                        VerticalLayout {
+                        Text {
+                            text: @tr("TaskDetail" => "Status");
+                            color: Theme.text-muted;
+                            font-size: Theme.font-size-sm;
                             width: 80px;
-                            alignment: start;
-                            Text {
-                                height: Layout.touch-target;
-                                text: @tr("TaskDetail" => "Status");
-                                color: Theme.text-muted;
-                                font-size: Theme.font-size-sm;
-                                vertical-alignment: center;
-                            }
+                            vertical-alignment: center;
                         }
                         StatusSelect {
                             horizontal-stretch: 1;
@@ -317,16 +311,12 @@ export component TaskDetailView inherits Rectangle {
 
                     HorizontalLayout {
                         spacing: Theme.space-sm;
-                        VerticalLayout {
+                        Text {
+                            text: @tr("TaskDetail" => "Priority");
+                            color: Theme.text-muted;
+                            font-size: Theme.font-size-sm;
                             width: 80px;
-                            alignment: start;
-                            Text {
-                                height: Layout.touch-target;
-                                text: @tr("TaskDetail" => "Priority");
-                                color: Theme.text-muted;
-                                font-size: Theme.font-size-sm;
-                                vertical-alignment: center;
-                            }
+                            vertical-alignment: center;
                         }
                         PrioritySelect {
                             horizontal-stretch: 1;

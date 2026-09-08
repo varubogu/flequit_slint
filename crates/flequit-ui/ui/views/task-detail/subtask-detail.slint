@@ -105,16 +105,12 @@ export component SubTaskDetailView inherits Rectangle {
 
                 HorizontalLayout {
                     spacing: Theme.space-sm;
-                    VerticalLayout {
+                    Text {
+                        text: @tr("SubTaskDetail" => "Status");
+                        color: Theme.text-muted;
+                        font-size: Theme.font-size-sm;
                         width: 80px;
-                        alignment: start;
-                        Text {
-                            height: Layout.touch-target;
-                            text: @tr("SubTaskDetail" => "Status");
-                            color: Theme.text-muted;
-                            font-size: Theme.font-size-sm;
-                            vertical-alignment: center;
-                        }
+                        vertical-alignment: center;
                     }
                     StatusSelect {
                         horizontal-stretch: 1;
@@ -128,16 +124,12 @@ export component SubTaskDetailView inherits Rectangle {
 
                 HorizontalLayout {
                     spacing: Theme.space-sm;
-                    VerticalLayout {
+                    Text {
+                        text: @tr("SubTaskDetail" => "Priority");
+                        color: Theme.text-muted;
+                        font-size: Theme.font-size-sm;
                         width: 80px;
-                        alignment: start;
-                        Text {
-                            height: Layout.touch-target;
-                            text: @tr("SubTaskDetail" => "Priority");
-                            color: Theme.text-muted;
-                            font-size: Theme.font-size-sm;
-                            vertical-alignment: center;
-                        }
+                        vertical-alignment: center;
                     }
                     PrioritySelect {
                         horizontal-stretch: 1;
