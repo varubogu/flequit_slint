@@ -137,6 +137,7 @@ fn recurrence_state(task_id: &str) -> RecurrenceState {
         end_month: 9,
         end_day: 6,
         max_occurrences: 10,
+        preview_count: 5,
     }
 }
 

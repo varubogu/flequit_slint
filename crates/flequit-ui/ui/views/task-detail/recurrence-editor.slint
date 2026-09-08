@@ -75,6 +75,7 @@ export component RecurrenceEditor inherits Rectangle {
     property <int> end-month: AppState.recurrence.end-month;
     property <int> end-day: AppState.recurrence.end-day;
     property <int> max-occurrences: AppState.recurrence.max-occurrences;
+    property <int> preview-count: AppState.recurrence.preview-count;
     // Rewinds the calendar to the stored month every time it opens.
     property <int> end-open-count: 0;
 
@@ -112,6 +113,7 @@ export component RecurrenceEditor inherits Rectangle {
             end-month: root.end-month,
             end-day: root.end-day,
             max-occurrences: root.max-occurrences,
+            preview-count: root.preview-count,
         };
     }
 
@@ -228,6 +230,7 @@ export component RecurrenceEditor inherits Rectangle {
                     // Applying one fills in the unit and the interval only; the
                     // weekday and end conditions stay as the task had them.
                     if root.enabled && SettingsState.recurrence-presets.length > 0: VerticalLayout {
+                        vertical-stretch: 0;
                         spacing: Theme.space-sm;
                         Text {
                             text: @tr("Recurrence" => "Presets");
@@ -249,10 +252,15 @@ export component RecurrenceEditor inherits Rectangle {
                     }
 
                     if root.enabled: VerticalLayout {
+                        // Keep every section at its intrinsic height. Otherwise the
+                        // viewport redistributes spare height when an end-condition
+                        // control appears, which makes the sections above it jump.
+                        vertical-stretch: 0;
                         spacing: Theme.space-md;
 
                         // --- How often ---
                         VerticalLayout {
+                            vertical-stretch: 0;
                             spacing: Theme.space-sm;
                             Text {
                                 text: @tr("Recurrence" => "How often");
@@ -333,6 +341,7 @@ export component RecurrenceEditor inherits Rectangle {
 
                         // --- Weekly: which weekdays ---
                         if root.weekly: VerticalLayout {
+                            vertical-stretch: 0;
                             spacing: Theme.space-sm;
                             Text {
                                 text: @tr("Recurrence" => "On these days");
@@ -352,6 +361,7 @@ export component RecurrenceEditor inherits Rectangle {
 
                         // --- Monthly and longer: which day of the period ---
                         if root.monthly: VerticalLayout {
+                            vertical-stretch: 0;
                             spacing: Theme.space-sm;
                             Text {
                                 text: @tr("Recurrence" => "Which day");
@@ -452,6 +462,7 @@ export component RecurrenceEditor inherits Rectangle {
 
                         // --- Termination ---
                         VerticalLayout {
+                            vertical-stretch: 0;
                             spacing: Theme.space-sm;
                             Text {
                                 text: @tr("Recurrence" => "Ends");
@@ -522,11 +533,34 @@ export component RecurrenceEditor inherits Rectangle {
 
                         // --- Preview ---
                         VerticalLayout {
+                            vertical-stretch: 0;
                             spacing: Theme.space-xs;
                             Text {
                                 text: @tr("Recurrence" => "Next dates");
                                 color: Theme.text-muted;
                                 font-size: Theme.font-size-sm;
+                            }
+
+                            if root.end-kind == RecurrenceEnd.never: HorizontalLayout {
+                                vertical-stretch: 0;
+                                spacing: Theme.space-sm;
+                                Text {
+                                    text: @tr("Recurrence" => "Preview count");
+                                    color: Theme.text;
+                                    font-size: Theme.font-size-base;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 1;
+                                }
+                                SpinBox {
+                                    value: root.preview-count;
+                                    minimum: 1;
+                                    maximum: 999;
+                                    accessible-label: @tr("Recurrence" => "Preview count");
+                                    edited(value) => {
+                                        root.preview-count = value;
+                                        root.changed();
+                                    }
+                                }
                             }
 
                             if AppState.recurrence-preview.length == 0: Text {

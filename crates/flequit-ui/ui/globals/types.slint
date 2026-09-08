@@ -62,6 +62,8 @@ export struct RecurrenceState {
     end-month: int,
     end-day: int,
     max-occurrences: int,
+    // Used only when the rule has no end; finite rules preview every remaining date.
+    preview-count: int,
 }
 
 export struct DateTimeFormatSetting {

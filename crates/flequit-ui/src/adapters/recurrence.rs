@@ -19,6 +19,9 @@ use crate::bindings::{
 /// How many times a new rule repeats before the editor's count field kicks in.
 const DEFAULT_MAX_OCCURRENCES: i32 = 10;
 
+/// How many future dates an endless rule initially shows.
+const DEFAULT_PREVIEW_COUNT: i32 = 5;
+
 /// Maps the domain period to its UI counterpart.
 pub fn to_unit(unit: &DomainUnit) -> RecurrenceUnit {
     match unit {
@@ -161,6 +164,7 @@ pub fn to_recurrence_state(
             .and_then(|rule| rule.max_occurrences)
             .unwrap_or(DEFAULT_MAX_OCCURRENCES)
             .max(1),
+        preview_count: DEFAULT_PREVIEW_COUNT,
     }
 }
 
@@ -248,6 +252,7 @@ mod tests {
         assert_eq!(state.interval, 1);
         assert_eq!(state.day_of_month, 6);
         assert_eq!(state.max_occurrences, DEFAULT_MAX_OCCURRENCES);
+        assert_eq!(state.preview_count, DEFAULT_PREVIEW_COUNT);
         assert_eq!(state.end_kind, RecurrenceEnd::Never);
     }
 

@@ -21,6 +21,21 @@ use crate::bindings::{RecurrenceEnd, RecurrenceMonthlyMode, RecurrenceState, Rec
 /// The largest interval the editor accepts, matching the spin box.
 const MAX_INTERVAL: i32 = 999;
 
+/// The preview count uses the same bounds as the editor's spin box.
+const MAX_PREVIEW_COUNT: i32 = 999;
+
+/// Chooses how many dates the occurrence expander may return.
+///
+/// Endless rules use the explicit preview count. A finite rule has its own
+/// natural bound, so it is allowed to return every date through that bound.
+pub fn preview_limit(rule: &RecurrenceRule, requested: i32) -> usize {
+    if rule.end_date.is_some() || rule.max_occurrences.is_some() {
+        usize::MAX
+    } else {
+        requested.clamp(1, MAX_PREVIEW_COUNT) as usize
+    }
+}
+
 /// The rule the editor's working copy describes.
 ///
 /// `None` when the task should not repeat, which the caller turns into a
@@ -236,6 +251,27 @@ mod tests {
         let rule = rule_from_state(&draft, None, DisplayTimezone::Utc, UserId::new()).unwrap();
 
         assert_eq!(rule.interval, 1);
+    }
+
+    #[test]
+    fn only_an_endless_rule_uses_the_requested_preview_count() {
+        let user_id = UserId::new();
+        let endless = rule_from_state(&state(), None, DisplayTimezone::Utc, user_id).unwrap();
+        assert_eq!(preview_limit(&endless, 7), 7);
+
+        let mut counted_state = state();
+        counted_state.end_kind = RecurrenceEnd::AfterCount;
+        counted_state.max_occurrences = 12;
+        let counted = rule_from_state(&counted_state, None, DisplayTimezone::Utc, user_id).unwrap();
+        assert_eq!(preview_limit(&counted, 7), usize::MAX);
+
+        let mut dated_state = state();
+        dated_state.end_kind = RecurrenceEnd::OnDate;
+        dated_state.end_year = 2026;
+        dated_state.end_month = 12;
+        dated_state.end_day = 31;
+        let dated = rule_from_state(&dated_state, None, DisplayTimezone::Utc, user_id).unwrap();
+        assert_eq!(preview_limit(&dated, 7), usize::MAX);
     }
 
     #[test]

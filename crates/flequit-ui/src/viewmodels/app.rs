@@ -62,7 +62,7 @@ use crate::bindings::{
 use crate::viewmodels::TaskListUiViewModel;
 use crate::viewmodels::ordering;
 use crate::viewmodels::project_editor;
-use crate::viewmodels::recurrence::{occurrence, rule_from_state};
+use crate::viewmodels::recurrence::{occurrence, preview_limit, rule_from_state};
 use crate::viewmodels::reload_gate::ReloadGate;
 use crate::viewmodels::search::{
     DueKeyword, SearchQuery, SubTaskCandidate, SuggestionKind, SuggestionSources, TaskCandidate,
@@ -70,9 +70,6 @@ use crate::viewmodels::search::{
 };
 use crate::viewmodels::settings::{SettingsStore, SettingsViewModel, UserSettings};
 use crate::viewmodels::tag_editor;
-
-/// How many upcoming dates the repeat editor previews.
-const RECURRENCE_PREVIEW_LENGTH: usize = 5;
 
 const HELP_URL: &str = "https://github.com/varubogu/flequit_slint";
 
@@ -1965,13 +1962,17 @@ where
                 // from, so the preview starts from now.
                 let anchor = due.unwrap_or_else(Utc::now);
                 let app_state = window.global::<AppState>();
-                app_state.set_recurrence(to_recurrence_state(
-                    task_id.as_str(),
+                let recurrence =
+                    to_recurrence_state(task_id.as_str(), rule.as_ref(), &anchor, display.timezone);
+                let preview_count = recurrence.preview_count;
+                app_state.set_recurrence(recurrence);
+                publish_recurrence_preview(
+                    &window,
                     rule.as_ref(),
                     &anchor,
-                    display.timezone,
-                ));
-                publish_recurrence_preview(&window, rule.as_ref(), &anchor, &display);
+                    &display,
+                    preview_count,
+                );
                 app_state.set_recurrence_open(true);
             });
         }
@@ -2011,7 +2012,13 @@ where
                     display.timezone,
                     user_id.unwrap_or_else(UserId::new),
                 );
-                publish_recurrence_preview(&window, rule.as_ref(), &anchor, &display);
+                publish_recurrence_preview(
+                    &window,
+                    rule.as_ref(),
+                    &anchor,
+                    &display,
+                    draft.preview_count,
+                );
             });
         }
 
@@ -3821,10 +3828,16 @@ fn publish_recurrence_preview(
     rule: Option<&RecurrenceRule>,
     anchor: &DateTime<Utc>,
     display: &DateTimeDisplaySettings,
+    requested_count: i32,
 ) {
     let dates: Vec<SharedString> = rule
         .map(|rule| {
-            occurrence::next_occurrences(rule, anchor, display.timezone, RECURRENCE_PREVIEW_LENGTH)
+            occurrence::next_occurrences(
+                rule,
+                anchor,
+                display.timezone,
+                preview_limit(rule, requested_count),
+            )
         })
         .unwrap_or_default()
         .iter()

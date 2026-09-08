@@ -578,6 +578,11 @@ msgctxt "Recurrence"
 msgid "Next dates"
 msgstr ""
 
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint
+msgctxt "Recurrence"
+msgid "Preview count"
+msgstr ""
+
 #: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:518
 msgctxt "Recurrence"
 msgid "This schedule has no upcoming dates."
