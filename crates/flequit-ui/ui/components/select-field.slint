@@ -1,0 +1,166 @@
+import { Theme } from "../globals/theme.slint";
+import { Layout } from "../globals/layout.slint";
+import { FocusRing } from "focus-ring.slint";
+import { Icon, IconName } from "icon.slint";
+
+// One entry of a `SelectField` list.
+//
+// `value` is an opaque tag the caller chose; the field never interprets it, so
+// an enum-backed caller maps it back on the way out.
+export struct SelectOption {
+    value: int,
+    label: string,
+    // What assistive technology reads, e.g. "Set status to Waiting": the label
+    // alone does not say what picking it does.
+    action-label: string,
+    indicator-color: brush,
+}
+
+// A single-choice field that reveals its options below itself.
+//
+// Used where a row of buttons would eat a whole line of the form for a value
+// the user rarely changes. The list expands in place rather than floating, the
+// way `SearchComboBox` does: a floating popup is a separate window, so it falls
+// outside the form's scroll area and outside its accessibility tree.
+//
+// The caller resolves the current option itself (`value-label` / `value-color`),
+// because .slint cannot look a model entry up by key.
+export component SelectField inherits VerticalLayout {
+    in property <[SelectOption]> options;
+    // The currently selected `SelectOption.value`.
+    in property <int> value;
+    in property <string> value-label;
+    in property <brush> value-color: transparent;
+    // Names the field itself for assistive technology, e.g. "Status".
+    in property <string> label;
+
+    callback selected(int /* value */);
+
+    private property <bool> open: false;
+
+    spacing: Theme.space-xs;
+    alignment: start;
+
+    field := Rectangle {
+        height: Layout.touch-target;
+        background: field-touch.has-hover ? Theme.surface-hover : Theme.surface;
+        border-radius: Theme.radius-sm;
+        border-width: 1px;
+        border-color: Theme.border;
+        forward-focus: key-focus;
+        accessible-role: combobox;
+        accessible-label: root.label;
+        accessible-value: root.value-label;
+        accessible-expandable: true;
+        accessible-expanded: root.open;
+        accessible-action-default => { root.open = !root.open; }
+        accessible-action-expand => { root.open = !root.open; }
+
+        HorizontalLayout {
+            padding-left: Theme.space-sm;
+            padding-right: Theme.space-sm;
+            spacing: Theme.space-sm;
+
+            Rectangle {
+                width: 4px;
+                height: 16px;
+                y: (parent.height - self.height) / 2;
+                border-radius: 2px;
+                background: root.value-color;
+            }
+
+            Text {
+                text: root.value-label;
+                color: Theme.text;
+                font-size: Theme.font-size-base;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+                overflow: elide;
+            }
+
+            Icon {
+                name: root.open ? IconName.chevron-up : IconName.chevron-down;
+                tint: Theme.text-muted;
+                y: (parent.height - self.height) / 2;
+            }
+        }
+
+        key-focus := FocusScope {
+            key-pressed(event) => {
+                if (event.text == " " || event.text == "\n") {
+                    root.open = !root.open;
+                    return accept;
+                }
+                if (event.text == Key.Escape && root.open) {
+                    root.open = false;
+                    return accept;
+                }
+                reject
+            }
+        }
+
+        if key-focus.has-focus: FocusRing {
+            radius: parent.border-radius;
+        }
+
+        field-touch := TouchArea {
+            clicked => {
+                key-focus.focus();
+                root.open = !root.open;
+            }
+        }
+    }
+
+    if root.open: Rectangle {
+        height: root.options.length * Layout.touch-target + 2 * Theme.space-xs;
+        background: Theme.surface-raised;
+        border-radius: Theme.radius-sm;
+        border-width: 1px;
+        border-color: Theme.border;
+
+        VerticalLayout {
+            padding: Theme.space-xs;
+
+            for option in root.options: Rectangle {
+                height: Layout.touch-target;
+                border-radius: Theme.radius-sm;
+                background: option.value == root.value ? Theme.surface-selected
+                    : option-touch.has-hover ? Theme.surface-hover
+                    : transparent;
+
+                HorizontalLayout {
+                    padding-left: Theme.space-sm;
+                    padding-right: Theme.space-sm;
+                    spacing: Theme.space-sm;
+
+                    Rectangle {
+                        width: 4px;
+                        height: 16px;
+                        y: (parent.height - self.height) / 2;
+                        border-radius: 2px;
+                        background: option.indicator-color;
+                    }
+
+                    Text {
+                        text: option.label;
+                        color: Theme.text;
+                        font-size: Theme.font-size-base;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                        overflow: elide;
+                    }
+                }
+
+                option-touch := TouchArea {
+                    clicked => {
+                        root.open = false;
+                        root.selected(option.value);
+                    }
+                }
+                accessible-role: button;
+                accessible-label: option.action-label;
+                accessible-action-default => { option-touch.clicked(); }
+            }
+        }
+    }
+}
