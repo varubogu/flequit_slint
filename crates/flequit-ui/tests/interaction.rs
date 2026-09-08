@@ -309,6 +309,36 @@ fn adjust(window: &AppWindow, label: &str, forward: bool) -> bool {
     }
 }
 
+/// Resizes the real window and lets the shell publish the new width.
+///
+/// `Layout.window-width` follows `Window.width`, so setting the size is what a
+/// resize does; writing the global directly would leave the actual geometry at
+/// the default and put hit testing at coordinates the layout never used.
+fn resize(window: &AppWindow, width: f32, height: f32) {
+    window
+        .window()
+        .set_size(slint::LogicalSize::new(width, height));
+    settle();
+}
+
+/// Clicks the first control carrying `label` with a pointer press and release
+/// at the element's centre; reports whether such a control exists.
+///
+/// Unlike [`activate`], this goes through Slint's hit testing: the events land
+/// on whichever element is topmost at that point. A control that is covered by
+/// a modal scrim, or that has collapsed to zero size, therefore does not
+/// respond — which is the property these tests are for.
+fn click(window: &AppWindow, label: &str) -> bool {
+    match ElementHandle::find_by_accessible_label(window, label).next() {
+        Some(element) => {
+            element.mock_single_click(slint::platform::PointerEventButton::Left);
+            settle();
+            true
+        }
+        None => false,
+    }
+}
+
 fn selecting_a_project_reaches_its_handler() {
     let window = window_with_content();
     let seen = Rc::new(RefCell::new(Vec::<String>::new()));
@@ -992,8 +1022,13 @@ fn the_priority_editor_reaches_its_handler() {
     }
 
     assert!(
+        activate(&window, "Change priority"),
+        "the priority field is not reachable"
+    );
+    settle();
+    assert!(
         activate(&window, "Set priority to High"),
-        "the high-priority button is not reachable"
+        "the high-priority option is not reachable"
     );
     assert_eq!(
         seen.borrow().as_slice(),
@@ -1023,8 +1058,13 @@ fn the_status_editor_reaches_its_handler() {
     }
 
     assert!(
+        activate(&window, "Change status"),
+        "the status field is not reachable"
+    );
+    settle();
+    assert!(
         activate(&window, "Set status to In progress"),
-        "the in-progress status button is not reachable"
+        "the in-progress status option is not reachable"
     );
     assert_eq!(
         seen.borrow().as_slice(),
@@ -1553,7 +1593,12 @@ fn the_subtask_detail_pane_reaches_its_handlers() {
     }
 
     set_value(&window, "Subtask title", "Pick up rye bread");
+    assert!(activate(&window, "Change status"));
+    settle();
     assert!(activate(&window, "Set status to In progress"));
+    settle();
+    assert!(activate(&window, "Change priority"));
+    settle();
     assert!(activate(&window, "Set priority to High"));
     assert!(
         activate(&window, "Back to Buy milk"),
@@ -1864,6 +1909,154 @@ fn a_modal_keeps_keyboard_focus_inside_itself() {
     settle();
 }
 
+/// A pointer click has to reach the control it lands on.
+///
+/// Every other case here activates controls through the accessibility tree,
+/// which addresses an element directly and so cannot see geometry at all: a
+/// control of zero size, or one buried under another `TouchArea`, passes those
+/// tests and is still dead to the mouse. These cases send real pointer events
+/// at the element's own centre instead, so the result depends on hit testing.
+fn a_pointer_click_reaches_the_control_under_it() {
+    let window = window_with_content();
+    resize(&window, 1200.0, 800.0);
+    let seen = Rc::new(RefCell::new(Vec::<String>::new()));
+    {
+        let seen = Rc::clone(&seen);
+        window
+            .global::<Actions>()
+            .on_select_project(move |id| seen.borrow_mut().push(id.to_string()));
+    }
+
+    assert!(
+        click(&window, "My Tasks"),
+        "the project row is not in the element tree"
+    );
+    assert_eq!(
+        seen.borrow().as_slice(),
+        ["p1"],
+        "the project row does not respond to a click at its own centre"
+    );
+}
+
+/// An open modal has to swallow the clicks aimed at what it covers.
+///
+/// The project editor is a small card in the middle of the window, so the
+/// sidebar rows it covers are covered by its scrim alone — nothing else is
+/// between them and the pointer. The shell keeps its `TouchArea`s while a
+/// dialog is open, and Slint delivers a press to whatever is topmost, so a
+/// scrim that lost its `TouchArea` would let the click through. It would still
+/// look right and still trap the keyboard: only a pointer test notices.
+fn an_open_dialog_absorbs_clicks_meant_for_the_shell() {
+    let window = window_with_content();
+    resize(&window, 1200.0, 800.0);
+    let selected = Rc::new(RefCell::new(Vec::<String>::new()));
+    {
+        let selected = Rc::clone(&selected);
+        window
+            .global::<Actions>()
+            .on_select_project(move |id| selected.borrow_mut().push(id.to_string()));
+    }
+
+    // Positive control: the row reacts to a click, so the assertion after the
+    // dialog opens can fail.
+    assert!(
+        click(&window, "My Tasks"),
+        "the project row is not reachable"
+    );
+    assert_eq!(selected.borrow().as_slice(), ["p1"]);
+    selected.borrow_mut().clear();
+
+    assert!(activate(&window, "New project"), "the editor does not open");
+    settle();
+
+    assert!(
+        click(&window, "My Tasks"),
+        "the project row left the element tree while the dialog was open"
+    );
+    assert!(
+        selected.borrow().is_empty(),
+        "a click passed through the dialog scrim and selected a project"
+    );
+
+    // The dialog's own controls must still be clickable, or the assertion above
+    // would also hold for a dialog that swallows every click including its own.
+    assert!(
+        click(&window, "Cancel"),
+        "the dialog's cancel button is not reachable"
+    );
+    assert!(
+        !window.global::<AppState>().get_editor_open(),
+        "the cancel button does not respond to a click"
+    );
+}
+
+/// The compact sidebar is an overlay, so it has to cover the pane behind it.
+///
+/// It is drawn over the task list rather than beside it, and only its scrim
+/// keeps a tap meant for the sidebar from reaching a task row underneath.
+fn the_compact_sidebar_overlay_covers_the_task_list() {
+    let window = window_with_content();
+    resize(&window, 480.0, 800.0);
+    let selected = Rc::new(RefCell::new(Vec::<String>::new()));
+    {
+        let selected = Rc::clone(&selected);
+        window
+            .global::<Actions>()
+            .on_select_task(move |id| selected.borrow_mut().push(id.to_string()));
+    }
+
+    // Positive control: with the overlay closed the row is clickable, so the
+    // assertion after it can fail.
+    assert!(click(&window, "Buy milk"), "the task row is not reachable");
+    assert_eq!(
+        selected.borrow().as_slice(),
+        ["t1"],
+        "the compact task row does not respond to a tap"
+    );
+    selected.borrow_mut().clear();
+
+    window.global::<AppState>().set_sidebar_open(true);
+    settle();
+
+    assert!(click(&window, "Buy milk"), "the task row left the tree");
+    assert!(
+        selected.borrow().is_empty(),
+        "a tap passed through the sidebar overlay and selected a task"
+    );
+
+    window.global::<AppState>().set_sidebar_open(false);
+    settle();
+}
+
+/// The loading veil has to swallow input, not merely dim the shell.
+///
+/// It goes up while a reload is in flight, when the models behind the rows are
+/// about to be replaced; a click that gets through addresses a row that is on
+/// its way out.
+fn the_loading_veil_swallows_clicks() {
+    let window = window_with_content();
+    resize(&window, 1200.0, 800.0);
+    let seen = Rc::new(RefCell::new(Vec::<String>::new()));
+    {
+        let seen = Rc::clone(&seen);
+        window
+            .global::<Actions>()
+            .on_select_project(move |id| seen.borrow_mut().push(id.to_string()));
+    }
+
+    window.global::<AppState>().set_loading(true);
+    settle();
+
+    assert!(
+        click(&window, "My Tasks"),
+        "the project row left the element tree while loading"
+    );
+    assert!(
+        seen.borrow().is_empty(),
+        "a click passed through the loading veil"
+    );
+}
+
 /// Growing the task list must not grow what the UI builds.
 ///
 /// The pane is a `ListView`, which instantiates only the rows inside its
@@ -1941,6 +2134,10 @@ fn the_shell_responds_to_user_actions() {
     recurrence_presets_reach_their_handlers();
     the_font_picker_lists_what_the_platform_reported();
     a_modal_keeps_keyboard_focus_inside_itself();
+    a_pointer_click_reaches_the_control_under_it();
+    an_open_dialog_absorbs_clicks_meant_for_the_shell();
+    the_compact_sidebar_overlay_covers_the_task_list();
+    the_loading_veil_swallows_clicks();
     a_long_task_list_only_instantiates_visible_rows();
 }
 

@@ -1789,3 +1789,98 @@ msgstr "タスクを検索"
 msgctxt "SearchSuggestion"
 msgid "Use search suggestion {0}"
 msgstr "検索候補 {0} を使用"
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:124
+msgctxt "Calendar"
+msgid "Previous month"
+msgstr "前の月"
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:140
+msgctxt "Calendar"
+msgid "Next month"
+msgstr "次の月"
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:198
+msgctxt "Calendar"
+msgid "Day {0} of {1}"
+msgstr "{1} {0}日"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:95
+msgctxt "Calendar"
+msgid "January {0}"
+msgstr "{0}年1月"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:96
+msgctxt "Calendar"
+msgid "February {0}"
+msgstr "{0}年2月"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:97
+msgctxt "Calendar"
+msgid "March {0}"
+msgstr "{0}年3月"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:98
+msgctxt "Calendar"
+msgid "April {0}"
+msgstr "{0}年4月"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:99
+msgctxt "Calendar"
+msgid "May {0}"
+msgstr "{0}年5月"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:100
+msgctxt "Calendar"
+msgid "June {0}"
+msgstr "{0}年6月"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:101
+msgctxt "Calendar"
+msgid "July {0}"
+msgstr "{0}年7月"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:102
+msgctxt "Calendar"
+msgid "August {0}"
+msgstr "{0}年8月"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:103
+msgctxt "Calendar"
+msgid "September {0}"
+msgstr "{0}年9月"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:104
+msgctxt "Calendar"
+msgid "October {0}"
+msgstr "{0}年10月"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:105
+msgctxt "Calendar"
+msgid "November {0}"
+msgstr "{0}年11月"
+
+#: crates/flequit-ui/ui/globals/i18n.slint:106
+msgctxt "Calendar"
+msgid "December {0}"
+msgstr "{0}年12月"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:306
+msgctxt "TaskDetail"
+msgid "Change status"
+msgstr "ステータスを変更"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:325
+msgctxt "TaskDetail"
+msgid "Change priority"
+msgstr "優先度を変更"
+
+#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:117
+msgctxt "SubTaskDetail"
+msgid "Change status"
+msgstr "ステータスを変更"
+
+#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:136
+msgctxt "SubTaskDetail"
+msgid "Change priority"
+msgstr "優先度を変更"

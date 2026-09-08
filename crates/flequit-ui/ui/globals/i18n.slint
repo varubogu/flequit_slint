@@ -86,6 +86,24 @@ export global I18n {
                 : @tr("Recurrence" => "Every {0} years", interval));
     }
 
+    // Heading of a calendar month grid. One sentence per month rather than a
+    // month name plus a year, because the order and the counting word differ
+    // between languages.
+    pure public function calendar-month-label(year: int, month: int) -> string {
+        return month == 1 ? @tr("Calendar" => "January {0}", year)
+            : month == 2 ? @tr("Calendar" => "February {0}", year)
+            : month == 3 ? @tr("Calendar" => "March {0}", year)
+            : month == 4 ? @tr("Calendar" => "April {0}", year)
+            : month == 5 ? @tr("Calendar" => "May {0}", year)
+            : month == 6 ? @tr("Calendar" => "June {0}", year)
+            : month == 7 ? @tr("Calendar" => "July {0}", year)
+            : month == 8 ? @tr("Calendar" => "August {0}", year)
+            : month == 9 ? @tr("Calendar" => "September {0}", year)
+            : month == 10 ? @tr("Calendar" => "October {0}", year)
+            : month == 11 ? @tr("Calendar" => "November {0}", year)
+            : @tr("Calendar" => "December {0}", year);
+    }
+
     // Weekday name for a zero-based index, Sunday first.
     pure public function weekday-label(index: int) -> string {
         return index == 0 ? @tr("Weekday" => "Sunday")

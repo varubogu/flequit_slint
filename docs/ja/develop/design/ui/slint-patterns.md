@@ -218,6 +218,27 @@ tail := FocusSentinel { wrapped => { head.focus(); } }
   `Err` を握りつぶさずログに残す
 - オーバーレイを追加したら、それを解除する経路が必ず存在することを確認する
 
+## PopupWindow の制約
+
+`PopupWindow` は独立したウィンドウとして開くため、次の制約がある。
+
+- 外側のコンポーネントからは `show()` / `close()` しか呼べない。
+  独自の `public function` の呼び出しやプロパティ代入は
+  `Cannot access property or callback ... inside of a Window` になる
+- 中身は親ウィンドウのアクセシビリティツリーに現れないため、
+  `ElementHandle::find_by_accessible_label` から到達できずテストできない
+
+そのため**選択肢リストはポップアップにしない**。`SearchComboBox` /
+`SelectField` のようにその場で下方向へ展開する。
+
+月グリッドのように大きく、フォーム全体を押し下げてしまうものだけ
+`PopupWindow`（`components/calendar-popup.slint`）を使う。
+「開くたびに初期化したい」状態は呼び出し側で加算するトークンを
+`in property` で受け、`changed` ハンドラでリセットする。
+
+`std-widgets` の `DatePickerPopup` は月送りボタンが内部で 48px の
+最小高さを持ち行の高さまで伸びるため使わない。
+
 ## アンチパターン
 
 - ❌ **`.slint` に業務ルールを書く**: 検索条件の解釈、繰り返しルールの計算などは ViewModel へ

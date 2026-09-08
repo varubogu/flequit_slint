@@ -4,11 +4,12 @@ import { Layout } from "../../globals/layout.slint";
 import { AppState } from "../../globals/app-state.slint";
 import { Actions } from "../../globals/actions.slint";
 import { Capabilities } from "../../globals/capabilities.slint";
-import { TaskItem, TaskPriority, TaskStatus } from "../../globals/types.slint";
+import { TaskItem } from "../../globals/types.slint";
 import { I18n } from "../../globals/i18n.slint";
 import { IconButton } from "../../components/icon-button.slint";
 import { DateTimePicker } from "../../components/date-time-picker.slint";
-import { ChoiceButton } from "../../components/choice-button.slint";
+import { StatusSelect } from "../../components/status-select.slint";
+import { PrioritySelect } from "../../components/priority-select.slint";
 import { Icon, IconName } from "../../components/icon.slint";
 
 
@@ -291,97 +292,48 @@ export component TaskDetailView inherits Rectangle {
                         }
                     }
 
-                    VerticalLayout {
+                    HorizontalLayout {
                         spacing: Theme.space-sm;
-                        Text {
-                            text: @tr("TaskDetail" => "Status");
-                            color: Theme.text-muted;
-                            font-size: Theme.font-size-sm;
-                        }
-
-                        HorizontalLayout {
-                            spacing: Theme.space-xs;
-
-                            ChoiceButton {
-                                label: @tr("Status" => "Not started");
-                                action-label: @tr("Status" => "Set status to {0}", self.label);
-                                indicator-color: Theme.text-muted;
-                                selected: root.task.status == TaskStatus.not-started;
-                                clicked => { Actions.update-task-status(root.task.id, TaskStatus.not-started); }
-                            }
-                            ChoiceButton {
-                                label: @tr("Status" => "In progress");
-                                action-label: @tr("Status" => "Set status to {0}", self.label);
-                                indicator-color: Theme.accent;
-                                selected: root.task.status == TaskStatus.in-progress;
-                                clicked => { Actions.update-task-status(root.task.id, TaskStatus.in-progress); }
+                        VerticalLayout {
+                            width: 80px;
+                            alignment: start;
+                            Text {
+                                height: Layout.touch-target;
+                                text: @tr("TaskDetail" => "Status");
+                                color: Theme.text-muted;
+                                font-size: Theme.font-size-sm;
+                                vertical-alignment: center;
                             }
                         }
-
-                        HorizontalLayout {
-                            spacing: Theme.space-xs;
-
-                            ChoiceButton {
-                                label: @tr("Status" => "Waiting");
-                                action-label: @tr("Status" => "Set status to {0}", self.label);
-                                indicator-color: Theme.warning;
-                                selected: root.task.status == TaskStatus.waiting;
-                                clicked => { Actions.update-task-status(root.task.id, TaskStatus.waiting); }
-                            }
-                            ChoiceButton {
-                                label: @tr("Status" => "Completed");
-                                action-label: @tr("Status" => "Set status to {0}", self.label);
-                                indicator-color: Theme.success;
-                                selected: root.task.status == TaskStatus.completed;
-                                clicked => { Actions.update-task-status(root.task.id, TaskStatus.completed); }
-                            }
-                            ChoiceButton {
-                                label: @tr("Status" => "Cancelled");
-                                action-label: @tr("Status" => "Set status to {0}", self.label);
-                                indicator-color: Theme.danger;
-                                selected: root.task.status == TaskStatus.cancelled;
-                                clicked => { Actions.update-task-status(root.task.id, TaskStatus.cancelled); }
+                        StatusSelect {
+                            horizontal-stretch: 1;
+                            label: @tr("TaskDetail" => "Change status");
+                            status: root.task.status;
+                            status-changed(value) => {
+                                Actions.update-task-status(root.task.id, value);
                             }
                         }
                     }
 
-                    VerticalLayout {
+                    HorizontalLayout {
                         spacing: Theme.space-sm;
-                        Text {
-                            text: @tr("TaskDetail" => "Priority");
-                            color: Theme.text-muted;
-                            font-size: Theme.font-size-sm;
+                        VerticalLayout {
+                            width: 80px;
+                            alignment: start;
+                            Text {
+                                height: Layout.touch-target;
+                                text: @tr("TaskDetail" => "Priority");
+                                color: Theme.text-muted;
+                                font-size: Theme.font-size-sm;
+                                vertical-alignment: center;
+                            }
                         }
-                        HorizontalLayout {
-                            spacing: Theme.space-xs;
-
-                            ChoiceButton {
-                                label: @tr("Priority" => "None");
-                                action-label: @tr("Priority" => "Set priority to {0}", self.label);
-                                indicator-color: transparent;
-                                selected: root.task.priority == TaskPriority.none;
-                                clicked => { Actions.update-task-priority(root.task.id, TaskPriority.none); }
-                            }
-                            ChoiceButton {
-                                label: @tr("Priority" => "Low");
-                                action-label: @tr("Priority" => "Set priority to {0}", self.label);
-                                indicator-color: Theme.priority-low;
-                                selected: root.task.priority == TaskPriority.low;
-                                clicked => { Actions.update-task-priority(root.task.id, TaskPriority.low); }
-                            }
-                            ChoiceButton {
-                                label: @tr("Priority" => "Medium");
-                                action-label: @tr("Priority" => "Set priority to {0}", self.label);
-                                indicator-color: Theme.priority-medium;
-                                selected: root.task.priority == TaskPriority.medium;
-                                clicked => { Actions.update-task-priority(root.task.id, TaskPriority.medium); }
-                            }
-                            ChoiceButton {
-                                label: @tr("Priority" => "High");
-                                action-label: @tr("Priority" => "Set priority to {0}", self.label);
-                                indicator-color: Theme.priority-high;
-                                selected: root.task.priority == TaskPriority.high;
-                                clicked => { Actions.update-task-priority(root.task.id, TaskPriority.high); }
+                        PrioritySelect {
+                            horizontal-stretch: 1;
+                            label: @tr("TaskDetail" => "Change priority");
+                            priority: root.task.priority;
+                            priority-changed(value) => {
+                                Actions.update-task-priority(root.task.id, value);
                             }
                         }
                     }

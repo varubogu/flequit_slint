@@ -113,16 +113,20 @@ ViewModel の単体テストは「ハンドラが正しく動くか」しか見�
 | 項目 | 内容 |
 | --- | --- |
 | バックエンド | `i-slint-backend-testing` の `init_no_event_loop()` |
-| 操作の注入 | アクセシビリティツリー経由（`ElementHandle::find_by_accessible_label` → `invoke_accessible_default_action`） |
+| 操作の注入（既定） | アクセシビリティツリー経由（`ElementHandle::find_by_accessible_label` → `invoke_accessible_default_action`） |
+| 操作の注入（ヒットテスト） | `ElementHandle::mock_single_click` / `mock_drag` / `scroll`。要素の中心に実際のポインタイベントを飛ばす |
 | 前提 | 対象要素に `accessible-role` と `accessible-action-default` があること |
 
 ### 制約（回避不能なので設計に織り込む）
 
-1. **マウスイベント注入は使えない**
-   `send_mouse_click` は `i-slint-backend-testing` の `internal` フィーチャ配下にあり、
-   公開版はビルドできない（Slint リポジトリ内のパスを `include_dir!` している）。
-   そのためアクセシビリティ経由で駆動する。
-   結果として **ヒットテスト（要素の重なり）は自動検証できない**。
+1. **座標指定のマウス注入は使えない**
+   `send_mouse_click`（任意の座標へクリック）は `i-slint-backend-testing` の
+   `internal` フィーチャ配下にあり、公開版はビルドできない
+   （Slint リポジトリ内のパスを `include_dir!` している）。
+   ただし `ElementHandle::mock_single_click` は公開 API で、
+   **要素の中心** へ実際の `PointerPressed` / `PointerReleased` を送る。
+   ヒットテスト（重なり・z 順・つぶれた要素）はこちらで検証できる。
+   任意の座標を突きたい場合は `window().dispatch_event()` を直接呼ぶ。
 2. **Slint のバックエンドはプロセスに 1 つ**
    テストを並列実行するとウィンドウ生成が失敗する。
    全ケースを **1 つの `#[test]` 関数** にまとめる。
@@ -143,8 +147,28 @@ ViewModel の単体テストは「ハンドラが正しく動くか」しか見�
 - 期限フィルタ
 - タスク行の選択と完了トグル
 - 設定ボタン
+- ヒットテスト（下記）
 
 新しい操作を追加したら、このテストにもケースを追加する。
+
+### ヒットテストのケース
+
+アクセシビリティ経由の駆動は要素を直接指すので、**ジオメトリを一切見ない**。
+つぶれた要素も、他の `TouchArea` の下に埋まった要素もそのまま動いてしまう。
+そこで以下は `mock_single_click` で駆動し、結果をヒットテストに依存させる。
+
+| ケース | 見ていること |
+| --- | --- |
+| `a_pointer_click_reaches_the_control_under_it` | 素のクリックがその位置の要素に届く |
+| `an_open_dialog_absorbs_clicks_meant_for_the_shell` | ダイアログのスクリムが背後のクリックを飲む |
+| `the_compact_sidebar_overlay_covers_the_task_list` | compact のサイドバーオーバーレイが背後のタスク行を覆う |
+| `the_loading_veil_swallows_clicks` | 読み込み中のベールが入力を飲む |
+
+「飲む」側のケースは、対応する `TouchArea` を消すと落ちることを確認してある。
+消しても落ちないなら、そのケースは別の要素に覆われているだけで意味がない。
+中心が別ダイアログのカードに覆われる位置だと素通しになるため、
+背後のスクリムだけが覆う位置にある要素を選ぶこと
+（プロジェクト編集ダイアログは中央の小さなカードなので、サイドバーの行が使える）。
 
 ## 翻訳システムのテスト
 

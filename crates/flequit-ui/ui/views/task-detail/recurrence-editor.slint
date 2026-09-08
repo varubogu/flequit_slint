@@ -1,4 +1,4 @@
-import { CheckBox, DatePickerPopup, ScrollView, SpinBox } from "std-widgets.slint";
+import { CheckBox, ScrollView, SpinBox } from "std-widgets.slint";
 import { Theme } from "../../globals/theme.slint";
 import { Layout } from "../../globals/layout.slint";
 import { AppState } from "../../globals/app-state.slint";
@@ -7,6 +7,7 @@ import { I18n } from "../../globals/i18n.slint";
 import { SettingsState } from "../../globals/settings.slint";
 import { RecurrenceEnd, RecurrenceMonthlyMode, RecurrenceState, RecurrenceUnit,
          RecurrenceWeekOfMonth } from "../../globals/types.slint";
+import { CalendarPopup } from "../../components/calendar-popup.slint";
 import { DialogButton } from "../../components/dialog-button.slint";
 import { FocusSentinel } from "../../components/focus-sentinel.slint";
 
@@ -74,6 +75,8 @@ export component RecurrenceEditor inherits Rectangle {
     property <int> end-month: AppState.recurrence.end-month;
     property <int> end-day: AppState.recurrence.end-day;
     property <int> max-occurrences: AppState.recurrence.max-occurrences;
+    // Rewinds the calendar to the stored month every time it opens.
+    property <int> end-open-count: 0;
 
     // The task already repeats, so the editor can offer to stop it.
     property <bool> had-rule: AppState.recurrence.enabled;
@@ -495,7 +498,10 @@ export component RecurrenceEditor inherits Rectangle {
                                 }
 
                                 end-touch := TouchArea {
-                                    clicked => { end-popup.show(); }
+                                    clicked => {
+                                        root.end-open-count += 1;
+                                        end-popup.show();
+                                    }
                                 }
                                 accessible-role: button;
                                 accessible-label: @tr("Recurrence" => "Choose the last date");
@@ -574,14 +580,17 @@ export component RecurrenceEditor inherits Rectangle {
         }
     }
 
-    end-popup := DatePickerPopup {
+    end-popup := CalendarPopup {
         title: @tr("Recurrence" => "Select the last date");
-        date: { year: root.end-year, month: root.end-month, day: root.end-day };
+        open-token: root.end-open-count;
+        year: root.end-year;
+        month: root.end-month;
+        day: root.end-day;
 
-        accepted(date) => {
-            root.end-year = date.year;
-            root.end-month = date.month;
-            root.end-day = date.day;
+        accepted(year, month, day) => {
+            root.end-year = year;
+            root.end-month = month;
+            root.end-day = day;
             root.changed();
         }
     }
