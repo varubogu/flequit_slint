@@ -16,10 +16,11 @@ import { IconName } from "icon.slint";
 // around a 12px glyph, so they stretch to the height of their row) and which
 // had to be chained into a second popup for the time of day.
 //
-// The caller sets `year` … `minute`, bumps `open-token` and calls `show()`.
-// A popup can only be driven from the enclosing component through `show()` and
-// `close()`, so the token is how the editor is rewound to the stored value on
-// every open. Nothing leaves the popup until `accepted` fires.
+// The caller sets `year` … `minute`, calls `show()` and then bumps
+// `open-token`. A PopupWindow's internals do not exist for the enclosing
+// component until it is shown, so changing the token afterwards reliably
+// rewinds the editor to the stored value. Nothing leaves the popup until
+// `accepted` fires.
 export component CalendarPopup inherits PopupWindow {
     in property <string> title;
     in property <int> year: 2026;
@@ -50,7 +51,10 @@ export component CalendarPopup inherits PopupWindow {
     private property <length> title-height: Theme.font-size-base + 8px;
     private property <length> weekday-height: Theme.font-size-sm + 8px;
 
-    width: Math.max(7 * root.cell-size, 260px) + 2 * Theme.space-sm;
+    // Desktop touch targets are narrower than compact ones. Reserve enough
+    // width for both SpinBoxes even with longer translated time labels.
+    width: Math.max(7 * root.cell-size, root.with-time ? 340px : 260px)
+        + 2 * Theme.space-sm;
     // Seven stacked rows — title, text field, month header, weekday header,
     // grid, footer — plus the optional time row.
     height: 2 * Theme.space-sm + 5 * Theme.space-xs

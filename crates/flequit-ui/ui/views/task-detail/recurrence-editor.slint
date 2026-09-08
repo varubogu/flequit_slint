@@ -510,8 +510,8 @@ export component RecurrenceEditor inherits Rectangle {
 
                                 end-touch := TouchArea {
                                     clicked => {
-                                        root.end-open-count += 1;
                                         end-popup.show();
+                                        root.end-open-count += 1;
                                     }
                                 }
                                 accessible-role: button;

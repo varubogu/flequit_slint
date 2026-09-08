@@ -813,6 +813,21 @@ msgctxt "TaskDetail"
 msgid "Remove reminder {0}"
 msgstr "Remove reminder {0}"
 
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:281
+msgctxt "TaskDetail"
+msgid "30 minutes before start"
+msgstr "30 minutes before start"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:288
+msgctxt "TaskDetail"
+msgid "30 minutes before due"
+msgstr "30 minutes before due"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:296
+msgctxt "TaskDetail"
+msgid "Specific date and time (optional)"
+msgstr "Specific date and time (optional)"
+
 #: crates/flequit-ui/ui/views/task-detail/task-detail.slint:241
 msgctxt "TaskDetail"
 msgid "Add a reminder"

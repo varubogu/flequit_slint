@@ -968,10 +968,14 @@ fn reminder_controls_reach_their_handlers() {
     let window = window_with_content();
     window.global::<Capabilities>().set_local_notification(true);
     let state = window.global::<AppState>();
-    let task = state
+    let mut task = state
         .get_tasks()
         .row_data(0)
         .expect("the test task should exist");
+    task.has_start = true;
+    task.start_label = "2026-09-06 11:00".into();
+    task.has_due = true;
+    task.due_label = "2026-09-06 12:00".into();
     state.set_selected_task_id(task.id.clone());
     state.set_selected_task(task);
     state.set_has_selected_task(true);
@@ -988,11 +992,29 @@ fn reminder_controls_reach_their_handlers() {
             });
     }
 
+    let relative = Rc::new(RefCell::new(Vec::<(String, bool, i32)>::new()));
+    {
+        let relative = Rc::clone(&relative);
+        window.global::<Actions>().on_add_relative_reminder(
+            move |task_id, from_start, minutes_before| {
+                relative
+                    .borrow_mut()
+                    .push((task_id.to_string(), from_start, minutes_before));
+            },
+        );
+    }
+
     assert!(
         ElementHandle::find_by_accessible_label(&window, "Add a reminder")
             .next()
             .is_some(),
         "the add-reminder picker is not reachable"
+    );
+    assert!(activate(&window, "30 minutes before start"));
+    assert!(activate(&window, "30 minutes before due"));
+    assert_eq!(
+        relative.borrow().as_slice(),
+        [("t1".to_string(), true, 30), ("t1".to_string(), false, 30)]
     );
     assert!(activate(&window, "Remove reminder 2026-09-07 12:00"));
     assert_eq!(

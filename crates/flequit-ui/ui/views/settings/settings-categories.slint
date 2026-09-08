@@ -47,6 +47,8 @@ export component SettingsCategories inherits Rectangle {
         spacing: Theme.space-md;
 
         LineEdit {
+            height: Layout.touch-target;
+            vertical-stretch: 0;
             placeholder-text: @tr("Settings" => "Search settings");
             text: SettingsState.search-query;
             accessible-label: @tr("Settings" => "Search settings");

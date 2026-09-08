@@ -56,6 +56,8 @@ export global Actions {
     callback clear-recurrence(string /* task_id */);
 
     // --- Reminders ---
+    callback add-relative-reminder(string /* task_id */, bool /* from_start */,
+                                   int /* minutes_before */);
     callback add-reminder(string /* task_id */, int /* year */, int /* month */,
                           int /* day */, int /* hour */, int /* minute */);
     callback remove-reminder(string /* task_id */, string /* reminder_key */);

@@ -1,4 +1,5 @@
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use slint::{ComponentHandle, Weak};
 use tokio::runtime::Handle;
@@ -7,6 +8,8 @@ use tokio::sync::mpsc;
 use super::model::{SettingsModel, SettingsStore, UserSettings};
 use super::publisher;
 use crate::bindings::{AppState, AppWindow, I18n};
+
+const SAVE_DEBOUNCE: Duration = Duration::from_millis(500);
 
 struct SaveRequest {
     weak: Weak<AppWindow>,
@@ -29,7 +32,17 @@ impl SettingsQueue {
         let (sender, mut receiver) = mpsc::unbounded_channel::<SaveRequest>();
         let worker_model = Arc::clone(&model);
         runtime.spawn(async move {
-            while let Some(request) = receiver.recv().await {
+            while let Some(mut request) = receiver.recv().await {
+                loop {
+                    match tokio::time::timeout(SAVE_DEBOUNCE, receiver.recv()).await {
+                        Ok(Some(newer)) => request = newer,
+                        Ok(None) => {
+                            process_save_request(&worker_model, store.as_ref(), request).await;
+                            return;
+                        }
+                        Err(_) => break,
+                    }
+                }
                 process_save_request(&worker_model, store.as_ref(), request).await;
             }
         });

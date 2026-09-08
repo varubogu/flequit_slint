@@ -813,6 +813,21 @@ msgctxt "TaskDetail"
 msgid "Remove reminder {0}"
 msgstr "リマインダー「{0}」を削除"
 
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:281
+msgctxt "TaskDetail"
+msgid "30 minutes before start"
+msgstr "着手日時の30分前"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:288
+msgctxt "TaskDetail"
+msgid "30 minutes before due"
+msgstr "完了日時の30分前"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:296
+msgctxt "TaskDetail"
+msgid "Specific date and time (optional)"
+msgstr "日時を直接指定（オプション）"
+
 #: crates/flequit-ui/ui/views/task-detail/task-detail.slint:241
 msgctxt "TaskDetail"
 msgid "Add a reminder"

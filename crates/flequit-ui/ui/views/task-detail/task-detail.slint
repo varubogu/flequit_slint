@@ -8,6 +8,7 @@ import { TaskItem } from "../../globals/types.slint";
 import { I18n } from "../../globals/i18n.slint";
 import { IconButton } from "../../components/icon-button.slint";
 import { DateTimePicker } from "../../components/date-time-picker.slint";
+import { DialogButton } from "../../components/dialog-button.slint";
 import { StatusSelect } from "../../components/status-select.slint";
 import { PrioritySelect } from "../../components/priority-select.slint";
 import { Icon, IconName } from "../../components/icon.slint";
@@ -271,6 +272,26 @@ export component TaskDetailView inherits Rectangle {
                                     clicked => { Actions.remove-reminder(root.task.id, reminder.key); }
                                 }
                             }
+                        }
+
+                        if root.task.has-start: DialogButton {
+                            label: @tr("TaskDetail" => "30 minutes before start");
+                            clicked => {
+                                Actions.add-relative-reminder(root.task.id, true, 30);
+                            }
+                        }
+
+                        if root.task.has-due: DialogButton {
+                            label: @tr("TaskDetail" => "30 minutes before due");
+                            clicked => {
+                                Actions.add-relative-reminder(root.task.id, false, 30);
+                            }
+                        }
+
+                        Text {
+                            text: @tr("TaskDetail" => "Specific date and time (optional)");
+                            color: Theme.text-muted;
+                            font-size: Theme.font-size-sm;
                         }
 
                         DateTimePicker {

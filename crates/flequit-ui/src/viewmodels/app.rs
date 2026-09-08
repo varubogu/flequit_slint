@@ -72,6 +72,48 @@ use crate::viewmodels::settings::{SettingsStore, SettingsViewModel, UserSettings
 use crate::viewmodels::tag_editor;
 
 const HELP_URL: &str = "https://github.com/varubogu/flequit_slint";
+const TEXT_SAVE_DEBOUNCE: Duration = Duration::from_millis(500);
+
+#[derive(Debug)]
+struct PendingEdit<S> {
+    revision: u64,
+    rollback_snapshot: S,
+}
+
+/// Coalesces repeated edits of the same row while retaining the snapshot from
+/// before the first keystroke for a correct rollback.
+#[derive(Debug)]
+struct EditDebouncer<S> {
+    pending: Mutex<HashMap<String, PendingEdit<S>>>,
+}
+
+impl<S> Default for EditDebouncer<S> {
+    fn default() -> Self {
+        Self {
+            pending: Mutex::new(HashMap::new()),
+        }
+    }
+}
+
+impl<S> EditDebouncer<S> {
+    fn schedule(&self, key: String, rollback_snapshot: S) -> u64 {
+        let mut pending = self.pending.lock().expect("edit debouncer poisoned");
+        let entry = pending.entry(key).or_insert(PendingEdit {
+            revision: 0,
+            rollback_snapshot,
+        });
+        entry.revision = entry.revision.wrapping_add(1);
+        entry.revision
+    }
+
+    fn take_if_latest(&self, key: &str, revision: u64) -> Option<S> {
+        let mut pending = self.pending.lock().expect("edit debouncer poisoned");
+        if pending.get(key)?.revision != revision {
+            return None;
+        }
+        pending.remove(key).map(|edit| edit.rollback_snapshot)
+    }
+}
 
 struct ThemeMonitor {
     stop: Arc<AtomicBool>,
@@ -1204,6 +1246,7 @@ where
             let state = Arc::clone(&self.state);
             let repositories = Arc::clone(&self.repositories);
             let runtime = self.runtime.clone();
+            let debouncer = Arc::new(EditDebouncer::default());
             actions.on_update_task_title(move |task_id, title| {
                 let Some(window) = weak.upgrade() else { return };
                 let Some(before) = task_row(&window, &task_id) else {
@@ -1220,11 +1263,12 @@ where
                     title: Some(title.to_string()),
                     ..Default::default()
                 };
-                spawn_task_patch(
+                spawn_debounced_task_patch(
                     &weak,
                     &state,
                     &repositories,
                     &runtime,
+                    &debouncer,
                     task_id.to_string(),
                     patch,
                     snapshot,
@@ -1328,6 +1372,7 @@ where
             let state = Arc::clone(&self.state);
             let repositories = Arc::clone(&self.repositories);
             let runtime = self.runtime.clone();
+            let debouncer = Arc::new(EditDebouncer::default());
             actions.on_update_task_notes(move |task_id, notes| {
                 let Some(window) = weak.upgrade() else { return };
                 let Some(before) = task_row(&window, &task_id) else {
@@ -1344,11 +1389,12 @@ where
                     description: Some(Some(notes.to_string())),
                     ..Default::default()
                 };
-                spawn_task_patch(
+                spawn_debounced_task_patch(
                     &weak,
                     &state,
                     &repositories,
                     &runtime,
+                    &debouncer,
                     task_id.to_string(),
                     patch,
                     snapshot,
@@ -1431,6 +1477,7 @@ where
             let state = Arc::clone(&self.state);
             let repositories = Arc::clone(&self.repositories);
             let runtime = self.runtime.clone();
+            let debouncer = Arc::new(EditDebouncer::default());
             actions.on_update_subtask_title(move |subtask_id, title| {
                 let Some(window) = weak.upgrade() else { return };
                 let Some(before) = subtask_row(&window, &subtask_id) else {
@@ -1448,11 +1495,12 @@ where
                     title: Some(title.to_string()),
                     ..Default::default()
                 };
-                spawn_subtask_patch(
+                spawn_debounced_subtask_patch(
                     &weak,
                     &state,
                     &repositories,
                     &runtime,
+                    &debouncer,
                     subtask_id.to_string(),
                     patch,
                     snapshot,
@@ -1465,6 +1513,7 @@ where
             let state = Arc::clone(&self.state);
             let repositories = Arc::clone(&self.repositories);
             let runtime = self.runtime.clone();
+            let debouncer = Arc::new(EditDebouncer::default());
             actions.on_update_subtask_notes(move |subtask_id, notes| {
                 let Some(window) = weak.upgrade() else { return };
                 let Some(before) = subtask_row(&window, &subtask_id) else {
@@ -1482,11 +1531,12 @@ where
                     description: Some(Some(notes.to_string())),
                     ..Default::default()
                 };
-                spawn_subtask_patch(
+                spawn_debounced_subtask_patch(
                     &weak,
                     &state,
                     &repositories,
                     &runtime,
+                    &debouncer,
                     subtask_id.to_string(),
                     patch,
                     snapshot,
@@ -2187,6 +2237,55 @@ where
                         }
                     }
                 });
+            });
+        }
+
+        {
+            let weak = window.as_weak();
+            actions.on_add_relative_reminder(move |task_id, from_start, minutes_before| {
+                let Some(window) = weak.upgrade() else { return };
+                let Some(task) = task_row(&window, &task_id) else {
+                    report_error(&weak, "input.validation-failed");
+                    return;
+                };
+                let display_timezone = DisplayTimezone::from_setting(
+                    window.global::<UiSettingsState>().get_timezone().as_str(),
+                );
+                let reference_parts = if from_start && task.has_start {
+                    DateTimeParts {
+                        year: task.start_year,
+                        month: task.start_month,
+                        day: task.start_day,
+                        hour: task.start_hour,
+                        minute: task.start_minute,
+                    }
+                } else if !from_start && task.has_due {
+                    DateTimeParts {
+                        year: task.due_year,
+                        month: task.due_month,
+                        day: task.due_day,
+                        hour: task.due_hour,
+                        minute: task.due_minute,
+                    }
+                } else {
+                    report_error(&weak, "input.validation-failed");
+                    return;
+                };
+                let Some(reference) = from_display_parts(reference_parts, display_timezone) else {
+                    report_error(&weak, "input.validation-failed");
+                    return;
+                };
+                let reminder =
+                    reference - chrono::Duration::minutes(i64::from(minutes_before.max(0)));
+                let parts = to_display_parts(&reminder, display_timezone);
+                window.global::<Actions>().invoke_add_reminder(
+                    task_id,
+                    parts.year,
+                    parts.month,
+                    parts.day,
+                    parts.hour,
+                    parts.minute,
+                );
             });
         }
 
@@ -4111,6 +4210,43 @@ fn subtask_save_result(result: Result<bool, ServiceError>) -> Result<(), UiError
     result.map(drop).map_err(UiError::from)
 }
 
+/// Waits for a pause in task text input, then persists only the newest value.
+#[allow(clippy::too_many_arguments)]
+fn spawn_debounced_task_patch<R>(
+    weak: &Weak<AppWindow>,
+    state: &Arc<Mutex<SharedState>>,
+    repositories: &Arc<R>,
+    runtime: &Handle,
+    debouncer: &Arc<EditDebouncer<TaskRowSnapshot>>,
+    task_id: String,
+    patch: PartialTask,
+    snapshot: TaskRowSnapshot,
+) where
+    R: InfrastructureRepositoriesTrait + Send + Sync + 'static,
+{
+    let revision = debouncer.schedule(task_id.clone(), snapshot);
+    let weak = weak.clone();
+    let state = Arc::clone(state);
+    let repositories = Arc::clone(repositories);
+    let debouncer = Arc::clone(debouncer);
+    let task_runtime = runtime.clone();
+    runtime.spawn(async move {
+        tokio::time::sleep(TEXT_SAVE_DEBOUNCE).await;
+        let Some(snapshot) = debouncer.take_if_latest(&task_id, revision) else {
+            return;
+        };
+        spawn_task_patch(
+            &weak,
+            &state,
+            &repositories,
+            &task_runtime,
+            task_id,
+            patch,
+            snapshot,
+        );
+    });
+}
+
 /// Persists a task patch, rolling the row back if the write fails.
 #[allow(clippy::too_many_arguments)]
 fn spawn_task_patch<R>(
@@ -4234,6 +4370,43 @@ fn rollback_subtask_row(weak: &Weak<AppWindow>, snapshot: SubTaskRowSnapshot) {
     if let Err(error) = posted {
         tracing::error!(%error, "could not roll back the optimistic subtask update");
     }
+}
+
+/// Waits for a pause in subtask text input, then persists only the newest value.
+#[allow(clippy::too_many_arguments)]
+fn spawn_debounced_subtask_patch<R>(
+    weak: &Weak<AppWindow>,
+    state: &Arc<Mutex<SharedState>>,
+    repositories: &Arc<R>,
+    runtime: &Handle,
+    debouncer: &Arc<EditDebouncer<SubTaskRowSnapshot>>,
+    subtask_id: String,
+    patch: PartialSubTask,
+    snapshot: SubTaskRowSnapshot,
+) where
+    R: InfrastructureRepositoriesTrait + Send + Sync + 'static,
+{
+    let revision = debouncer.schedule(subtask_id.clone(), snapshot);
+    let weak = weak.clone();
+    let state = Arc::clone(state);
+    let repositories = Arc::clone(repositories);
+    let debouncer = Arc::clone(debouncer);
+    let subtask_runtime = runtime.clone();
+    runtime.spawn(async move {
+        tokio::time::sleep(TEXT_SAVE_DEBOUNCE).await;
+        let Some(snapshot) = debouncer.take_if_latest(&subtask_id, revision) else {
+            return;
+        };
+        spawn_subtask_patch(
+            &weak,
+            &state,
+            &repositories,
+            &subtask_runtime,
+            subtask_id,
+            patch,
+            snapshot,
+        );
+    });
 }
 
 /// Persists a subtask patch, rolling the row back when the write fails.
@@ -4491,6 +4664,21 @@ fn update_project_row(window: &AppWindow, project_id: &str, edit: impl FnOnce(&m
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn edit_debouncer_keeps_first_snapshot_and_only_releases_latest_revision() {
+        let debouncer = EditDebouncer::default();
+
+        let first = debouncer.schedule("task-1".to_string(), "before".to_string());
+        let latest = debouncer.schedule("task-1".to_string(), "intermediate".to_string());
+
+        assert_eq!(debouncer.take_if_latest("task-1", first), None);
+        assert_eq!(
+            debouncer.take_if_latest("task-1", latest),
+            Some("before".to_string())
+        );
+        assert_eq!(debouncer.take_if_latest("task-1", latest), None);
+    }
 
     #[test]
     fn keyboard_task_navigation_stays_in_bounds() {

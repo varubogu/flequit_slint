@@ -55,8 +55,8 @@ export component DateTimePicker inherits Rectangle {
 
             edit-touch := TouchArea {
                 clicked => {
-                    root.date-open-count += 1;
                     date-popup.show();
+                    root.date-open-count += 1;
                 }
             }
             accessible-role: button;
