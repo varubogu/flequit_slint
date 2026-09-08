@@ -15,7 +15,9 @@ Ported from the SvelteKit + Tauri implementation at `varubogu/flequit`.
 
 - UI: Slint 1.x (`.slint` declarative UI + Rust bindings), bundled translations for i18n
 - Core: Rust (edition 2024), Sea-ORM + SQLite, Automerge (CRDT), Tokio, `tracing`
-- Targets: Windows / macOS / Linux (Phase 1) + Android / iOS (Phase 2). Web is out of scope.
+- Targets: Windows / macOS / Linux (Phase 1) + Android / iOS (Phase 2) + Web (UI only).
+- Storage destination is the user's choice: local, cloud storage, or a backend server.
+  Web only ever talks to the backend; it stores nothing in the browser. See `plans/plan.md` §8.
 - Package manager: **Cargo only**. No Node.js / Bun / npm in this repo.
 
 ## Critical Rules
@@ -33,8 +35,11 @@ These are enforced by CI (`./scripts/check-crate-deps.sh`). Do not break them.
 - Crate dependency direction:
   `flequit-types → flequit-model → flequit-repository → flequit-core →
   flequit-infrastructure-* → flequit-infrastructure → flequit-ui → flequit-app`
-  (`flequit-platform` is a leaf crate depending only on `flequit-types`)
-- `#[cfg(target_os = ...)]` lives **only inside `flequit-platform`**.
+  (`flequit-platform` is a leaf crate depending only on `flequit-types`;
+  `flequit-web` sits beside `flequit-ui` and depends only on `slint`)
+- `#[cfg(target_os = ...)]` and `#[cfg(target_arch = ...)]` live **only inside
+  `flequit-platform`**. Platform entry points select by Cargo feature instead
+  (`flequit-app`'s `android` / `ios`).
 - `.slint` files hold no business logic and never see domain types.
 - Only ViewModels call `flequit-core` facades. Never call repositories directly from UI.
 - UI and core never call OS APIs directly; go through `flequit-platform`.

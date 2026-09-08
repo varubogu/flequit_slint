@@ -51,9 +51,11 @@ export component SettingsDialog inherits Rectangle {
     TouchArea { }
 
     Rectangle {
-        x: Layout.is-compact ? 0px : Theme.space-xl;
+        x: Layout.is-compact ? Layout.safe-area-left : Theme.space-xl;
         y: Layout.is-compact ? 0px : Theme.space-xl;
-        width: Layout.is-compact ? parent.width : parent.width - 2 * Theme.space-xl;
+        width: Layout.is-compact
+            ? parent.width - Layout.safe-area-left - Layout.safe-area-right
+            : parent.width - 2 * Theme.space-xl;
         height: Layout.is-compact ? parent.height : parent.height - 2 * Theme.space-xl;
         border-radius: Layout.is-compact ? 0px : Theme.radius-lg;
         background: Theme.background;

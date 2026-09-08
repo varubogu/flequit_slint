@@ -83,8 +83,11 @@ flequit-types
 - ファイル書き込みは `tracing-appender` のノンブロッキング。返される
   `WorkerGuard` は `run()` が握り続ける。先に drop すると末尾のログが消える
 - ログディレクトリを開けない場合はファイル出力のみ諦めて起動を続ける
-- Android（logcat）/ iOS（OSLog）は未実装。`cfg(target_os)` は
-  `flequit-platform` 限定のため、シンクの構築もそちら側に置く必要がある
+- 標準エラー出力が読めないプラットフォームでは `flequit-platform::SystemLogWriter`
+  が OS 側のログへ流す（Android は `__android_log_write` で logcat、
+  wasm32 はブラウザの console）。デスクトップと iOS は stderr がそのまま読めるため
+  `SystemLogWriter::current()` は `None` を返す。この選択には `cfg(target_os)` /
+  `cfg(target_arch)` が要り、それらは `flequit-platform` にしか置けない
 
 ## 開発ワークフロー
 

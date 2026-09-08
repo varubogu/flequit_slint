@@ -12,6 +12,13 @@
 
 use std::sync::Arc;
 
+// Platform entry points. Selected by Cargo feature, not by `cfg(target_os)`:
+// that attribute belongs to `flequit-platform` alone.
+#[cfg(feature = "android")]
+mod entry_android;
+#[cfg(feature = "ios")]
+mod entry_ios;
+
 use flequit_infrastructure::{InfrastructureRepositories, UnifiedConfig};
 use flequit_platform::Platform;
 use flequit_settings::types::datetime_format_types::DateTimeFormatGroup;
@@ -79,6 +86,9 @@ pub fn run() -> Result<(), BootstrapError> {
     view_model.apply_settings(&window);
     view_model.apply_project_colors(&window);
     view_model.bind(&window);
+    // Held for the whole session: the platform keeps only a weak reference, so
+    // dropping this would silently stop lifecycle delivery. `None` on desktop.
+    let _lifecycle = view_model.observe_lifecycle(&window);
     view_model.load_initial(&window);
 
     window.run()?;
@@ -358,14 +368,16 @@ const LOG_FILES_KEPT: usize = 7;
 
 /// Installs the tracing subscriber.
 ///
-/// The sink differs per platform (files on desktop, logcat on Android, OSLog on
-/// iOS); the decision belongs here so no other crate needs a `cfg`.
+/// Writes go to a console sink, which is what a developer reads, and to a daily
+/// file under `platform.paths().log_dir()`, which is what a user can attach to
+/// a bug report once the terminal is gone. A log directory that cannot be
+/// opened costs the file sink only — starting without logs on screen would be
+/// worse than starting without them on disk.
 ///
-/// Writes go to stderr, which is what a developer reads, and to a daily file
-/// under `platform.paths().log_dir()`, which is what a user can attach to a bug
-/// report once the terminal is gone. A log directory that cannot be opened
-/// costs the file sink only — starting without logs on screen would be worse
-/// than starting without them on disk.
+/// Which console that is depends on the platform: stderr on desktop and iOS,
+/// logcat on Android, the developer console in a browser. `flequit-platform`
+/// makes that choice, because deciding it here would need a `cfg(target_os)`
+/// outside the one crate allowed to have them.
 ///
 /// The returned guard flushes the file writer when it is dropped, so the caller
 /// has to hold it for as long as the application runs. `None` means no file
@@ -378,7 +390,20 @@ fn init_logging(platform: &dyn Platform) -> Option<tracing_appender::non_blockin
 
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
-    let mut layers: Vec<Box<dyn Layer<Registry> + Send + Sync>> = vec![fmt::layer().boxed()];
+    // The platform sink replaces stderr rather than joining it: on the
+    // platforms that have one, stderr goes nowhere a developer can read.
+    let console: Box<dyn Layer<Registry> + Send + Sync> =
+        match flequit_platform::SystemLogWriter::current() {
+            // A fresh writer per event, so a partial line from one event cannot
+            // be interleaved into the next.
+            Some(writer) => fmt::layer()
+                .with_ansi(false)
+                .with_writer(move || writer.clone())
+                .boxed(),
+            None => fmt::layer().boxed(),
+        };
+
+    let mut layers: Vec<Box<dyn Layer<Registry> + Send + Sync>> = vec![console];
     let guard = match open_log_file(platform) {
         Ok(appender) => {
             let (writer, guard) = tracing_appender::non_blocking(appender);
@@ -394,8 +419,6 @@ fn init_logging(platform: &dyn Platform) -> Option<tracing_appender::non_blockin
         }
     };
 
-    // TODO(phase2): route Android to logcat and iOS to OSLog. Both need a sink
-    // that only `flequit-platform` may build, since `cfg(target_os)` lives there.
     if tracing_subscriber::registry()
         .with(layers)
         .with(filter)

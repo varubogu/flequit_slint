@@ -14,7 +14,9 @@ SvelteKit + Tauri 実装（`varubogu/flequit`）からの移植版。
 
 - UI: Slint 1.x（`.slint` 宣言的 UI + Rust バインディング）、i18n は bundled translations
 - コア: Rust（edition 2024）、Sea-ORM + SQLite、Automerge (CRDT)、Tokio、`tracing`
-- 対象: Windows / macOS / Linux（Phase 1）+ Android / iOS（Phase 2）。Web は対象外。
+- 対象: Windows / macOS / Linux（Phase 1）+ Android / iOS（Phase 2）+ Web（UI のみ）。
+- 保存先はユーザーが選ぶ: ローカル / クラウドストレージ / バックエンドサーバ。
+  Web はバックエンド専用でブラウザ内には保存しない。`plans/plan.md` 8. を参照。
 - パッケージマネージャ: **Cargo のみ**。Node.js / Bun / npm への依存なし。
 
 ## 重要ルール
@@ -32,8 +34,11 @@ CI（`./scripts/check-crate-deps.sh`）で検証される。破ってはなら�
 - クレート依存方向:
   `flequit-types → flequit-model → flequit-repository → flequit-core →
   flequit-infrastructure-* → flequit-infrastructure → flequit-ui → flequit-app`
-  （`flequit-platform` は `flequit-types` のみに依存する葉クレート）
-- `#[cfg(target_os = ...)]` は **`flequit-platform` の内部にのみ** 書く。
+  （`flequit-platform` は `flequit-types` のみに依存する葉クレート。
+  `flequit-web` は `flequit-ui` と並びで、`slint` のみに依存する）
+- `#[cfg(target_os = ...)]` と `#[cfg(target_arch = ...)]` は
+  **`flequit-platform` の内部にのみ** 書く。プラットフォーム別エントリポイントは
+  代わりに Cargo feature で切り替える（`flequit-app` の `android` / `ios`）。
 - `.slint` は業務ロジックを持たず、ドメイン型を扱わない。
 - `flequit-core` の facade を呼ぶのは ViewModel のみ。UI から repository を直接呼ばない。
 - UI とコアは OS API を直接呼ばない。`flequit-platform` を経由する。

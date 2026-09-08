@@ -67,10 +67,14 @@ Slint 版では IPC が無いため「転送量」の課題は消えたが、
 
 - `XxxPartial` はドメイン型をそのまま使う (TypeScript 版のような型の二重定義が不要)
 - ViewModel は編集前後の UI 型を比較し、変更フィールドのみを `Partial` に詰める
-- 差分抽出は Adapter (`crates/flequit-ui/src/adapters/patch.rs`) に集約し、純粋関数として実装する
+- ViewModel は操作が変えたフィールドだけを `Some` にした `PartialXxx` を組み立てる
 
-配置予定: `crates/flequit-ui/src/viewmodels/task/mod.rs`、`crates/flequit-ui/src/adapters/patch.rs`
-（いずれも Phase 1 で作成する。本節は設計であり、現時点では未実装）
+実装: `crates/flequit-ui/src/viewmodels/app.rs`。Slint のコールバック 1 つが
+編集対象のフィールドを 1 つ（または関連する数個）だけ変えるため、
+`PartialTask { title: Some(..), ..Default::default() }` をその場で組み立てて
+facade に渡している。編集前後の UI 型を突き合わせて差分を取る
+`adapters/patch.rs` は作っていない。比較する相手（編集前の値）を保持する
+必要がなく、どのフィールドが変わったかは操作そのものが知っているため。
 
 ## 5. 実装課題と対策
 

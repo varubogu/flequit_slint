@@ -52,6 +52,13 @@ check_no_dep flequit-ui flequit-infrastructure-sqlite
 check_no_dep flequit-ui flequit-infrastructure-automerge
 check_no_dep flequit-ui flequit-repository
 
+# The browser build renders the shared .slint against sample data. Depending on
+# anything below the UI would drag in sea-orm/sqlx, which have no wasm backend,
+# and the crate would stop building for wasm32 with a wall of unrelated errors.
+for forbidden in flequit-ui flequit-core flequit-infrastructure flequit-repository flequit-model; do
+  check_no_dep flequit-web "$forbidden"
+done
+
 # The domain layer must not know about persistence implementations.
 check_no_dep flequit-core flequit-infrastructure
 check_no_dep flequit-core flequit-infrastructure-sqlite

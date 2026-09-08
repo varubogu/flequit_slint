@@ -48,11 +48,25 @@ export component AppWindow inherits Window {
     // Assigning here means a narrow desktop window behaves exactly like a phone.
     changed width => { Layout.window-width = self.width; }
 
+    // Notch, home indicator and system bars. Slint reports zero on every
+    // desktop platform, so this costs nothing there and needs no OS check.
+    function publish-safe-area() {
+        Layout.safe-area-top = self.safe-area-insets.top;
+        Layout.safe-area-bottom = self.safe-area-insets.bottom;
+        Layout.safe-area-left = self.safe-area-insets.left;
+        Layout.safe-area-right = self.safe-area-insets.right;
+    }
+
+    // `changed` does not fire for the value a window starts with, so the first
+    // publication has to be explicit.
+    changed safe-area-insets => { root.publish-safe-area(); }
+
     // Capture Slint's startup value as an immediate fallback. The platform-backed
     // ViewModel updates `Theme.system-dark` when the OS changes afterwards.
     private property <bool> dark-scheme: Theme.dark;
 
     init => {
+        root.publish-safe-area();
         Theme.system-dark = Palette.color-scheme == ColorScheme.dark;
         Palette.color-scheme = Theme.dark ? ColorScheme.dark : ColorScheme.light;
     }
@@ -231,6 +245,8 @@ export component AppWindow inherits Window {
                 HorizontalLayout {
                     padding: Theme.space-sm;
                     padding-top: Theme.space-sm + Layout.safe-area-top;
+                    padding-left: Theme.space-sm + Layout.safe-area-left;
+                    padding-right: Theme.space-sm + Layout.safe-area-right;
                     spacing: Theme.space-sm;
 
                     IconButton {
@@ -253,6 +269,8 @@ export component AppWindow inherits Window {
                 height: banner.height + 2 * Theme.space-sm;
                 HorizontalLayout {
                     padding: Theme.space-sm;
+                    padding-left: Theme.space-sm + Layout.content-safe-area-left;
+                    padding-right: Theme.space-sm + Layout.content-safe-area-right;
                     banner := ErrorBanner {
                         message: AppState.error-message;
                         dismissed => { Actions.dismiss-error(); }

@@ -12,6 +12,7 @@ members = [
     "crates/flequit-settings",
     "crates/flequit-testing",
     "crates/flequit-ui",
+    "crates/flequit-web",
     "crates/flequit-app",
 ]
 
@@ -34,6 +35,7 @@ flequit-infrastructure-automerge = { path = "crates/flequit-infrastructure-autom
 flequit-settings = { path = "crates/flequit-settings" }
 flequit-testing = { path = "crates/flequit-testing" }
 flequit-ui = { path = "crates/flequit-ui" }
+flequit-web = { path = "crates/flequit-web" }
 
 # UI
 slint = "1"
@@ -58,6 +60,13 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "time",
 tracing-appender = "0.2"
 
 # Platform
+# Mobile: the JNI / Swift bridges the flequit-platform backends talk to.
+jni = "0.21"
+ndk-context = "0.1"
+# Web (stage 1: UI only).
+wasm-bindgen = "0.2"
+console_error_panic_hook = "0.1"
+
 dark-light = "3"
 # Matches the version Slint's renderer already pulls in.
 fontdb = { version = "0.23", default-features = false, features = ["fs", "memmap", "std"] }

@@ -26,6 +26,9 @@ export component SubTaskDetailView inherits Rectangle {
         padding: Layout.content-padding;
         padding-top: Layout.content-padding + Layout.safe-area-top;
         padding-bottom: Layout.content-padding + Layout.safe-area-bottom;
+        padding-left: Layout.content-padding + Layout.content-safe-area-left;
+        // The detail pane is the rightmost one at every breakpoint.
+        padding-right: Layout.content-padding + Layout.safe-area-right;
         spacing: Theme.space-md;
 
         // Header

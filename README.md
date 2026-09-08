@@ -26,11 +26,15 @@ UI shell runs; feature parity with the original is in progress.
 | Platform | Phase | Status |
 | --- | --- | --- |
 | Windows / macOS / Linux | 1 | In development |
-| Android / iOS | 2 | Structure in place, implementation pending |
-| Web | — | Out of scope |
+| Android / iOS | 2 | Implemented, not yet verified on a device |
+| Web | — | UI preview only; see `web/README.md` |
 
 The UI is a single codebase; layout switches on **window width**, not on the target OS,
 so a narrow desktop window behaves exactly like a phone.
+
+Where data is stored is the user's choice — local, cloud storage, or a Flequit backend
+server. The web build has no local storage of its own and will talk only to that server.
+The backend is not designed yet; see `plans/plan.md` §8.
 
 ## Requirements
 

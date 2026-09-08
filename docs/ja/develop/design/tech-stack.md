@@ -10,11 +10,15 @@ WebView / IPC を持たず、UI からドメインロジックまでを 1 つの
 | Windows | 必須 | Phase 1 | `cargo build` + `cargo-packager` |
 | macOS | 必須 | Phase 1 | `cargo build` + `cargo-packager` |
 | Linux | 必須 | Phase 1 | `cargo build` + `cargo-packager` |
-| Android | 必須 | Phase 2 | `xbuild`（`x build --platform android`） |
-| iOS | 必須 | Phase 2 | XcodeGen + `cargo build --target aarch64-apple-ios` |
-| Web (WASM) | 対象外 | - | 将来検討（`architecture.md` §3） |
+| Android | 必須 | Phase 2 | Gradle + `cargo-ndk`（`mobile/android/`） |
+| iOS | 必須 | Phase 2 | XcodeGen + `cargo build --target aarch64-apple-ios`（`mobile/ios/`） |
+| Web (WASM) | UI のみ | Phase 2 | `wasm-bindgen`（`crates/flequit-web` + `web/`） |
 
 - **Phase 1 / Phase 2** は実装着手順であり、設計・ドキュメントは最初から全対応で記述する。
+- Web ビルドは **UI シェルの描画のみ**。`sea-orm` / `sqlx-sqlite` は wasm32 で動かず、
+  かつブラウザ内に永続化層を作る予定も無い（保存はバックエンドサーバが担う）。
+  そのため `crates/flequit-web` は `flequit-ui` に依存せず、同じ `.slint` を
+  再コンパイルする構成にしている。詳細は `plans/plan.md` 7. / 8.
 - Slint の iOS サポートは **Rust のみ**。本プロジェクトは Rust 単一言語のため制約にならない。
 - UI は単一コードベースとし、画面幅のブレークポイントでレイアウトを切り替える
   （`design/ui/responsive-layout.md` 参照）。

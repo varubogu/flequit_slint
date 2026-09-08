@@ -40,4 +40,19 @@ export global Layout {
     // Safe area insets, supplied by the platform on mobile.
     in-out property <length> safe-area-top: 0px;
     in-out property <length> safe-area-bottom: 0px;
+    // Non-zero in landscape, where the notch and the rounded corners eat into
+    // the sides. Every element that touches a screen edge has to keep its
+    // content out of them, while still painting its background underneath.
+    in-out property <length> safe-area-left: 0px;
+    in-out property <length> safe-area-right: 0px;
+
+    // Which element owns a horizontal screen edge depends on the breakpoint.
+    // Outside compact the sidebar covers the left edge and the detail pane the
+    // right one, so the content panes take the sides over only once they run
+    // full width. The sidebar always consumes `safe-area-left`, and the detail
+    // pane always consumes `safe-area-right`.
+    out property <length> content-safe-area-left:
+        root.is-compact ? root.safe-area-left : 0px;
+    out property <length> content-safe-area-right:
+        root.is-compact ? root.safe-area-right : 0px;
 }

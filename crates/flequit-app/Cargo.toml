@@ -13,7 +13,19 @@ path = "src/main.rs"
 [lib]
 name = "flequit_app"
 path = "src/lib.rs"
-crate-type = ["lib", "cdylib"]
+# cdylib for the Android `.so` the loader dlopens, staticlib for the iOS app
+# target Xcode links, lib for the desktop binary and the tests.
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[features]
+default = []
+# Android: exports `android_main` and pulls in Slint's android-activity backend.
+# `AndroidApp` comes from Slint's re-export, so the android-activity version is
+# whichever Slint expects rather than one this crate has to keep in step.
+android = ["slint/backend-android-activity-06"]
+# iOS: exports `flequit_ios_main` for the Swift `main` shim to call. Needs no
+# Slint feature — iOS runs on the default winit backend.
+ios = []
 
 [dependencies]
 flequit-infrastructure.workspace = true

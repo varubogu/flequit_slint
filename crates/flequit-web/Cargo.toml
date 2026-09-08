@@ -1,0 +1,24 @@
+[package]
+name = "flequit-web"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Browser (WebAssembly) build of the Flequit UI, running on sample data."
+
+[lib]
+name = "flequit_web"
+# cdylib is what wasm-bindgen consumes; rlib keeps the crate testable and lets
+# the desktop workspace build check it without a wasm toolchain.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+slint.workspace = true
+wasm-bindgen.workspace = true
+console_error_panic_hook.workspace = true
+
+[build-dependencies]
+slint-build.workspace = true
+
+[dev-dependencies]
+# Drives the demo without a display so the sample data can be asserted in CI.
+i-slint-backend-testing = "1"

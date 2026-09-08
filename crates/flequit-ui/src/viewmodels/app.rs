@@ -37,8 +37,8 @@ use flequit_model::types::id_types::{
 };
 use flequit_model::types::task_types::TaskStatus as DomainStatus;
 use flequit_platform::{
-    Capability, NotificationId, NotificationRequest, PermissionState, Platform, PlatformError,
-    SystemTheme,
+    Capability, LifecycleEvent, LifecycleObserver, NotificationId, NotificationRequest,
+    PermissionState, Platform, PlatformError, SystemTheme,
 };
 use flequit_types::errors::service_error::ServiceError;
 use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel, Weak};
@@ -3124,6 +3124,31 @@ where
         drop(previous);
     }
 
+    /// Subscribes to OS lifecycle transitions and returns the subscription.
+    ///
+    /// The caller must keep the returned handle alive for as long as the window
+    /// exists; dropping it unsubscribes. Returns `None` on platforms that do not
+    /// report lifecycle transitions, which is every desktop target.
+    #[must_use = "dropping the observer unsubscribes it"]
+    pub fn observe_lifecycle(&self, window: &AppWindow) -> Option<Arc<dyn LifecycleObserver>> {
+        let observer: Arc<dyn LifecycleObserver> = Arc::new(LifecycleReactor {
+            weak: window.as_weak(),
+            state: Arc::clone(&self.state),
+            repositories: Arc::clone(&self.repositories),
+            runtime: self.runtime.clone(),
+            timezone: self.timezone,
+        });
+
+        match self.platform.subscribe_lifecycle(Arc::clone(&observer)) {
+            Ok(()) => Some(observer),
+            Err(PlatformError::Unsupported(_)) => None,
+            Err(error) => {
+                tracing::warn!(%error, "could not subscribe to lifecycle events");
+                None
+            }
+        }
+    }
+
     /// Loads projects and tasks, then publishes them to the UI.
     ///
     /// Returns immediately; the work happens on the Tokio runtime and the
@@ -3182,6 +3207,44 @@ where
                 schedule_reminders(platform.as_ref(), reminders).await;
             }
         });
+    }
+}
+
+/// Reacts to OS lifecycle transitions on behalf of the ViewModel.
+///
+/// Held by the caller: [`flequit_platform::LifecycleHub`] keeps only a weak
+/// reference, so dropping this unsubscribes.
+struct LifecycleReactor<R> {
+    weak: Weak<AppWindow>,
+    state: Arc<Mutex<SharedState>>,
+    repositories: Arc<R>,
+    runtime: Handle,
+    timezone: DisplayTimezone,
+}
+
+impl<R> LifecycleObserver for LifecycleReactor<R>
+where
+    R: InfrastructureRepositoriesTrait + Send + Sync + 'static,
+{
+    fn on_event(&self, event: LifecycleEvent) {
+        match event {
+            // Nothing to flush: every mutation is persisted as it happens, which
+            // is what makes the app survive the OS killing it while suspended.
+            LifecycleEvent::Suspend => tracing::info!("suspending"),
+            LifecycleEvent::Resume => {
+                // The database may have been changed by a share extension, or
+                // simply be hours stale, so the tree is re-read rather than
+                // trusted.
+                let weak = self.weak.clone();
+                let state = Arc::clone(&self.state);
+                let repositories = Arc::clone(&self.repositories);
+                let timezone = self.timezone;
+                self.runtime.spawn(async move {
+                    reload_projects(&weak, &state, &repositories, timezone).await;
+                });
+            }
+            LifecycleEvent::LowMemory => tracing::warn!("the os asked us to free memory"),
+        }
     }
 }
 
