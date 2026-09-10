@@ -8,7 +8,8 @@ use super::mutations::apply_locale;
 use crate::adapters::datetime::{DateTimeDisplaySettings, to_display_parts};
 use crate::bindings::{
     AppState, AppWindow, CustomDueFilterSetting, DateTimeFormatSetting, DueButtonSetting,
-    DueFilterItem, DueUnit, I18n, RecurrencePresetSetting, SettingsState as UiSettingsState, Theme,
+    DueFilterItem, DueUnit, I18n, RecurrencePresetSetting, ReminderPresetSetting,
+    SettingsState as UiSettingsState, Theme,
 };
 
 pub(super) fn publish(window: &AppWindow, settings: &UserSettings) {
@@ -43,6 +44,17 @@ pub(super) fn publish(window: &AppWindow, settings: &UserSettings) {
             .map(|preset| RecurrencePresetSetting {
                 interval: preset.interval,
                 unit: preset.unit,
+            })
+            .collect::<Vec<_>>(),
+    )));
+    ui.set_reminder_presets(ModelRc::new(VecModel::from(
+        settings
+            .reminder_presets
+            .iter()
+            .map(|preset| ReminderPresetSetting {
+                value: preset.value,
+                unit: preset.unit,
+                minutes_before: preset.minutes_before(),
             })
             .collect::<Vec<_>>(),
     )));

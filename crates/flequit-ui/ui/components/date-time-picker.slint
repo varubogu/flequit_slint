@@ -21,6 +21,12 @@ export component DateTimePicker inherits Rectangle {
     in property <string> edit-label: @tr("DateTimePicker" => "Edit due date");
     in property <string> clear-label: @tr("DateTimePicker" => "Clear due date");
     in property <string> date-title: @tr("DateTimePicker" => "Select due date");
+    in property <bool> selection-validation-enabled: false;
+    in property <string> invalid-selection-message;
+
+    pure callback date-selectable(int /* year */, int /* month */, int /* day */) -> bool;
+    pure callback selection-valid(int /* year */, int /* month */, int /* day */,
+                                  int /* hour */, int /* minute */) -> bool;
 
     callback accepted(int /* year */, int /* month */, int /* day */,
                       int /* hour */, int /* minute */);
@@ -79,6 +85,14 @@ export component DateTimePicker inherits Rectangle {
         day: root.day;
         hour: root.hour;
         minute: root.minute;
+        selection-validation-enabled: root.selection-validation-enabled;
+        invalid-selection-message: root.invalid-selection-message;
+        date-selectable(year, month, day) => {
+            return root.date-selectable(year, month, day);
+        }
+        selection-valid(year, month, day, hour, minute) => {
+            return root.selection-valid(year, month, day, hour, minute);
+        }
 
         accepted(year, month, day, hour, minute) => {
             root.accepted(year, month, day, hour, minute);

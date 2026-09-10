@@ -814,19 +814,105 @@ msgid "Remove reminder {0}"
 msgstr "リマインダー「{0}」を削除"
 
 #: crates/flequit-ui/ui/views/task-detail/task-detail.slint:281
+msgctxt "Reminder"
+msgid "1 minute before"
+msgstr "1分前"
+
+msgctxt "Reminder"
+msgid "1 hour before"
+msgstr "1時間前"
+
+msgctxt "Reminder"
+msgid "1 day before"
+msgstr "1日前"
+
+msgctxt "Reminder"
+msgid "{0} minutes before"
+msgstr "{0}分前"
+
+msgctxt "Reminder"
+msgid "{0} hours before"
+msgstr "{0}時間前"
+
+msgctxt "Reminder"
+msgid "{0} days before"
+msgstr "{0}日前"
+
+msgctxt "Reminder"
+msgid "Choose a future date and time."
+msgstr "現在より後の日時を指定してください。"
+
+msgctxt "TaskDetail"
+msgid "Before start"
+msgstr "着手日時から"
+
+msgctxt "TaskDetail"
+msgid "Before due"
+msgstr "完了日時から"
+
+msgctxt "Settings"
+msgid "Reminder presets"
+msgstr "リマインダーのカスタム項目"
+
+msgctxt "Settings"
+msgid "Remove the {0} reminder preset"
+msgstr "「{0}」のリマインダー候補を削除"
+
+msgctxt "Settings"
+msgid "Reminder amount"
+msgstr "リマインダーの値"
+
+msgctxt "Settings"
+msgid "Add reminder preset"
+msgstr "リマインダー候補を追加"
+
+msgctxt "Settings"
+msgid "Basic Language Week start Due filters Custom due days Reminder presets Recurrence Platform features"
+msgstr "基本 言語 週の開始 期限フィルタ カスタム期限 リマインダー カスタム項目 繰り返し プラットフォーム機能"
+
 msgctxt "TaskDetail"
 msgid "30 minutes before start"
 msgstr "着手日時の30分前"
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:74
+msgctxt "TaskDetail"
+msgid "1 hour before start"
+msgstr "着手日時の1時間前"
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:81
+msgctxt "TaskDetail"
+msgid "1 day before start"
+msgstr "着手日時の1日前"
 
 #: crates/flequit-ui/ui/views/task-detail/task-detail.slint:288
 msgctxt "TaskDetail"
 msgid "30 minutes before due"
 msgstr "完了日時の30分前"
 
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:102
+msgctxt "TaskDetail"
+msgid "1 hour before due"
+msgstr "完了日時の1時間前"
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:109
+msgctxt "TaskDetail"
+msgid "1 day before due"
+msgstr "完了日時の1日前"
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:118
+msgctxt "TaskDetail"
+msgid "Set a start or due date to use relative reminders."
+msgstr "相対リマインダーを使うには、着手日時または完了日時を設定してください。"
+
 #: crates/flequit-ui/ui/views/task-detail/task-detail.slint:296
 msgctxt "TaskDetail"
 msgid "Specific date and time (optional)"
 msgstr "日時を直接指定（オプション）"
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:140
+msgctxt "TaskDetail"
+msgid "Select a specific reminder date"
+msgstr "リマインダー日時を直接指定"
 
 #: crates/flequit-ui/ui/views/task-detail/task-detail.slint:241
 msgctxt "TaskDetail"

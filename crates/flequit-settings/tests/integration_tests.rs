@@ -48,6 +48,88 @@ fn test_settings_serialization() {
     assert_eq!(deserialized.language, settings.language);
 }
 
+#[test]
+fn reminder_defaults_distinguish_missing_from_explicitly_empty_settings() {
+    let mut yaml = serde_yaml::to_value(Settings::default()).unwrap();
+    yaml.as_mapping_mut()
+        .unwrap()
+        .remove(serde_yaml::Value::String("reminderPresets".into()));
+    let legacy: Settings = serde_yaml::from_value(yaml.clone()).unwrap();
+    assert_eq!(
+        legacy.reminder_presets,
+        Settings::default().reminder_presets
+    );
+    yaml["reminderPresets"] = serde_yaml::Value::Sequence(vec![]);
+    assert!(
+        serde_yaml::from_value::<Settings>(yaml)
+            .unwrap()
+            .reminder_presets
+            .is_empty()
+    );
+    let partial: PartialSettings = serde_yaml::from_str("theme: dark").unwrap();
+    assert!(partial.reminder_presets.is_none());
+    let snake_case = serde_yaml::to_string(&legacy)
+        .unwrap()
+        .replace("reminderPresets:", "reminder_presets:");
+    assert_eq!(
+        serde_yaml::from_str::<Settings>(&snake_case)
+            .unwrap()
+            .reminder_presets,
+        legacy.reminder_presets
+    );
+}
+
+#[test]
+fn invalid_reminder_presets_are_rejected_before_saving() {
+    use flequit_settings::validation::SettingsValidator;
+    use flequit_settings::{ReminderPreset, SettingsReminderUnit};
+    for presets in [
+        vec![ReminderPreset::new(0, SettingsReminderUnit::Minute)],
+        vec![ReminderPreset::new(3651, SettingsReminderUnit::Day)],
+        vec![ReminderPreset::new(1, SettingsReminderUnit::Hour); 21],
+    ] {
+        let settings = Settings {
+            reminder_presets: presets,
+            ..Settings::default()
+        };
+        assert!(SettingsValidator::validate(&settings).is_err());
+    }
+}
+
+#[tokio::test]
+async fn reminder_presets_persist_through_partial_updates() {
+    use flequit_settings::{ReminderPreset, SettingsReminderUnit};
+    let test_dir = TestPathGenerator::generate_test_dir(file!(), "reminder_presets_persist");
+    let manager = SettingsManager::new(test_dir).unwrap();
+    let presets = vec![ReminderPreset::new(2, SettingsReminderUnit::Hour)];
+    manager
+        .update_settings_partially(&PartialSettings {
+            reminder_presets: Some(presets.clone()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        manager.load_settings().await.unwrap().reminder_presets,
+        presets
+    );
+    manager
+        .update_settings_partially(&PartialSettings {
+            reminder_presets: Some(vec![]),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert!(
+        manager
+            .load_settings()
+            .await
+            .unwrap()
+            .reminder_presets
+            .is_empty()
+    );
+}
+
 /// 旧 Tauri 版が書いた `settings.yml` をそのまま読み込めること。
 ///
 /// 設定ファイルのパスは旧実装と同一なので、旧アプリを使っていた環境では

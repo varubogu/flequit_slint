@@ -204,6 +204,9 @@ impl SettingsManager {
         if let Some(custom_recurrence_presets) = &partial.custom_recurrence_presets {
             target.custom_recurrence_presets = custom_recurrence_presets.clone();
         }
+        if let Some(reminder_presets) = &partial.reminder_presets {
+            target.reminder_presets = reminder_presets.clone();
+        }
         if let Some(datetime_format) = &partial.datetime_format {
             target.datetime_format = datetime_format.clone();
         }

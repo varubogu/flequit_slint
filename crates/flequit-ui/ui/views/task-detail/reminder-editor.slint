@@ -1,0 +1,139 @@
+import { Theme } from "../../globals/theme.slint";
+import { Layout } from "../../globals/layout.slint";
+import { Actions } from "../../globals/actions.slint";
+import { I18n } from "../../globals/i18n.slint";
+import { SettingsState } from "../../globals/settings.slint";
+import { DateTimePicker } from "../../components/date-time-picker.slint";
+import { DialogButton } from "../../components/dialog-button.slint";
+
+component ReminderOption inherits Rectangle {
+    in property <string> label;
+    callback selected();
+
+    height: Layout.touch-target;
+    horizontal-stretch: 1;
+    border-radius: Theme.radius-sm;
+    border-width: 1px;
+    border-color: Theme.border;
+    background: touch.has-hover ? Theme.surface-hover : Theme.surface;
+
+    Text {
+        x: Theme.space-xs;
+        width: parent.width - 2 * Theme.space-xs;
+        height: 100%;
+        text: root.label;
+        color: Theme.text;
+        font-size: Theme.font-size-sm;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    touch := TouchArea { clicked => { root.selected(); } }
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.selected(); }
+}
+
+// Keeps relative presets and direct calendar entry behind one add action.
+// Relative choices are shown first because they are the normal workflow.
+export component ReminderEditor inherits VerticalLayout {
+    in property <string> task-id;
+    in property <bool> has-start;
+    in property <bool> has-due;
+    in property <int> year;
+    in property <int> month;
+    in property <int> day;
+    in property <int> hour;
+    in property <int> minute;
+
+    private property <bool> editor-open: false;
+
+    changed task-id => { root.editor-open = false; }
+
+    vertical-stretch: 0;
+    spacing: Theme.space-sm;
+
+    DialogButton {
+        label: @tr("TaskDetail" => "Add a reminder");
+        primary: !root.editor-open;
+        clicked => { root.editor-open = !root.editor-open; }
+    }
+
+    if root.editor-open: VerticalLayout {
+        vertical-stretch: 0;
+        spacing: Theme.space-sm;
+
+        if root.has-start: VerticalLayout {
+            vertical-stretch: 0;
+            spacing: Theme.space-xs;
+            Text {
+                text: @tr("TaskDetail" => "Before start");
+                color: Theme.text-muted;
+                font-size: Theme.font-size-sm;
+            }
+            for preset in SettingsState.reminder-presets: ReminderOption {
+                label: I18n.reminder-offset-label(preset.value, preset.unit);
+                selected => {
+                    Actions.add-relative-reminder(root.task-id, true, preset.minutes-before);
+                    root.editor-open = false;
+                }
+            }
+        }
+
+        if root.has-due: VerticalLayout {
+            vertical-stretch: 0;
+            spacing: Theme.space-xs;
+            if root.has-start: Text {
+                text: @tr("TaskDetail" => "Before due");
+                color: Theme.text-muted;
+                font-size: Theme.font-size-sm;
+            }
+            for preset in SettingsState.reminder-presets: ReminderOption {
+                label: I18n.reminder-offset-label(preset.value, preset.unit);
+                selected => {
+                    Actions.add-relative-reminder(root.task-id, false, preset.minutes-before);
+                    root.editor-open = false;
+                }
+            }
+        }
+
+        if !root.has-start && !root.has-due: Text {
+            text: @tr("TaskDetail" => "Set a start or due date to use relative reminders.");
+            color: Theme.text-muted;
+            font-size: Theme.font-size-sm;
+            wrap: word-wrap;
+        }
+
+        Text {
+            text: @tr("TaskDetail" => "Specific date and time (optional)");
+            color: Theme.text-muted;
+            font-size: Theme.font-size-sm;
+        }
+
+        DateTimePicker {
+            value-label: "";
+            has-value: false;
+            allow-clear: false;
+            year: root.year;
+            month: root.month;
+            day: root.day;
+            hour: root.hour;
+            minute: root.minute;
+            edit-label: @tr("TaskDetail" => "Select a specific reminder date");
+            date-title: @tr("TaskDetail" => "Select reminder date");
+            selection-validation-enabled: true;
+            invalid-selection-message: @tr("Reminder" => "Choose a future date and time.");
+            date-selectable(year, month, day) => {
+                return Actions.reminder-date-selectable(year, month, day);
+            }
+            selection-valid(year, month, day, hour, minute) => {
+                return Actions.reminder-datetime-valid(year, month, day, hour, minute);
+            }
+            accepted(year, month, day, hour, minute) => {
+                Actions.add-reminder(root.task-id, year, month, day, hour, minute);
+                root.editor-open = false;
+            }
+        }
+    }
+}

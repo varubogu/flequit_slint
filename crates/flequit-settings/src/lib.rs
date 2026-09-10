@@ -57,6 +57,7 @@ pub use models::custom_due_filter::{CustomDueFilter, CustomDueUnit};
 pub use models::datetime_format::DateTimeFormat;
 pub use models::due_date_buttons::DueDateButtons;
 pub use models::recurrence_preset::{RecurrencePreset, RecurrenceUnit as SettingsRecurrenceUnit};
+pub use models::reminder_preset::{ReminderPreset, ReminderUnit as SettingsReminderUnit};
 pub use models::settings::{PartialSettings, Settings};
 pub use models::time_label::TimeLabel;
 pub use models::view_item::ViewItem;

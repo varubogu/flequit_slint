@@ -836,8 +836,74 @@ msgid "Remove reminder {0}"
 msgstr ""
 
 #: crates/flequit-ui/ui/views/task-detail/task-detail.slint:281
+msgctxt "Reminder"
+msgid "1 minute before"
+msgstr ""
+
+msgctxt "Reminder"
+msgid "1 hour before"
+msgstr ""
+
+msgctxt "Reminder"
+msgid "1 day before"
+msgstr ""
+
+msgctxt "Reminder"
+msgid "{0} minutes before"
+msgstr ""
+
+msgctxt "Reminder"
+msgid "{0} hours before"
+msgstr ""
+
+msgctxt "Reminder"
+msgid "{0} days before"
+msgstr ""
+
+msgctxt "Reminder"
+msgid "Choose a future date and time."
+msgstr ""
+
+msgctxt "TaskDetail"
+msgid "Before start"
+msgstr ""
+
+msgctxt "TaskDetail"
+msgid "Before due"
+msgstr ""
+
+msgctxt "Settings"
+msgid "Reminder presets"
+msgstr ""
+
+msgctxt "Settings"
+msgid "Remove the {0} reminder preset"
+msgstr ""
+
+msgctxt "Settings"
+msgid "Reminder amount"
+msgstr ""
+
+msgctxt "Settings"
+msgid "Add reminder preset"
+msgstr ""
+
+msgctxt "Settings"
+msgid "Basic Language Week start Due filters Custom due days Reminder presets Recurrence Platform features"
+msgstr ""
+
 msgctxt "TaskDetail"
 msgid "30 minutes before start"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:74
+msgctxt "TaskDetail"
+msgid "1 hour before start"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:81
+msgctxt "TaskDetail"
+msgid "1 day before start"
 msgstr ""
 
 #: crates/flequit-ui/ui/views/task-detail/task-detail.slint:288
@@ -845,9 +911,29 @@ msgctxt "TaskDetail"
 msgid "30 minutes before due"
 msgstr ""
 
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:102
+msgctxt "TaskDetail"
+msgid "1 hour before due"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:109
+msgctxt "TaskDetail"
+msgid "1 day before due"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:118
+msgctxt "TaskDetail"
+msgid "Set a start or due date to use relative reminders."
+msgstr ""
+
 #: crates/flequit-ui/ui/views/task-detail/task-detail.slint:296
 msgctxt "TaskDetail"
 msgid "Specific date and time (optional)"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:140
+msgctxt "TaskDetail"
+msgid "Select a specific reminder date"
 msgstr ""
 
 #: crates/flequit-ui/ui/views/task-detail/task-detail.slint:275

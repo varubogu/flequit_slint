@@ -20,7 +20,7 @@ pub use app::AppViewModel;
 pub use search::SearchQuery;
 pub use settings::{
     CustomDueFilter, CustomDueUnit, DateTimeFormatKind, DateTimeFormatPreference,
-    DueButtonPreference, RecurrencePreset, SettingsSaveFuture, SettingsStore, SettingsStoreError,
-    UserSettings, resolve_locale, system_locale,
+    DueButtonPreference, RecurrencePreset, ReminderPreset, SettingsSaveFuture, SettingsStore,
+    SettingsStoreError, UserSettings, resolve_locale, system_locale,
 };
 pub use task_list_ui::TaskListUiViewModel;

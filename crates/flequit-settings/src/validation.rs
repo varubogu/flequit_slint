@@ -4,6 +4,7 @@
 
 use crate::errors::{SettingsError, SettingsResult};
 use crate::models::custom_due_filter::CustomDueFilter;
+use crate::models::reminder_preset::ReminderPreset;
 use crate::models::settings::Settings;
 
 /// 設定値検証器
@@ -18,6 +19,7 @@ impl SettingsValidator {
         Self::validate_week_start(&settings.week_start)?;
         Self::validate_timezone(&settings.timezone)?;
         Self::validate_custom_due_filters(&settings.custom_due_filters)?;
+        Self::validate_reminder_presets(&settings.reminder_presets)?;
 
         Ok(())
     }
@@ -127,6 +129,41 @@ impl SettingsValidator {
                 message: format!(
                     "カスタム期限フィルタの設定数が多すぎます（最大20個）: {}",
                     filters.len()
+                ),
+            });
+        }
+
+        Ok(())
+    }
+
+    /// リマインダー候補の検証
+    fn validate_reminder_presets(presets: &[ReminderPreset]) -> SettingsResult<()> {
+        for preset in presets {
+            if preset.value < 1 {
+                return Err(SettingsError::ValidationError {
+                    message: format!(
+                        "リマインダー候補の値は1以上である必要があります: {}",
+                        preset.value
+                    ),
+                });
+            }
+
+            let max = preset.unit.max_value();
+            if preset.value > max {
+                return Err(SettingsError::ValidationError {
+                    message: format!(
+                        "リマインダー候補の値が大きすぎます（{:?} の最大は {}）: {}",
+                        preset.unit, max, preset.value
+                    ),
+                });
+            }
+        }
+
+        if presets.len() > 20 {
+            return Err(SettingsError::ValidationError {
+                message: format!(
+                    "リマインダー候補の設定数が多すぎます（最大20個）: {}",
+                    presets.len()
                 ),
             });
         }

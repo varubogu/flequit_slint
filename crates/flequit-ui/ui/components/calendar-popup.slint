@@ -32,6 +32,14 @@ export component CalendarPopup inherits PopupWindow {
     // rule.
     in property <bool> with-time: true;
     in property <int> open-token;
+    // Optional constraints supplied by the caller. Other calendars leave this
+    // disabled and retain their existing unrestricted behaviour.
+    in property <bool> selection-validation-enabled: false;
+    in property <string> invalid-selection-message;
+
+    pure callback date-selectable(int /* year */, int /* month */, int /* day */) -> bool;
+    pure callback selection-valid(int /* year */, int /* month */, int /* day */,
+                                  int /* hour */, int /* minute */) -> bool;
 
     callback accepted(int /* year */, int /* month */, int /* day */,
                       int /* hour */, int /* minute */);
@@ -45,6 +53,16 @@ export component CalendarPopup inherits PopupWindow {
     private property <int> edit-minute: 0;
     // Months paged away from the one being edited.
     private property <int> month-offset: 0;
+    private property <bool> invalid-selection: false;
+    // Constraints may depend on a clock. Refresh the visible choices while
+    // open, and check again inside the click handler and before accepting.
+    private property <int> validation-revision: 0;
+
+    Timer {
+        interval: 30s;
+        running: root.selection-validation-enabled;
+        triggered => { root.validation-revision += 1; }
+    }
 
     private property <bool> monday-first: SettingsState.week-start == "monday";
     private property <length> cell-size: Layout.touch-target;
@@ -60,7 +78,8 @@ export component CalendarPopup inherits PopupWindow {
     height: 2 * Theme.space-sm + 5 * Theme.space-xs
         + root.title-height + 3 * Layout.touch-target + root.weekday-height
         + 6 * root.cell-size
-        + (root.with-time ? Layout.touch-target + Theme.space-xs : 0px);
+        + (root.with-time ? Layout.touch-target + Theme.space-xs : 0px)
+        + (root.selection-validation-enabled ? root.title-height + Theme.space-xs : 0px);
     close-policy: PopupClosePolicy.close-on-click-outside;
 
     changed open-token => {
@@ -70,7 +89,8 @@ export component CalendarPopup inherits PopupWindow {
         root.edit-hour = root.hour;
         root.edit-minute = root.minute;
         root.month-offset = 0;
-        typed.text = "";
+        root.invalid-selection = false;
+        root.sync-input();
     }
 
     pure function leap-year(y: int) -> bool {
@@ -114,6 +134,21 @@ export component CalendarPopup inherits PopupWindow {
     private property <string> month-label:
         I18n.calendar-month-label(root.display-year, root.display-month);
 
+    pure function two-digits(value: int) -> string {
+        return value < 10 ? "0\{value}" : "\{value}";
+    }
+
+    pure function input-label() -> string {
+        let date = "\{root.edit-year}/\{root.two-digits(root.edit-month)}/\{root.two-digits(root.edit-day)}";
+        return root.with-time
+            ? "\{date} \{root.two-digits(root.edit-hour)}:\{root.two-digits(root.edit-minute)}"
+            : date;
+    }
+
+    function sync-input() {
+        typed.text = root.input-label();
+    }
+
     // Applies what the user typed. Text that is not a date leaves the editor
     // alone, which is the normal state halfway through typing one.
     function apply(text: string) -> bool {
@@ -135,6 +170,18 @@ export component CalendarPopup inherits PopupWindow {
     }
 
     function commit() {
+        if (root.selection-validation-enabled && !root.apply(typed.text)) {
+            root.invalid-selection = true;
+            return;
+        }
+        if (root.selection-validation-enabled
+            && (!root.date-selectable(root.edit-year, root.edit-month, root.edit-day)
+                || !root.selection-valid(root.edit-year, root.edit-month, root.edit-day,
+                                         root.edit-hour, root.edit-minute))) {
+            root.invalid-selection = true;
+            return;
+        }
+        root.invalid-selection = false;
         root.close();
         root.accepted(root.edit-year, root.edit-month, root.edit-day,
                       root.edit-hour, root.edit-minute);
@@ -172,12 +219,24 @@ export component CalendarPopup inherits PopupWindow {
             accessible-label: root.with-time
                 ? @tr("Calendar" => "Type a date and time")
                 : @tr("Calendar" => "Type a date");
-            edited(text) => { root.apply(text); }
+            edited(text) => {
+                root.invalid-selection = false;
+                root.apply(text);
+            }
             accepted(text) => {
                 if (root.apply(text)) {
                     root.commit();
                 }
             }
+        }
+
+        if root.selection-validation-enabled: Text {
+            height: root.title-height;
+            text: root.invalid-selection ? root.invalid-selection-message : "";
+            color: Theme.danger;
+            font-size: Theme.font-size-sm;
+            vertical-alignment: center;
+            wrap: word-wrap;
         }
 
         HorizontalLayout {
@@ -234,6 +293,11 @@ export component CalendarPopup inherits PopupWindow {
                     private property <int> day-number: week * 7 + column - root.lead-offset + 1;
                     private property <bool> in-month:
                         self.day-number >= 1 && self.day-number <= root.display-length;
+                    private property <bool> is-selectable: self.in-month
+                        && root.validation-revision >= 0
+                        && (!root.selection-validation-enabled
+                            || root.date-selectable(root.display-year, root.display-month,
+                                                    self.day-number));
                     private property <bool> is-selected: self.in-month
                         && self.day-number == root.edit-day
                         && root.display-month == root.edit-month
@@ -242,12 +306,12 @@ export component CalendarPopup inherits PopupWindow {
                     horizontal-stretch: 1;
                     border-radius: Theme.radius-sm;
                     background: self.is-selected ? Theme.surface-selected
-                        : (self.in-month && day-touch.has-hover) ? Theme.surface-hover
+                        : (self.is-selectable && day-touch.has-hover) ? Theme.surface-hover
                         : transparent;
 
                     Text {
                         text: parent.in-month ? "\{parent.day-number}" : "";
-                        color: Theme.text;
+                        color: parent.is-selectable ? Theme.text : Theme.text-muted;
                         font-size: Theme.font-size-base;
                         horizontal-alignment: center;
                         vertical-alignment: center;
@@ -256,12 +320,18 @@ export component CalendarPopup inherits PopupWindow {
                     }
 
                     day-touch := TouchArea {
+                        enabled: parent.is-selectable;
                         clicked => {
-                            if (parent.in-month) {
+                            if (parent.is-selectable
+                                && (!root.selection-validation-enabled
+                                    || root.date-selectable(root.display-year, root.display-month,
+                                                            parent.day-number))) {
                                 root.edit-year = root.display-year;
                                 root.edit-month = root.display-month;
                                 root.edit-day = parent.day-number;
                                 root.month-offset = 0;
+                                root.invalid-selection = false;
+                                root.sync-input();
                             }
                         }
                     }
@@ -291,7 +361,11 @@ export component CalendarPopup inherits PopupWindow {
                 minimum: 0;
                 maximum: 23;
                 accessible-label: @tr("Calendar" => "Hour");
-                edited(value) => { root.edit-hour = value; }
+                edited(value) => {
+                    root.edit-hour = value;
+                    root.invalid-selection = false;
+                    root.sync-input();
+                }
             }
 
             Text {
@@ -307,7 +381,11 @@ export component CalendarPopup inherits PopupWindow {
                 minimum: 0;
                 maximum: 59;
                 accessible-label: @tr("Calendar" => "Minute");
-                edited(value) => { root.edit-minute = value; }
+                edited(value) => {
+                    root.edit-minute = value;
+                    root.invalid-selection = false;
+                    root.sync-input();
+                }
             }
         }
 

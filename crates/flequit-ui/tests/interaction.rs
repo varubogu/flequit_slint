@@ -17,8 +17,9 @@ use flequit_ui::bindings::{
     Actions, AppState, AppWindow, BookmarkedTagItem, Capabilities, ColorOption, DueButtonSetting,
     DueFilterItem, EditorKind, Layout, ProjectItem, RecurrenceEnd, RecurrenceMonthlyMode,
     RecurrencePresetSetting, RecurrenceState, RecurrenceUnit, RecurrenceWeekOfMonth, ReminderItem,
-    SearchSuggestion, SearchSuggestionKind, SettingsCategory, SettingsState, SubTaskItem, TagItem,
-    TaskItem, TaskListItem, TaskPriority, TaskSort, TaskStatus, Theme, ThemeMode,
+    ReminderPresetSetting, ReminderUnit, SearchSuggestion, SearchSuggestionKind, SettingsCategory,
+    SettingsState, SubTaskItem, TagItem, TaskItem, TaskListItem, TaskPriority, TaskSort,
+    TaskStatus, Theme, ThemeMode,
 };
 use i_slint_backend_testing::ElementHandle;
 use slint::{Brush, Color, ComponentHandle, Model, ModelRc, SharedString, VecModel};
@@ -877,6 +878,7 @@ fn notification_permission_can_be_requested_from_settings() {
     window.global::<Capabilities>().set_local_notification(true);
     window.global::<SettingsState>().set_open(true);
     settle();
+    scroll_settings_to(&window, "Allow notifications");
 
     let requests = Rc::new(RefCell::new(0));
     {
@@ -966,6 +968,30 @@ fn the_due_date_editor_is_reachable() {
 
 fn reminder_controls_reach_their_handlers() {
     let window = window_with_content();
+    window
+        .global::<SettingsState>()
+        .set_reminder_presets(ModelRc::new(VecModel::from(vec![
+            ReminderPresetSetting {
+                value: 30,
+                unit: ReminderUnit::Minute,
+                minutes_before: 30,
+            },
+            ReminderPresetSetting {
+                value: 1,
+                unit: ReminderUnit::Hour,
+                minutes_before: 60,
+            },
+            ReminderPresetSetting {
+                value: 1,
+                unit: ReminderUnit::Day,
+                minutes_before: 1440,
+            },
+            ReminderPresetSetting {
+                value: 2,
+                unit: ReminderUnit::Day,
+                minutes_before: 2880,
+            },
+        ])));
     window.global::<Capabilities>().set_local_notification(true);
     let state = window.global::<AppState>();
     let mut task = state
@@ -1004,23 +1030,196 @@ fn reminder_controls_reach_their_handlers() {
         );
     }
 
+    assert!(activate(&window, "Add a reminder"));
     assert!(
-        ElementHandle::find_by_accessible_label(&window, "Add a reminder")
+        ElementHandle::find_by_accessible_label(&window, "Select a specific reminder date")
             .next()
             .is_some(),
-        "the add-reminder picker is not reachable"
+        "the optional calendar entry is not reachable"
     );
-    assert!(activate(&window, "30 minutes before start"));
-    assert!(activate(&window, "30 minutes before due"));
+    assert!(activate(&window, "30 minutes before"));
+    let mut task = state.get_selected_task();
+    task.has_start = false;
+    state.set_selected_task(task);
+    assert!(activate(&window, "Add a reminder"));
+    assert!(activate(&window, "1 hour before"));
+    assert!(activate(&window, "Add a reminder"));
+    assert!(activate(&window, "1 day before"));
+    assert!(activate(&window, "Add a reminder"));
+    assert!(activate(&window, "2 days before"));
     assert_eq!(
         relative.borrow().as_slice(),
-        [("t1".to_string(), true, 30), ("t1".to_string(), false, 30)]
+        [
+            ("t1".to_string(), true, 30),
+            ("t1".to_string(), false, 60),
+            ("t1".to_string(), false, 1440),
+            ("t1".to_string(), false, 2880)
+        ]
     );
     assert!(activate(&window, "Remove reminder 2026-09-07 12:00"));
     assert_eq!(
         removed.borrow().as_slice(),
         [("t1".to_string(), "2026-09-07T12:00:00+00:00".to_string())]
     );
+
+    // Freeze the reminder boundary at 2026-09-06 12:30. Parsing uses the real
+    // parser; the separate unit tests cover timezone and clock comparisons.
+    window
+        .global::<Actions>()
+        .on_parse_datetime(|text, year, month, day, hour, minute| {
+            use flequit_ui::adapters::{
+                datetime::DateTimeParts, datetime_input::parse_datetime_input,
+            };
+            let reference = DateTimeParts {
+                year,
+                month,
+                day,
+                hour,
+                minute,
+            };
+            parse_datetime_input(&text, reference).map_or_else(Default::default, |parsed| {
+                flequit_ui::bindings::ParsedDateTime {
+                    valid: true,
+                    year: parsed.year,
+                    month: parsed.month,
+                    day: parsed.day,
+                    hour: parsed.hour,
+                    minute: parsed.minute,
+                    has_time: parsed.has_time,
+                }
+            })
+        });
+    window
+        .global::<Actions>()
+        .on_reminder_date_selectable(|year, month, day| (year, month, day) >= (2026, 9, 6));
+    window
+        .global::<Actions>()
+        .on_reminder_datetime_valid(|year, month, day, hour, minute| {
+            (year, month, day, hour, minute) > (2026, 9, 6, 12, 30)
+        });
+    let added = Rc::new(RefCell::new(Vec::new()));
+    let seen = Rc::clone(&added);
+    window
+        .global::<Actions>()
+        .on_add_reminder(move |_, year, month, day, hour, minute| {
+            seen.borrow_mut().push((year, month, day, hour, minute));
+        });
+    assert!(activate(&window, "Add a reminder"));
+    assert!(activate(&window, "Select a specific reminder date"));
+    settle();
+    let input = ElementHandle::find_by_accessible_label(&window, "Type a date and time")
+        .find(|element| element.accessible_value().is_some())
+        .expect("calendar input");
+    let original = input.accessible_value();
+    assert!(activate(&window, "Day 5 of September 2026"));
+    settle();
+    assert_eq!(
+        input.accessible_value(),
+        original,
+        "past days must not change the selection"
+    );
+    assert!(activate(&window, "OK"));
+    settle();
+    assert!(
+        added.borrow().is_empty(),
+        "a past time today must be rejected"
+    );
+    assert!(
+        ElementHandle::find_by_accessible_label(&window, "Type a date and time")
+            .next()
+            .is_some()
+    );
+    for invalid in ["2026/09/05 18:00", "2026/09/06 12:30", "invalid"] {
+        set_value(&window, "Type a date and time", invalid);
+        assert!(activate(&window, "OK"));
+        settle();
+        assert!(added.borrow().is_empty());
+        assert!(
+            ElementHandle::find_by_accessible_label(&window, "Type a date and time")
+                .next()
+                .is_some()
+        );
+    }
+    set_value(&window, "Type a date and time", "2026/09/06 12:31");
+    assert!(activate(&window, "OK"));
+    settle();
+    assert_eq!(added.borrow().as_slice(), [(2026, 9, 6, 12, 31)]);
+    assert!(
+        ElementHandle::find_by_accessible_label(&window, "Type a date and time")
+            .next()
+            .is_none()
+    );
+
+    // The same base component remains unrestricted when editing a due date.
+    let due = Rc::new(RefCell::new(Vec::new()));
+    let seen = Rc::clone(&due);
+    window
+        .global::<Actions>()
+        .on_update_task_due(move |_, year, month, day, _, _| {
+            seen.borrow_mut().push((year, month, day));
+        });
+    assert!(activate(&window, "Edit due date"));
+    settle();
+    assert!(activate(&window, "Day 5 of September 2026"));
+    assert!(activate(&window, "OK"));
+    assert_eq!(due.borrow().as_slice(), [(2026, 9, 5)]);
+}
+
+fn reminder_settings_add_and_remove_choices() {
+    use flequit_ui::viewmodels::settings::SettingsViewModel;
+    let window = window_with_content();
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let viewmodel = SettingsViewModel::new_without_persistence(runtime.handle().clone());
+    viewmodel.bind(&window);
+    viewmodel.apply(&window);
+    slint::select_bundled_translation("en").unwrap();
+    let settings = window.global::<SettingsState>();
+    settings.set_open(true);
+    settle();
+    scroll_settings_to(&window, "Reminder amount");
+    set_value(&window, "Reminder amount", "45");
+    assert!(activate(&window, "Add reminder preset"));
+    settle();
+    assert_eq!(settings.get_reminder_presets().row_count(), 4);
+    assert!(
+        settings
+            .get_reminder_presets()
+            .iter()
+            .any(|preset| preset.minutes_before == 45)
+    );
+    assert!(activate(&window, "Add reminder preset"));
+    assert_eq!(
+        settings.get_reminder_presets().row_count(),
+        4,
+        "duplicates are ignored"
+    );
+    scroll_settings_to(&window, "Remove the 45 minutes before reminder preset");
+    assert!(activate(
+        &window,
+        "Remove the 45 minutes before reminder preset"
+    ));
+    settle();
+    assert_eq!(settings.get_reminder_presets().row_count(), 3);
+}
+
+/// Settings are a scrollable document; only visible controls enter the test tree.
+fn scroll_settings_to(window: &AppWindow, label: &str) {
+    let scroll = ElementHandle::find_by_element_type_name(window, "AllSettings")
+        .next()
+        .expect("the settings scroll view must exist");
+    scroll.scroll(0.0, 10000.0);
+    settle();
+    for _ in 0..30 {
+        if ElementHandle::find_by_accessible_label(window, label)
+            .next()
+            .is_some()
+        {
+            return;
+        }
+        scroll.scroll(0.0, -150.0);
+        settle();
+    }
+    panic!("settings control {label:?} remains unreachable after scrolling");
 }
 
 fn the_priority_editor_reaches_its_handler() {
@@ -1463,6 +1662,34 @@ fn the_repeat_editor_reaches_its_handlers() {
             .expect("changing the period should ask for a preview")
             .unit,
         RecurrenceUnit::Month
+    );
+
+    let preview_count = ElementHandle::find_by_accessible_label(&window, "Preview count")
+        .find(|element| element.accessible_value().is_some())
+        .expect("the preview count input is not reachable");
+    assert!(
+        preview_count.size().height <= 48.0,
+        "the one-line preview count input stretched vertically"
+    );
+
+    assert!(activate(&window, "On a date"));
+    let date_editor = ElementHandle::find_by_accessible_label(&window, "Choose the last date")
+        .next()
+        .expect("the end-date editor is not reachable");
+    let end_editor_position = date_editor.absolute_position();
+
+    assert!(activate(&window, "After a number of times"));
+    let count_editor = ElementHandle::find_by_accessible_label(&window, "Number of times")
+        .find(|element| element.accessible_value().is_some())
+        .expect("the occurrence-count editor is not reachable");
+    assert_eq!(
+        count_editor.absolute_position(),
+        end_editor_position,
+        "end-condition editors must occupy the same fixed layout slot"
+    );
+    assert!(
+        count_editor.size().height <= 48.0,
+        "the one-line occurrence-count input stretched vertically"
     );
 
     assert!(
@@ -2107,6 +2334,7 @@ fn the_shell_responds_to_user_actions() {
     adding_a_subtask_reaches_its_handler();
     the_due_date_editor_is_reachable();
     reminder_controls_reach_their_handlers();
+    reminder_settings_add_and_remove_choices();
     the_priority_editor_reaches_its_handler();
     the_status_editor_reaches_its_handler();
     the_expanded_sidebar_can_be_collapsed_and_reopened();

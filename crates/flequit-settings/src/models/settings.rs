@@ -9,6 +9,7 @@ use super::custom_due_filter::CustomDueFilter;
 use super::datetime_format::DateTimeFormat;
 use super::due_date_buttons::DueDateButtons;
 use super::recurrence_preset::RecurrencePreset;
+use super::reminder_preset::{ReminderPreset, default_reminder_presets};
 use super::time_label::TimeLabel;
 use super::view_item::ViewItem;
 
@@ -59,6 +60,9 @@ pub struct Settings {
     /// 繰り返し設定のカスタム項目
     #[serde(default, alias = "custom_recurrence_presets")]
     pub custom_recurrence_presets: Vec<RecurrencePreset>,
+    /// リマインダー追加時に表示する相対時間の候補
+    #[serde(default = "missing_reminder_presets", alias = "reminder_presets")]
+    pub reminder_presets: Vec<ReminderPreset>,
     /// 選択した日時フォーマット
     #[serde(alias = "datetime_format")]
     pub datetime_format: DateTimeFormat,
@@ -78,6 +82,28 @@ pub struct Settings {
     pub view_items: Vec<ViewItem>,
 }
 
+// `partially` forwards serde attributes to Option-wrapped fields. A missing
+// full setting needs the legacy choices; a missing partial update must do nothing.
+trait MissingReminderPresets {
+    fn missing() -> Self;
+}
+
+impl MissingReminderPresets for Vec<ReminderPreset> {
+    fn missing() -> Self {
+        default_reminder_presets()
+    }
+}
+
+impl MissingReminderPresets for Option<Vec<ReminderPreset>> {
+    fn missing() -> Self {
+        None
+    }
+}
+
+fn missing_reminder_presets<T: MissingReminderPresets>() -> T {
+    T::missing()
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
@@ -92,6 +118,7 @@ impl Default for Settings {
             timezone: "Asia/Tokyo".to_string(),
             custom_due_filters: vec![],
             custom_recurrence_presets: vec![],
+            reminder_presets: default_reminder_presets(),
             datetime_format: DateTimeFormat::default(),
             datetime_formats: vec![],
             time_labels: vec![],

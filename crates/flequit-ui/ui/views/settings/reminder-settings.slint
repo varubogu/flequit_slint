@@ -1,0 +1,80 @@
+import { SpinBox } from "std-widgets.slint";
+import { Theme } from "../../globals/theme.slint";
+import { Layout } from "../../globals/layout.slint";
+import { Actions } from "../../globals/actions.slint";
+import { SettingsState } from "../../globals/settings.slint";
+import { ReminderUnit } from "../../globals/types.slint";
+import { I18n } from "../../globals/i18n.slint";
+import { DialogButton } from "../../components/dialog-button.slint";
+import { IconButton } from "../../components/icon-button.slint";
+import { IconName } from "../../components/icon.slint";
+import { ChoiceButton, FieldLabel } from "settings-controls.slint";
+
+export component ReminderSettings inherits VerticalLayout {
+    private property <ReminderUnit> new-reminder-unit: ReminderUnit.minute;
+    vertical-stretch: 0;
+    spacing: Theme.space-sm;
+    FieldLabel { text: @tr("Settings" => "Reminder presets"); }
+    for preset in SettingsState.reminder-presets: HorizontalLayout {
+        height: Layout.touch-target;
+        spacing: Theme.space-sm;
+        Text {
+            text: I18n.reminder-offset-label(preset.value, preset.unit);
+            color: Theme.text;
+            font-size: Theme.font-size-base;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+            overflow: elide;
+        }
+        IconButton {
+            icon: IconName.close;
+            tooltip: @tr("Settings" => "Remove the {0} reminder preset",
+                I18n.reminder-offset-label(preset.value, preset.unit));
+            clicked => {
+                Actions.remove-reminder-preset(preset.value, preset.unit);
+            }
+        }
+    }
+    HorizontalLayout {
+        height: Layout.touch-target;
+        vertical-stretch: 0;
+        spacing: Theme.space-sm;
+        ChoiceButton {
+            label: @tr("Settings" => "Minutes");
+            selected: root.new-reminder-unit == ReminderUnit.minute;
+            clicked => { root.new-reminder-unit = ReminderUnit.minute; }
+        }
+        ChoiceButton {
+            label: @tr("Settings" => "Hours");
+            selected: root.new-reminder-unit == ReminderUnit.hour;
+            clicked => { root.new-reminder-unit = ReminderUnit.hour; }
+        }
+        ChoiceButton {
+            label: @tr("Settings" => "Days");
+            selected: root.new-reminder-unit == ReminderUnit.day;
+            clicked => { root.new-reminder-unit = ReminderUnit.day; }
+        }
+    }
+    HorizontalLayout {
+        height: Layout.touch-target;
+        vertical-stretch: 0;
+        spacing: Theme.space-sm;
+        reminder-value := SpinBox {
+            height: Layout.touch-target;
+            vertical-stretch: 0;
+            value: 30;
+            minimum: 1;
+            maximum: root.new-reminder-unit == ReminderUnit.minute ? 43200
+                : root.new-reminder-unit == ReminderUnit.hour ? 8760 : 3650;
+            accessible-label: @tr("Settings" => "Reminder amount");
+        }
+        DialogButton {
+            label: @tr("Settings" => "Add reminder preset");
+            primary: true;
+            clicked => {
+                Actions.add-reminder-preset(reminder-value.value,
+                                           root.new-reminder-unit);
+            }
+        }
+    }
+}

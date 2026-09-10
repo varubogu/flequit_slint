@@ -1,4 +1,4 @@
-import { DueUnit, LocaleItem, RecurrenceUnit, RecurrenceWeekOfMonth } from "types.slint";
+import { DueUnit, LocaleItem, RecurrenceUnit, RecurrenceWeekOfMonth, ReminderUnit } from "types.slint";
 
 // Translation surface.
 //
@@ -25,6 +25,18 @@ export global I18n {
         return unit == DueUnit.minute ? @tr("DueFilter" => "Within {0} minutes", value)
             : unit == DueUnit.hour ? @tr("DueFilter" => "Within {0} hours", value)
             : @tr("DueFilter" => "Next {0} days", value);
+    }
+
+    // Relative reminder labels intentionally omit the start/due reference;
+    // the surrounding section identifies it once without repeating it.
+    pure public function reminder-offset-label(value: int, unit: ReminderUnit) -> string {
+        return value == 1
+            ? (unit == ReminderUnit.minute ? @tr("Reminder" => "1 minute before")
+                : unit == ReminderUnit.hour ? @tr("Reminder" => "1 hour before")
+                : @tr("Reminder" => "1 day before"))
+            : (unit == ReminderUnit.minute ? @tr("Reminder" => "{0} minutes before", value)
+                : unit == ReminderUnit.hour ? @tr("Reminder" => "{0} hours before", value)
+                : @tr("Reminder" => "{0} days before", value));
     }
 
     // Maps a due-filter key to its translated label.

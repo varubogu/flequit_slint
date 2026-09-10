@@ -8,6 +8,7 @@ mod model;
 mod mutations;
 mod navigation;
 mod publisher;
+mod reminder;
 mod timezone;
 mod worker;
 
@@ -19,6 +20,6 @@ pub use font::filter as filter_fonts;
 pub use locale::{SUPPORTED_LOCALES, resolve_locale, supported, system_locale};
 pub use model::{
     CustomDueFilter, CustomDueUnit, DateTimeFormatKind, DateTimeFormatPreference,
-    DueButtonPreference, RecurrencePreset, SettingsSaveFuture, SettingsStore, SettingsStoreError,
-    UserSettings,
+    DueButtonPreference, RecurrencePreset, ReminderPreset, SettingsSaveFuture, SettingsStore,
+    SettingsStoreError, UserSettings,
 };

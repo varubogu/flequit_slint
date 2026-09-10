@@ -5,7 +5,7 @@ use tokio::runtime::Handle;
 use super::font::FontCatalogue;
 use super::model::{NoopSettingsStore, SettingsStore, UserSettings};
 use super::worker::SettingsQueue;
-use super::{datetime_format, font, mutations, navigation, publisher, timezone};
+use super::{datetime_format, font, mutations, navigation, publisher, reminder, timezone};
 use crate::bindings::AppWindow;
 
 /// Owns settings values and connects dialog actions to persistence.
@@ -58,6 +58,7 @@ impl SettingsViewModel {
         navigation::bind(window);
         timezone::bind(window);
         datetime_format::bind(window, &self.queue);
+        reminder::bind(window, &self.queue);
         font::bind(window, &self.fonts);
         mutations::bind(window, &self.queue);
     }

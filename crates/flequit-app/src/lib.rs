@@ -24,14 +24,16 @@ use flequit_platform::Platform;
 use flequit_settings::types::datetime_format_types::DateTimeFormatGroup;
 use flequit_settings::{
     CustomDueFilter as StoredDueFilter, CustomDueUnit as StoredDueUnit, DateTimeFormat,
-    DueDateButtons, RecurrencePreset as StoredRecurrencePreset, Settings, SettingsManager,
-    SettingsRecurrenceUnit as StoredRecurrenceUnit,
+    DueDateButtons, RecurrencePreset as StoredRecurrencePreset,
+    ReminderPreset as StoredReminderPreset, Settings, SettingsManager,
+    SettingsRecurrenceUnit as StoredRecurrenceUnit, SettingsReminderUnit as StoredReminderUnit,
 };
-use flequit_ui::bindings::{RecurrenceUnit, ThemeMode};
+use flequit_ui::bindings::{RecurrenceUnit, ReminderUnit, ThemeMode};
 use flequit_ui::{
     AppViewModel, AppWindow, CustomDueFilter, CustomDueUnit, DateTimeFormatKind,
-    DateTimeFormatPreference, DueButtonPreference, RecurrencePreset, SettingsSaveFuture,
-    SettingsStore, SettingsStoreError, UserSettings, resolve_locale, system_locale,
+    DateTimeFormatPreference, DueButtonPreference, RecurrencePreset, ReminderPreset,
+    SettingsSaveFuture, SettingsStore, SettingsStoreError, UserSettings, resolve_locale,
+    system_locale,
 };
 use slint::ComponentHandle;
 
@@ -169,6 +171,20 @@ fn to_user_settings(settings: &Settings) -> UserSettings {
             .iter()
             .map(|preset| RecurrencePreset::new(preset.interval, to_recurrence_unit(preset.unit)))
             .collect(),
+        reminder_presets: settings
+            .reminder_presets
+            .iter()
+            .map(|preset| {
+                ReminderPreset::new(
+                    preset.value,
+                    match preset.unit {
+                        StoredReminderUnit::Minute => ReminderUnit::Minute,
+                        StoredReminderUnit::Hour => ReminderUnit::Hour,
+                        StoredReminderUnit::Day => ReminderUnit::Day,
+                    },
+                )
+            })
+            .collect(),
         theme_mode: match settings.theme.as_str() {
             "light" => ThemeMode::Light,
             "dark" => ThemeMode::Dark,
@@ -206,6 +222,20 @@ fn apply_user_settings(stored: &mut Settings, settings: UserSettings) {
         .into_iter()
         .map(|preset| {
             StoredRecurrencePreset::new(preset.interval, from_recurrence_unit(preset.unit))
+        })
+        .collect();
+    stored.reminder_presets = settings
+        .reminder_presets
+        .into_iter()
+        .map(|preset| {
+            StoredReminderPreset::new(
+                preset.value,
+                match preset.unit {
+                    ReminderUnit::Minute => StoredReminderUnit::Minute,
+                    ReminderUnit::Hour => StoredReminderUnit::Hour,
+                    ReminderUnit::Day => StoredReminderUnit::Day,
+                },
+            )
         })
         .collect();
     stored.theme = match settings.theme_mode {
@@ -463,6 +493,23 @@ mod tests {
 
         assert_eq!(settings.due_buttons.len(), 9);
         assert!(!settings.due_buttons[1].visible);
+    }
+
+    #[test]
+    fn reminder_settings_round_trip_including_an_empty_list() {
+        let stored = Settings {
+            reminder_presets: vec![StoredReminderPreset::new(2, StoredReminderUnit::Day)],
+            ..Settings::default()
+        };
+        let ui = to_user_settings(&stored);
+        assert_eq!(ui.reminder_presets[0].minutes_before(), 2880);
+        let mut restored = Settings::default();
+        apply_user_settings(&mut restored, ui);
+        assert_eq!(restored.reminder_presets, stored.reminder_presets);
+        let mut ui = to_user_settings(&stored);
+        ui.reminder_presets.clear();
+        apply_user_settings(&mut restored, ui);
+        assert!(to_user_settings(&restored).reminder_presets.is_empty());
     }
 
     #[test]

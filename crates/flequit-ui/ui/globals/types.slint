@@ -94,6 +94,15 @@ export struct RecurrencePresetSetting {
     unit: RecurrenceUnit,
 }
 
+// The unit used by configurable relative reminder choices.
+export enum ReminderUnit { minute, hour, day }
+
+export struct ReminderPresetSetting {
+    value: int,
+    unit: ReminderUnit,
+    minutes-before: int,
+}
+
 export struct ReminderItem {
     // UTC RFC 3339 timestamp used as the stable removal key.
     key: string,

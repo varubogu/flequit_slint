@@ -10,7 +10,7 @@ import { TaskItem, ProjectItem, TaskListItem, SubTaskItem, DueFilterItem, Locale
          ColorOption, DateTimeFormatSetting, DueButtonSetting, ReminderItem, EditorState, SettingsCategory, TaskStatus,
          TaskPriority, TaskSort, EditorKind, Pane, TagItem, BookmarkedTagItem, RecurrenceState,
          RecurrenceUnit, RecurrenceMonthlyMode, RecurrenceWeekOfMonth, RecurrenceEnd,
-         SearchSuggestion, SearchSuggestionKind } from "globals/types.slint";
+         ReminderUnit, ReminderPresetSetting, SearchSuggestion, SearchSuggestionKind } from "globals/types.slint";
 import { Sidebar } from "views/sidebar/sidebar.slint";
 import { ItemEditor } from "views/sidebar/item-editor.slint";
 import { TagManager } from "views/tags/tag-manager.slint";
@@ -30,6 +30,7 @@ export { TaskItem, ProjectItem, TaskListItem, SubTaskItem, DueFilterItem, Locale
          TaskPriority, TaskSort, EditorKind, Pane, TagItem, BookmarkedTagItem, ThemeMode, Breakpoint,
          SearchSuggestion, SearchSuggestionKind }
 export { RecurrenceState, RecurrenceUnit, RecurrenceMonthlyMode, RecurrenceWeekOfMonth, RecurrenceEnd }
+export { ReminderUnit, ReminderPresetSetting }
 
 export component AppWindow inherits Window {
     title: "Flequit";

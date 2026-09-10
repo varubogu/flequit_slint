@@ -238,6 +238,8 @@ export component RecurrenceEditor inherits Rectangle {
                             font-size: Theme.font-size-sm;
                         }
                         HorizontalLayout {
+                            height: Layout.touch-target;
+                            vertical-stretch: 0;
                             spacing: Theme.space-xs;
                             for preset in SettingsState.recurrence-presets: OptionButton {
                                 label: I18n.recurrence-summary(preset.unit, preset.interval);
@@ -269,8 +271,12 @@ export component RecurrenceEditor inherits Rectangle {
                             }
 
                             HorizontalLayout {
+                                height: Layout.touch-target;
+                                vertical-stretch: 0;
                                 spacing: Theme.space-sm;
                                 SpinBox {
+                                    height: Layout.touch-target;
+                                    vertical-stretch: 0;
                                     value: root.interval;
                                     minimum: 1;
                                     maximum: 999;
@@ -291,6 +297,8 @@ export component RecurrenceEditor inherits Rectangle {
                             }
 
                             HorizontalLayout {
+                                height: Layout.touch-target;
+                                vertical-stretch: 0;
                                 spacing: Theme.space-xs;
                                 OptionButton {
                                     label: I18n.recurrence-unit-label(RecurrenceUnit.minute);
@@ -315,6 +323,8 @@ export component RecurrenceEditor inherits Rectangle {
                             }
 
                             HorizontalLayout {
+                                height: Layout.touch-target;
+                                vertical-stretch: 0;
                                 spacing: Theme.space-xs;
                                 OptionButton {
                                     label: I18n.recurrence-unit-label(RecurrenceUnit.month);
@@ -349,6 +359,8 @@ export component RecurrenceEditor inherits Rectangle {
                                 font-size: Theme.font-size-sm;
                             }
                             HorizontalLayout {
+                                height: Layout.touch-target;
+                                vertical-stretch: 0;
                                 spacing: Theme.space-xs;
                                 for index in [0, 1, 2, 3, 4, 5, 6]: OptionButton {
                                     label: I18n.weekday-abbreviation(index);
@@ -378,6 +390,8 @@ export component RecurrenceEditor inherits Rectangle {
                             }
 
                             HorizontalLayout {
+                                height: Layout.touch-target;
+                                vertical-stretch: 0;
                                 spacing: Theme.space-sm;
                                 OptionButton {
                                     label: @tr("Recurrence" => "Day of the month");
@@ -387,6 +401,8 @@ export component RecurrenceEditor inherits Rectangle {
                                     }
                                 }
                                 SpinBox {
+                                    height: Layout.touch-target;
+                                    vertical-stretch: 0;
                                     value: root.day-of-month;
                                     minimum: 1;
                                     maximum: 31;
@@ -408,6 +424,8 @@ export component RecurrenceEditor inherits Rectangle {
                             }
 
                             if root.by-weekday-of-month: HorizontalLayout {
+                                height: Layout.touch-target;
+                                vertical-stretch: 0;
                                 spacing: Theme.space-xs;
                                 OptionButton {
                                     label: I18n.week-of-month-label(RecurrenceWeekOfMonth.first);
@@ -447,6 +465,8 @@ export component RecurrenceEditor inherits Rectangle {
                             }
 
                             if root.by-weekday-of-month: HorizontalLayout {
+                                height: Layout.touch-target;
+                                vertical-stretch: 0;
                                 spacing: Theme.space-xs;
                                 for index in [0, 1, 2, 3, 4, 5, 6]: OptionButton {
                                     label: I18n.weekday-abbreviation(index);
@@ -471,6 +491,8 @@ export component RecurrenceEditor inherits Rectangle {
                             }
 
                             HorizontalLayout {
+                                height: Layout.touch-target;
+                                vertical-stretch: 0;
                                 spacing: Theme.space-xs;
                                 OptionButton {
                                     label: @tr("Recurrence" => "Never");
@@ -489,44 +511,57 @@ export component RecurrenceEditor inherits Rectangle {
                                 }
                             }
 
-                            if root.end-kind == RecurrenceEnd.on-date: Rectangle {
+                            // Keep one fixed-height editor slot for every end
+                            // condition so changing the condition never moves
+                            // the preview or stretches the surrounding fields.
+                            Rectangle {
                                 height: Layout.touch-target;
-                                background: end-touch.has-hover ? Theme.surface-hover : Theme.surface;
-                                border-radius: Theme.radius-sm;
-                                border-width: 1px;
-                                border-color: Theme.border;
+                                vertical-stretch: 0;
 
-                                Text {
-                                    x: Theme.space-sm;
-                                    width: parent.width - 2 * Theme.space-sm;
-                                    height: 100%;
-                                    text: Actions.preview-datetime(
-                                        SettingsState.current-datetime-format,
-                                        root.end-year, root.end-month, root.end-day, 23, 59);
-                                    color: Theme.text;
-                                    font-size: Theme.font-size-base;
-                                    vertical-alignment: center;
-                                }
+                                if root.end-kind == RecurrenceEnd.on-date: Rectangle {
+                                    width: 100%;
+                                    height: Layout.touch-target;
+                                    background: end-touch.has-hover ? Theme.surface-hover : Theme.surface;
+                                    border-radius: Theme.radius-sm;
+                                    border-width: 1px;
+                                    border-color: Theme.border;
 
-                                end-touch := TouchArea {
-                                    clicked => {
-                                        end-popup.show();
-                                        root.end-open-count += 1;
+                                    Text {
+                                        x: Theme.space-sm;
+                                        width: parent.width - 2 * Theme.space-sm;
+                                        height: 100%;
+                                        text: Actions.preview-datetime(
+                                            SettingsState.current-datetime-format,
+                                            root.end-year, root.end-month, root.end-day, 23, 59);
+                                        color: Theme.text;
+                                        font-size: Theme.font-size-base;
+                                        vertical-alignment: center;
                                     }
-                                }
-                                accessible-role: button;
-                                accessible-label: @tr("Recurrence" => "Choose the last date");
-                                accessible-action-default => { end-touch.clicked(); }
-                            }
 
-                            if root.end-kind == RecurrenceEnd.after-count: SpinBox {
-                                value: root.max-occurrences;
-                                minimum: 1;
-                                maximum: 999;
-                                accessible-label: @tr("Recurrence" => "Number of times");
-                                edited(value) => {
-                                    root.max-occurrences = value;
-                                    root.changed();
+                                    end-touch := TouchArea {
+                                        clicked => {
+                                            end-popup.show();
+                                            root.end-open-count += 1;
+                                        }
+                                    }
+                                    accessible-role: button;
+                                    accessible-label: @tr("Recurrence" => "Choose the last date");
+                                    accessible-action-default => { end-touch.clicked(); }
+                                }
+
+                                if root.end-kind == RecurrenceEnd.after-count: SpinBox {
+                                    x: 0px;
+                                    width: 6 * Theme.space-xl;
+                                    height: Layout.touch-target;
+                                    vertical-stretch: 0;
+                                    value: root.max-occurrences;
+                                    minimum: 1;
+                                    maximum: 999;
+                                    accessible-label: @tr("Recurrence" => "Number of times");
+                                    edited(value) => {
+                                        root.max-occurrences = value;
+                                        root.changed();
+                                    }
                                 }
                             }
                         }
@@ -541,24 +576,34 @@ export component RecurrenceEditor inherits Rectangle {
                                 font-size: Theme.font-size-sm;
                             }
 
-                            if root.end-kind == RecurrenceEnd.never: HorizontalLayout {
+                            Rectangle {
+                                height: Layout.touch-target;
                                 vertical-stretch: 0;
-                                spacing: Theme.space-sm;
-                                Text {
-                                    text: @tr("Recurrence" => "Preview count");
-                                    color: Theme.text;
-                                    font-size: Theme.font-size-base;
-                                    vertical-alignment: center;
-                                    horizontal-stretch: 1;
-                                }
-                                SpinBox {
-                                    value: root.preview-count;
-                                    minimum: 1;
-                                    maximum: 999;
-                                    accessible-label: @tr("Recurrence" => "Preview count");
-                                    edited(value) => {
-                                        root.preview-count = value;
-                                        root.changed();
+
+                                if root.end-kind == RecurrenceEnd.never: HorizontalLayout {
+                                    width: 100%;
+                                    height: Layout.touch-target;
+                                    vertical-stretch: 0;
+                                    spacing: Theme.space-sm;
+                                    Text {
+                                        text: @tr("Recurrence" => "Preview count");
+                                        color: Theme.text;
+                                        font-size: Theme.font-size-base;
+                                        vertical-alignment: center;
+                                        horizontal-stretch: 1;
+                                    }
+                                    SpinBox {
+                                        width: 6 * Theme.space-xl;
+                                        height: Layout.touch-target;
+                                        vertical-stretch: 0;
+                                        value: root.preview-count;
+                                        minimum: 1;
+                                        maximum: 999;
+                                        accessible-label: @tr("Recurrence" => "Preview count");
+                                        edited(value) => {
+                                            root.preview-count = value;
+                                            root.changed();
+                                        }
                                     }
                                 }
                             }

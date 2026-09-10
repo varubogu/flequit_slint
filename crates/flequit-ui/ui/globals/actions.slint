@@ -3,8 +3,8 @@
 // Any interaction that persists data or runs domain logic goes through here.
 // Views must not mutate AppState for those cases.
 
-import { DueUnit, ParsedDateTime, RecurrenceState, RecurrenceUnit, SettingsCategory, TaskPriority,
-         TaskSort, TaskStatus } from "types.slint";
+import { DueUnit, ParsedDateTime, RecurrenceState, RecurrenceUnit, ReminderUnit, SettingsCategory,
+         TaskPriority, TaskSort, TaskStatus } from "types.slint";
 import { ThemeMode } from "theme.slint";
 
 export global Actions {
@@ -112,6 +112,8 @@ export global Actions {
     callback remove-custom-due-filter(int /* value */, DueUnit /* unit */);
     callback add-recurrence-preset(int /* interval */, RecurrenceUnit /* unit */);
     callback remove-recurrence-preset(int /* interval */, RecurrenceUnit /* unit */);
+    callback add-reminder-preset(int /* value */, ReminderUnit /* unit */);
+    callback remove-reminder-preset(int /* value */, ReminderUnit /* unit */);
     callback filter-timezones(string /* query */);
     callback filter-fonts(string /* query */);
     callback update-timezone(string /* timezone */);
@@ -127,6 +129,11 @@ export global Actions {
     pure callback parse-datetime(string /* text */, int /* year */, int /* month */,
                                  int /* day */, int /* hour */,
                                  int /* minute */) -> ParsedDateTime;
+    // Reminder-only constraints injected into the reusable calendar picker.
+    pure callback reminder-date-selectable(int /* year */, int /* month */,
+                                             int /* day */) -> bool;
+    pure callback reminder-datetime-valid(int /* year */, int /* month */, int /* day */,
+                                           int /* hour */, int /* minute */) -> bool;
     callback refresh-datetime-display();
     callback update-theme-mode(ThemeMode /* mode */);
     callback update-font(string /* font */);
