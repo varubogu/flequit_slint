@@ -40,14 +40,10 @@ UI レイヤー（Slint + ViewModel）
 
 ### クレート依存の方向
 
-```text
-flequit-types
-  ├→ flequit-platform
-  └→ flequit-model → flequit-repository → flequit-core
-       → flequit-infrastructure-* → flequit-infrastructure → flequit-ui → flequit-app
-```
-
-逆方向の依存は禁止。`scripts/check-crate-deps.sh` で検証する。
+**正本は `scripts/check-crate-deps.sh`**（CI で検証される）。
+図と依存可能先の一覧は
+[`../design/backend/rust-guidelines.md`](../design/backend/rust-guidelines.md) を参照。
+逆方向の依存は禁止。
 
 ## プラットフォーム分岐
 

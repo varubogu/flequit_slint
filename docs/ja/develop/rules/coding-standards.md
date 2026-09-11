@@ -219,22 +219,6 @@ private property <bool> is-form-valid: title-input.text != "";
 
 ## パフォーマンスの基本
 
-### UI
-
-- 派生値は Slint のバインディングで表現し、手動同期を避ける
-- 大量リストは `ListView`（仮想スクロール）を使う
-- `Model` の更新は差分通知で行い、1 件変更で `set_vec()` しない
-- UI スレッドをブロックしない
-
-### コア
-
-- N+1 を避ける: バッチ取得 / `JOIN` で 1 クエリ化
-- 並列 I/O は `tokio::join!` を活用
-- 詳細は `docs/ja/develop/design/backend/rust-guidelines.md` の
-  「パフォーマンス最適化」を参照
-
-### モバイル
-
-- 起動時の初期クエリに件数上限を設ける
-- バックグラウンド遷移時に周期タスクを停止する
-- `LowMemory` 通知で不要な Automerge ドキュメントを解放する
+UI 側（`ListView` / 差分更新 / 派生値のバインディング）は
+[`ui.md`](./ui.md)、コアとモバイルは
+[`../design/architecture.md`](../design/architecture.md) の「パフォーマンス最適化」が正本。

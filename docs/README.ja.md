@@ -19,7 +19,7 @@ docs/ja/
     │   ├── tech-stack.md        # 技術スタック・クレート構成
     │   ├── testing.md           # テスト環境
     │   ├── deployment.md        # ビルド・配布
-    │   ├── error-handling.md
+    │   ├── error-handling.md   # エラーの表示方針
     │   ├── api/                 # 将来の同期サーバ API
     │   ├── backend/             # Rust 設計・トランザクション
     │   ├── data/                # データモデル・Automerge・エンティティ

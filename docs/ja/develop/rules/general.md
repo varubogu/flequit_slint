@@ -1,20 +1,9 @@
 # 全般的なコーディングルール
 
-## ファイル構成
+## ファイル構成・命名規則
 
-### 基本原則
-
-- **単一責任原則**: 1 ファイル 1 機能
-- **ファイルサイズ**: 200 行超過で必須分割、100 行でも分割検討
-
-### 命名規則
-
-- **`.slint` ファイル**: ケバブケース（`task-item.slint`）
-- **Rust ファイル**: スネークケース（`task_viewmodel.rs`）
-- **Slint の component / struct / enum**: パスカルケース（`TaskItem`）
-- **Slint の property / callback**: ケバブケース（`is-selected`, `toggle-completed`）
-  - Rust 側の生成 API では自動的にスネークケースになる（`set_is_selected`, `on_toggle_completed`）
-- **その他**: Rust 標準規約に準拠
+[`coding-standards.md`](./coding-standards.md) が正本。
+配置先の一覧は [`file-structure.md`](./file-structure.md) を参照。
 
 ## 国際化対応
 
