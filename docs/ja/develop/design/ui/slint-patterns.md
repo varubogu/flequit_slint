@@ -260,7 +260,9 @@ tail := FocusSentinel { wrapped => { head.focus(); } }
   `interaction.rs` の `a_long_task_list_only_instantiates_visible_rows` が、
   タスク 500 件と 5000 件で生成される行数が増えないことを検証している
 - **条件付きレンダリング**: `if` で不要な要素を生成しない（`visible: false` は生成される）
-- **差分更新**: `Model` の更新は行単位の通知で行う
+- **差分更新**: `Model` の更新は行単位の通知で行う。
+  API の使い分けは [`viewmodel-architecture.md`](./viewmodel-architecture.md) の
+  「Model の更新パターン」を参照
 - **画像/SVG**: 頻繁に使うアイコンは `@image-url` で静的に埋め込む
 - **アニメーション**: `animate` は必要な箇所のみ。低スペック端末での駒落ちに注意
 

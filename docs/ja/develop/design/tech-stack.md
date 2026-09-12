@@ -89,6 +89,7 @@ OS 連携 API はプラットフォームごとに可否と実装が異なるた
 | `flequit-settings` | 設定ファイルの読み書き |
 | `flequit-testing` | テスト用ヘルパ |
 | `flequit-ui` | Slint UI 定義 + ViewModel 層 |
+| `flequit-web` | wasm32 向け UI プレビュー（`flequit-ui` に依存せず同じ `.slint` を再コンパイル。永続化なし） |
 | `flequit-app` | 実行バイナリ（初期化・DI・イベントループ・各プラットフォームのエントリポイント） |
 
 依存方向ルール:
@@ -111,50 +112,9 @@ flequit-types
 
 ## プロジェクト構造
 
-```text
-(root)
-├── Cargo.toml                       # workspace 定義
-├── crates/
-│   ├── flequit-types/
-│   ├── flequit-platform/
-│   │   └── src/
-│   │       ├── capability.rs        # 実行時 Capability 判定
-│   │       ├── paths.rs             # データ/設定/キャッシュディレクトリ
-│   │       ├── notification.rs
-│   │       ├── file_dialog.rs
-│   │       └── platform/            # desktop / android / ios の各実装
-│   ├── flequit-model/
-│   ├── flequit-repository/
-│   ├── flequit-core/
-│   ├── flequit-infrastructure/
-│   ├── flequit-infrastructure-sqlite/
-│   ├── flequit-infrastructure-automerge/
-│   ├── flequit-settings/
-│   ├── flequit-testing/
-│   ├── flequit-ui/
-│   │   ├── build.rs                 # slint-build によるコンパイル + 翻訳バンドル
-│   │   ├── ui/                      # .slint ファイル群
-│   │   │   ├── main.slint           # ルートウィンドウ
-│   │   │   ├── globals/             # テーマ・状態・レイアウト・コールバックの global singleton
-│   │   │   ├── components/          # 再利用コンポーネント
-│   │   │   ├── views/               # 画面単位（サイドバー / タスク一覧 / 詳細 / 設定）
-│   │   │   └── assets/
-│   │   └── src/
-│   │       ├── viewmodels/          # Slint Model/Property ↔ core の橋渡し
-│   │       ├── adapters/            # ドメインモデル ↔ Slint 構造体の変換
-│   │       └── lib.rs
-│   └── flequit-app/
-│       └── src/
-│           ├── main.rs              # デスクトップのエントリポイント
-│           ├── lib.rs               # 共通ブートストラップ
-│           └── mobile.rs            # android_main / iOS エントリ [Phase 2]
-├── i18n/                            # 翻訳 .po ファイル（bundled translations の入力）
-├── mobile/                          # [Phase 2] 未作成
-│   ├── android/                     # マニフェスト・アイコン・xbuild 設定
-│   └── ios/                         # XcodeGen 設定・Info.plist
-├── tests/                           # workspace 横断の統合テスト
-└── docs/                            # プロジェクトドキュメント
-```
+ディレクトリツリーの正本は
+[`../rules/file-structure.md`](../rules/file-structure.md)。
+配置ルールと禁止事項もそちらにまとめてある。
 
 ## Svelte + Tauri 版からの主な変更点
 

@@ -202,11 +202,10 @@ Slint のイベントループと Tokio ランタイムを共存させる。
 
 ### 4.1 UI 最適化
 
-- 大量データの表示は Slint の `ListView` による仮想スクロールを使用する
-- `Model` の更新は差分通知（`row_changed` / `row_added` / `row_removed`）で行い、
-  全件再設定（`set_vec`）は初回ロードとフィルタ切替時のみに限定する
-- 派生値は Slint の宣言的バインディングで表現し、ViewModel 側での手動同期を避ける
-- 起動時間短縮のため、初回描画に不要なデータは遅延ロードする
+仮想スクロール、差分更新、宣言的な派生値、遅延ロードで UI 応答性を保つ。
+個別の適用方法は `design/ui/slint-patterns.md` の「パフォーマンス」、
+`Model` API の使い分けは `design/ui/viewmodel-architecture.md` の
+「Model の更新パターン」が正本。
 
 ### 4.2 モバイル固有の最適化
 

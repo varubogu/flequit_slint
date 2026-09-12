@@ -1,5 +1,8 @@
 # ファイル構成・プロジェクト構造
 
+ディレクトリツリーの **正本は本書**。他のドキュメントは本書へリンクする
+（`design/tech-stack.md` はクレートの責務一覧のみを持つ）。
+
 ```text
 (root)
 ├── Cargo.toml                       # workspace 定義
@@ -18,65 +21,87 @@
 │   │       └── platform/            # desktop / android / ios（cfg はここだけ）
 │   ├── flequit-model/               # ドメインモデル構造体
 │   ├── flequit-repository/          # Repository トレイト（契約）
-│   │   └── src/repositories/
+│   │   ├── src/repositories/
+│   │   └── tests/
 │   ├── flequit-core/                # ドメインロジック
 │   │   └── src/
 │   │       ├── facades/             # トランザクション境界・複数 service の協調
 │   │       ├── services/            # ドメインロジック（ストレージ非依存）
 │   │       └── errors/
 │   ├── flequit-infrastructure-sqlite/
-│   │   └── src/
-│   │       ├── models/              # Sea-ORM エンティティ
-│   │       ├── migrations/
-│   │       ├── repositories/
-│   │       └── infrastructure/      # DatabaseManager 等
+│   │   ├── src/
+│   │   │   ├── models/              # Sea-ORM エンティティ
+│   │   │   ├── migrator/
+│   │   │   ├── repositories/
+│   │   │   ├── infrastructure/      # DatabaseManager 等
+│   │   │   ├── core_ports_impls.rs
+│   │   │   ├── testing/
+│   │   │   └── bin/                 # migration_runner
+│   │   └── tests/
 │   ├── flequit-infrastructure-automerge/
-│   │   └── src/
-│   │       ├── document_manager.rs
-│   │       ├── storage/             # FileStorage、.deleted/ 管理
-│   │       └── repositories/
+│   │   ├── src/
+│   │   │   ├── models/
+│   │   │   ├── infrastructure/      # DocumentManager、FileStorage、.deleted/ 管理
+│   │   │   └── core_ports_impls.rs
+│   │   └── tests/
 │   ├── flequit-infrastructure/      # 複数インフラを合成する統合 Facade
 │   ├── flequit-settings/            # 設定ファイルの読み書き
-│   ├── flequit-testing/             # テスト用ヘルパ
+│   │   └── tests/
+│   ├── flequit-testing/             # テスト用ヘルパ（データビルダー）
 │   ├── flequit-ui/                  # Slint UI + ViewModel
 │   │   ├── build.rs                 # slint-build（コンパイル + 翻訳バンドル）
 │   │   ├── ui/                      # .slint ファイル群
 │   │   │   ├── main.slint           # ルートウィンドウ
-│   │   │   ├── globals/             # Theme / Layout / AppState / Capabilities / Actions / I18n
+│   │   │   ├── globals/             # theme / layout / app-state / capabilities /
+│   │   │   │                        #   actions / i18n / settings / types
 │   │   │   ├── components/          # 再利用コンポーネント
 │   │   │   ├── views/               # 画面単位
 │   │   │   │   ├── sidebar/
 │   │   │   │   ├── task-list/
 │   │   │   │   ├── task-detail/
+│   │   │   │   ├── tags/
 │   │   │   │   └── settings/
 │   │   │   └── assets/              # アイコン・フォント
-│   │   └── src/
-│   │       ├── lib.rs
-│   │       ├── bindings.rs          # slint::include_modules! の再エクスポート
-│   │       ├── adapters/            # ドメイン型 ↔ Slint 型（純粋関数）
-│   │       └── viewmodels/          # UI 状態とコールバック実装
+│   │   ├── src/
+│   │   │   ├── lib.rs
+│   │   │   ├── bindings.rs          # slint::include_modules! の再エクスポート
+│   │   │   ├── error.rs             # UiError
+│   │   │   ├── adapters/            # ドメイン型 ↔ Slint 型（純粋関数）
+│   │   │   └── viewmodels/          # UI 状態とコールバック実装
+│   │   │       ├── app.rs           # 全体の初期化・配線
+│   │   │       ├── task_list_ui.rs  # 展開状態などのビュー状態
+│   │   │       ├── reload_gate.rs
+│   │   │       ├── ordering/ recurrence/ search/ settings/
+│   │   │       └── project_editor.rs, tag_editor.rs
+│   │   └── tests/
+│   │       └── interaction.rs       # 操作の結合テスト（UI シェル）
+│   ├── flequit-web/                 # wasm32 向け UI プレビュー（永続化なし）
+│   │   ├── build.rs                 # .po を flequit-web ドメインへステージング
+│   │   └── src/lib.rs
 │   └── flequit-app/                 # 実行バイナリ
 │       └── src/
 │           ├── main.rs              # デスクトップのエントリポイント
-│           ├── lib.rs               # 共通ブートストラップ
-│           └── mobile.rs            # android_main / iOS エントリ [Phase 2]
+│           ├── lib.rs               # 共通ブートストラップ・init_logging
+│           ├── entry_android.rs     # android_main（feature = "android"）
+│           └── entry_ios.rs         # iOS エントリ（feature = "ios"）
 ├── i18n/                            # 翻訳ファイル
 │   ├── flequit-ui.pot
 │   ├── en/LC_MESSAGES/flequit-ui.po
 │   └── ja/LC_MESSAGES/flequit-ui.po
-├── mobile/                          # [Phase 2] 未作成
-│   ├── android/                     # マニフェスト・アイコン・xbuild 設定
+├── mobile/
+│   ├── android/                     # Gradle + cargo-ndk
 │   └── ios/                         # XcodeGen 設定・Info.plist
-├── tests/                           # workspace 横断の統合テスト
-│   ├── integration/
-│   └── system/
+├── web/                             # wasm の配信ディレクトリ（index.html + pkg/）
 ├── scripts/
 │   ├── check-crate-deps.sh          # 依存方向・cfg 隔離の検証
+│   ├── test-prepare.sh              # テスト用 SQLite DB / ディレクトリ準備
 │   └── sync-agent-skills.sh         # エージェント設定の同期
+├── plans/                           # 移植計画・設計判断の記録
 └── docs/                            # プロジェクトドキュメント
 ```
 
-`[Phase 2]` の項目はモバイル対応時に作成する。現時点では存在しない。
+**統合テストはルート直下ではなく、各クレートの `tests/` に置く**
+（ルートに `tests/` は存在しない）。
 
 ## 配置ルール
 
@@ -91,7 +116,8 @@
 | ドメインロジック | `crates/flequit-core/src/services/` |
 | OS 依存処理 | `crates/flequit-platform/src/platform/` |
 | クレート内の単体テスト | 同一ソース内の `#[cfg(test)] mod tests` |
-| クレート横断の統合テスト | `tests/integration/` |
+| クレート内の結合テスト | `crates/<crate>/tests/` |
+| UI 操作の結合テスト | `crates/flequit-ui/tests/interaction.rs` |
 
 ## 禁止事項
 

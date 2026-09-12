@@ -220,5 +220,6 @@ private property <bool> is-form-valid: title-input.text != "";
 ## パフォーマンスの基本
 
 UI 側（`ListView` / 差分更新 / 派生値のバインディング）は
-[`ui.md`](./ui.md)、コアとモバイルは
+[`../design/ui/slint-patterns.md`](../design/ui/slint-patterns.md) の「パフォーマンス」、
+コアとモバイルは
 [`../design/architecture.md`](../design/architecture.md) の「パフォーマンス最適化」が正本。

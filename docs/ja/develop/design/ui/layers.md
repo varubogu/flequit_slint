@@ -5,27 +5,17 @@ Slint 版では UI とドメインが同一プロセスに同居する。IPC の
 
 > 実装の正本は `crates/flequit-ui/` を参照。本書は責務と依存ルールのみを述べる。
 
-## ディレクトリ構造（概略）
+## 層とディレクトリの対応
 
-```text
-crates/flequit-ui/
-├── build.rs                    # slint-build による .slint コンパイル + 翻訳バンドル
-├── ui/                         # Slint 宣言的 UI（Rust から見て「ビュー」）
-│   ├── main.slint
-│   ├── globals/
-│   │   ├── theme.slint         # 配色・余白・フォントのトークン
-│   │   ├── layout.slint        # ブレークポイントとフォームファクタ
-│   │   ├── app-state.slint     # UI 状態の global singleton
-│   │   └── callbacks.slint     # Rust 側で実装するコールバックの宣言
-│   ├── components/             # 再利用コンポーネント（ボタン・チップ等）
-│   ├── views/                  # 画面単位（sidebar / task-list / task-detail / settings）
-│   └── assets/
-└── src/
-    ├── lib.rs
-    ├── adapters/               # ドメインモデル ↔ Slint 構造体の変換
-    ├── viewmodels/             # UI 状態の保持とコールバック実装
-    └── bindings.rs             # slint::include_modules! の再エクスポート
-```
+| 層 | 配置 |
+| --- | --- |
+| View | `crates/flequit-ui/ui/**/*.slint` |
+| Adapter | `crates/flequit-ui/src/adapters/` |
+| ViewModel | `crates/flequit-ui/src/viewmodels/` |
+| Facade 以降 | `crates/flequit-core/src/facades/` |
+
+完全なディレクトリツリーは
+[`../../rules/file-structure.md`](../../rules/file-structure.md) を参照。
 
 ## 各層の責務
 
