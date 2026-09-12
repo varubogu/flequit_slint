@@ -23,7 +23,7 @@ export component TaskDetailView inherits Rectangle {
     callback back();
 
     // The selected task, resolved by the caller from AppState.tasks.
-    in property <TaskItem> task;
+    in-out property <TaskItem> task;
     in property <bool> has-task: false;
 
     background: Theme.background;
@@ -88,9 +88,10 @@ export component TaskDetailView inherits Rectangle {
                     changed focus-detail-request => {
                         if (root.has-task) { self.focus(); }
                     }
-                    text: root.task.title;
+                    text <=> root.task.title;
                     font-size: Theme.font-size-title;
                     placeholder-text: @tr("TaskDetail" => "Task title");
+                    accessible-label: @tr("TaskDetail" => "Task title");
                     edited(value) => { Actions.update-task-title(root.task.id, value); }
                 }
 
@@ -334,7 +335,7 @@ export component TaskDetailView inherits Rectangle {
 
                 TextEdit {
                     height: 160px;
-                    text: root.task.notes;
+                    text <=> root.task.notes;
                     wrap: word-wrap;
                     edited => { Actions.update-task-notes(root.task.id, self.text); }
                 }

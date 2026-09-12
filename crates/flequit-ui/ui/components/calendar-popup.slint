@@ -182,9 +182,11 @@ export component CalendarPopup inherits PopupWindow {
             return;
         }
         root.invalid-selection = false;
-        root.close();
         root.accepted(root.edit-year, root.edit-month, root.edit-day,
                       root.edit-hour, root.edit-minute);
+        // Closing destroys the popup item tree, so publish the committed
+        // value before dismissing it.
+        root.close();
     }
 
     Rectangle {

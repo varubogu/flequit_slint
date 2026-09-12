@@ -17,7 +17,7 @@ import { IconName } from "../../components/icon.slint";
 // actionable — title, schedule, status, priority and notes — and always keeps a
 // way back to the task it belongs to.
 export component SubTaskDetailView inherits Rectangle {
-    in property <SubTaskItem> subtask;
+    in-out property <SubTaskItem> subtask;
     // The title of the parent task, shown in the back affordance.
     in property <string> parent-title;
 
@@ -71,7 +71,7 @@ export component SubTaskDetailView inherits Rectangle {
                         if (self.focus-detail-request > 0) { self.focus(); }
                     }
                     changed focus-detail-request => { self.focus(); }
-                    text: root.subtask.title;
+                    text <=> root.subtask.title;
                     font-size: Theme.font-size-title;
                     placeholder-text: @tr("SubTaskDetail" => "Subtask title");
                     accessible-label: @tr("SubTaskDetail" => "Subtask title");
@@ -149,7 +149,7 @@ export component SubTaskDetailView inherits Rectangle {
 
                 TextEdit {
                     height: 160px;
-                    text: root.subtask.notes;
+                    text <=> root.subtask.notes;
                     accessible-label: @tr("SubTaskDetail" => "Subtask notes");
                     wrap: word-wrap;
                     edited => { Actions.update-subtask-notes(root.subtask.id, self.text); }

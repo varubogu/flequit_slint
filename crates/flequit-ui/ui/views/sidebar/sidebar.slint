@@ -102,25 +102,6 @@ export component Sidebar inherits Rectangle {
                         collapsed: root.collapsed;
                     }
                 }
-
-
-                if !root.collapsed && AppState.selected-project-id != "": HorizontalLayout {
-                    spacing: Theme.space-sm;
-
-                    Text {
-                        text: @tr("Sidebar" => "Tags");
-                        color: Theme.text-muted;
-                        font-size: Theme.font-size-sm;
-                        vertical-alignment: center;
-                        horizontal-stretch: 1;
-                    }
-
-                    IconButton {
-                        icon: IconName.tag;
-                        tooltip: @tr("Sidebar" => "Manage tags");
-                        clicked => { AppState.tag-manager-open = true; }
-                    }
-                }
             }
         }
 

@@ -1258,6 +1258,7 @@ where
                 let snapshot = TaskRowSnapshot::capture(&before);
 
                 update_task_row(&window, &task_id, |item| item.title = title.clone());
+                sync_selected_task(&window, &task_id);
 
                 let patch = PartialTask {
                     title: Some(title.to_string()),
@@ -1384,6 +1385,7 @@ where
                 let snapshot = TaskRowSnapshot::capture(&before);
 
                 update_task_row(&window, &task_id, |item| item.notes = notes.clone());
+                sync_selected_task(&window, &task_id);
 
                 let patch = PartialTask {
                     description: Some(Some(notes.to_string())),

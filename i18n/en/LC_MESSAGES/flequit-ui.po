@@ -75,12 +75,17 @@ msgctxt "DateTimePicker"
 msgid "Not set"
 msgstr "Not set"
 
-#: crates/flequit-ui/ui/components/subtask-row.slint:45
+#: crates/flequit-ui/ui/components/subtask-row.slint:54
 msgctxt "TaskList"
 msgid "Complete {0}"
 msgstr "Complete {0}"
 
-#: crates/flequit-ui/ui/components/subtask-row.slint:64
+#: crates/flequit-ui/ui/components/subtask-row.slint:69
+msgctxt "TaskList"
+msgid "Edit subtask {0}"
+msgstr "Edit subtask {0}"
+
+#: crates/flequit-ui/ui/components/subtask-row.slint:75
 msgctxt "TaskList"
 msgid "Open subtask {0}"
 msgstr "Open subtask {0}"

@@ -341,6 +341,19 @@ fn click(window: &AppWindow, label: &str) -> bool {
     }
 }
 
+/// Opens a `SelectField` and chooses its next option through its accessible
+/// adjustment action. Popup contents have their own item tree, so this is the
+/// keyboard and screen-reader path to the same selection function.
+fn select_next_option(window: &AppWindow, field_label: &str) {
+    let field = ElementHandle::find_by_accessible_label(window, field_label)
+        .next()
+        .unwrap_or_else(|| panic!("select field {field_label:?} is not reachable"));
+    field.invoke_accessible_default_action();
+    settle();
+    field.invoke_accessible_increment_action();
+    settle();
+}
+
 fn selecting_a_project_reaches_its_handler() {
     let window = window_with_content();
     let seen = Rc::new(RefCell::new(Vec::<String>::new()));
@@ -1233,16 +1246,54 @@ fn the_priority_editor_reaches_its_handler() {
     state.set_selected_task(task);
     state.set_has_selected_task(true);
 
-    // The options live in a `PopupWindow`, which is a window of its own and so
-    // is not part of the item tree `ElementHandle` walks. What the test can
-    // check is that the field is reachable, opens, and reports the value the
-    // task carries.
+    let seen = Rc::new(RefCell::new(Vec::<(String, TaskPriority)>::new()));
+    {
+        let seen = Rc::clone(&seen);
+        window
+            .global::<Actions>()
+            .on_update_task_priority(move |task_id, priority| {
+                seen.borrow_mut().push((task_id.to_string(), priority));
+            });
+    }
+
     let field = ElementHandle::find_by_accessible_label(&window, "Change priority")
         .next()
         .expect("the priority field is not reachable");
     assert_eq!(field.accessible_value().as_deref(), Some("None"));
-    field.invoke_accessible_default_action();
-    settle();
+    select_next_option(&window, "Change priority");
+    assert_eq!(
+        seen.borrow().as_slice(),
+        [("t1".to_string(), TaskPriority::Low)]
+    );
+}
+
+fn the_task_title_editor_reaches_its_handler() {
+    let window = window_with_content();
+    let state = window.global::<AppState>();
+    let task = state
+        .get_tasks()
+        .row_data(0)
+        .expect("the test task should exist");
+    state.set_selected_task_id(task.id.clone());
+    state.set_selected_task(task);
+    state.set_has_selected_task(true);
+
+    let seen = Rc::new(RefCell::new(Vec::<(String, String)>::new()));
+    {
+        let seen = Rc::clone(&seen);
+        window
+            .global::<Actions>()
+            .on_update_task_title(move |task_id, title| {
+                seen.borrow_mut()
+                    .push((task_id.to_string(), title.to_string()));
+            });
+    }
+
+    set_value(&window, "Task title", "Buy oat milk");
+    assert_eq!(
+        seen.borrow().as_slice(),
+        [("t1".to_string(), "Buy oat milk".to_string())]
+    );
 }
 
 fn the_status_editor_reaches_its_handler() {
@@ -1256,14 +1307,25 @@ fn the_status_editor_reaches_its_handler() {
     state.set_selected_task(task);
     state.set_has_selected_task(true);
 
-    // See `the_priority_editor_reaches_its_handler`: the options are in a
-    // popup, so only the field itself can be driven from here.
+    let seen = Rc::new(RefCell::new(Vec::<(String, TaskStatus)>::new()));
+    {
+        let seen = Rc::clone(&seen);
+        window
+            .global::<Actions>()
+            .on_update_task_status(move |task_id, status| {
+                seen.borrow_mut().push((task_id.to_string(), status));
+            });
+    }
+
     let field = ElementHandle::find_by_accessible_label(&window, "Change status")
         .next()
         .expect("the status field is not reachable");
     assert_eq!(field.accessible_value().as_deref(), Some("Not started"));
-    field.invoke_accessible_default_action();
-    settle();
+    select_next_option(&window, "Change status");
+    assert_eq!(
+        seen.borrow().as_slice(),
+        [("t1".to_string(), TaskStatus::InProgress)]
+    );
 }
 
 fn the_expanded_sidebar_can_be_collapsed_and_reopened() {
@@ -1334,6 +1396,19 @@ fn a_task_row_shows_its_tags() {
             "the task row does not show {tag}; visible labels: {labels:?}"
         );
     }
+}
+
+fn tag_management_is_available_without_pinned_tags() {
+    let window = window_with_content();
+    let state = window.global::<AppState>();
+    state.set_selected_project_id(SharedString::from("p1"));
+    settle();
+
+    assert!(
+        activate(&window, "Manage tags"),
+        "tag management is not reachable from the pinned-tags section"
+    );
+    assert!(state.get_tag_manager_open());
 }
 
 fn tag_management_and_assignment_reach_their_handlers() {
@@ -1731,8 +1806,8 @@ fn the_repeat_editor_can_stop_a_schedule() {
     assert!(!window.global::<AppState>().get_recurrence_open());
 }
 
-/// The subtask row used to be a label with a click target and nothing else: no
-/// way to rename, delete, or complete a step without opening its parent.
+/// A subtask row must read as a child of its task and expose pointer-operable
+/// controls for completion and opening the detail editor.
 fn subtask_rows_reach_their_handlers() {
     let window = window_with_content();
     let state = window.global::<AppState>();
@@ -1741,6 +1816,8 @@ fn subtask_rows_reach_their_handlers() {
         .row_data(0)
         .expect("the test task should exist");
     task.subtasks = ModelRc::new(VecModel::from(vec![subtask_item("s1", "Pick up bread")]));
+    task.subtask_count = 1;
+    task.expanded = true;
     state.set_tasks(ModelRc::new(VecModel::from(vec![task.clone()])));
     state.set_selected_task_id(task.id.clone());
     state.set_selected_task(task);
@@ -1759,13 +1836,20 @@ fn subtask_rows_reach_their_handlers() {
         actions.on_select_subtask(move |id| opened.borrow_mut().push(id.to_string()));
     }
 
+    let task_checkbox = ElementHandle::find_by_accessible_label(&window, "Buy milk")
+        .find(|element| element.accessible_checked().is_some())
+        .expect("the parent task checkbox is not reachable");
+    let subtask_checkbox =
+        ElementHandle::find_by_accessible_label(&window, "Complete Pick up bread")
+            .find(|element| element.accessible_checked().is_some())
+            .expect("the subtask checkbox is not reachable");
     assert!(
-        activate(&window, "Complete Pick up bread"),
-        "the subtask checkbox is not reachable: {:?}",
-        accessible_labels(&window)
+        subtask_checkbox.absolute_position().x > task_checkbox.absolute_position().x,
+        "the subtask checkbox must be indented to the right of its parent"
     );
+    assert!(click(&window, "Complete Pick up bread"));
     assert!(activate(&window, "Delete subtask Pick up bread"));
-    assert!(activate(&window, "Open subtask Pick up bread"));
+    assert!(click(&window, "Edit subtask Pick up bread"));
 
     assert_eq!(toggled.borrow().as_slice(), ["s1"]);
     assert_eq!(deleted.borrow().as_slice(), ["s1"]);
@@ -1815,10 +1899,8 @@ fn the_subtask_detail_pane_reaches_its_handlers() {
     }
 
     set_value(&window, "Subtask title", "Pick up rye bread");
-    assert!(activate(&window, "Change status"));
-    settle();
-    assert!(activate(&window, "Change priority"));
-    settle();
+    select_next_option(&window, "Change status");
+    select_next_option(&window, "Change priority");
     assert!(
         activate(&window, "Back to Buy milk"),
         "the parent-task link is not reachable: {:?}",
@@ -1829,10 +1911,14 @@ fn the_subtask_detail_pane_reaches_its_handlers() {
         titles.borrow().as_slice(),
         [("s1".to_string(), "Pick up rye bread".to_string())]
     );
-    // The status and priority options are inside a popup, out of reach here;
-    // opening the fields is as far as this test can drive them.
-    assert!(statuses.borrow().is_empty());
-    assert!(priorities.borrow().is_empty());
+    assert_eq!(
+        statuses.borrow().as_slice(),
+        [("s1".to_string(), TaskStatus::InProgress)]
+    );
+    assert_eq!(
+        priorities.borrow().as_slice(),
+        [("s1".to_string(), TaskPriority::Low)]
+    );
     assert_eq!(*back.borrow(), 1);
 }
 
@@ -2320,6 +2406,7 @@ fn the_shell_responds_to_user_actions() {
     a_due_filter_reaches_its_handler();
     a_task_row_can_be_selected_and_completed();
     a_task_row_shows_its_tags();
+    tag_management_is_available_without_pinned_tags();
     tag_management_and_assignment_reach_their_handlers();
     the_sort_bar_reaches_its_handler();
     the_drag_handle_reaches_its_handler();
@@ -2335,6 +2422,7 @@ fn the_shell_responds_to_user_actions() {
     the_due_date_editor_is_reachable();
     reminder_controls_reach_their_handlers();
     reminder_settings_add_and_remove_choices();
+    the_task_title_editor_reaches_its_handler();
     the_priority_editor_reaches_its_handler();
     the_status_editor_reaches_its_handler();
     the_expanded_sidebar_can_be_collapsed_and_reopened();

@@ -5,8 +5,8 @@ import { Icon, IconName } from "icon.slint";
 
 // One entry of a `SelectField` list.
 //
-// `value` is an opaque tag the caller chose; the field never interprets it, so
-// an enum-backed caller maps it back on the way out.
+// `value` is the zero-based option index. Enum-backed callers map it back on
+// the way out; keeping it in the row also makes the callback payload explicit.
 export struct SelectOption {
     value: int,
     label: string,
@@ -35,6 +35,16 @@ export component SelectField inherits Rectangle {
 
     callback selected(int /* value */);
 
+    function choose(option-index: int) {
+        if (option-index < 0 || option-index >= root.options.length) {
+            return;
+        }
+        root.selected(root.options[option-index].value);
+        // Closing destroys the popup item tree. Keep it last so callers are
+        // always notified while the selected option still exists.
+        list-popup.close();
+    }
+
     height: Layout.touch-target;
     background: field-touch.has-hover ? Theme.surface-hover : Theme.surface;
     border-radius: Theme.radius-sm;
@@ -47,6 +57,12 @@ export component SelectField inherits Rectangle {
     accessible-expandable: true;
     accessible-action-default => { list-popup.show(); }
     accessible-action-expand => { list-popup.show(); }
+    accessible-action-increment => {
+        root.choose(Math.min(root.value + 1, root.options.length - 1));
+    }
+    accessible-action-decrement => {
+        root.choose(Math.max(root.value - 1, 0));
+    }
 
     HorizontalLayout {
         padding-left: Theme.space-sm;
@@ -119,7 +135,7 @@ export component SelectField inherits Rectangle {
             height: 100%;
             padding: Theme.space-xs;
 
-            for option in root.options: Rectangle {
+            for option[index] in root.options: Rectangle {
                 height: Layout.touch-target;
                 border-radius: Theme.radius-sm;
                 background: option.value == root.value ? Theme.surface-selected
@@ -150,10 +166,7 @@ export component SelectField inherits Rectangle {
                 }
 
                 option-touch := TouchArea {
-                    clicked => {
-                        list-popup.close();
-                        root.selected(option.value);
-                    }
+                    clicked => { root.choose(index); }
                 }
                 accessible-role: button;
                 accessible-label: option.action-label;
