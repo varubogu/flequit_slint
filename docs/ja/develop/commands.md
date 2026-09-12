@@ -131,13 +131,6 @@ macOS + Xcode が必要。Xcode の pre-build スクリプトが `cargo build` �
 | ツール導入 | `cargo install cargo-packager --locked` |
 | パッケージ生成 | `cargo packager --release` |
 
-## 推奨実行順（修正後の確認フロー）
+## 修正後の確認フロー
 
-詳細手順は `docs/ja/develop/rules/workflow.md` 参照。サマリ:
-
-- **UI 修正時**: `cargo check --quiet` → `cargo clippy` → 個別 `cargo test -j 4 <name>`
-  → `cargo test -p flequit-ui -j 4` → 必要ならブレークポイント確認
-- **コア/インフラ修正時**: `cargo check --quiet` → `cargo clippy` →
-  個別 `cargo test -j 4 <name>` → `cargo test -j 4`
-- **両方修正時**: コア → UI の順で実施（依存方向に沿う）
-- **クレート構成を変えた時**: `./scripts/check-crate-deps.sh` を必ず実行
+[`rules/workflow.md`](./rules/workflow.md) が正本。
