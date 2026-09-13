@@ -3,7 +3,7 @@ import { Layout } from "../../globals/layout.slint";
 import { AppState } from "../../globals/app-state.slint";
 import { TaskListItem } from "../../globals/types.slint";
 import { RowButton } from "../../components/row-button.slint";
-import { Icon, IconName } from "../../components/icon.slint";
+import { IconName } from "../../components/icon.slint";
 
 // One task list under a project, and a drop target for a dragged task.
 export component TaskListRow inherits Rectangle {
@@ -46,11 +46,6 @@ export component TaskListRow inherits Rectangle {
         padding-left: Theme.space-sm;
         padding-right: Theme.space-sm;
         spacing: Theme.space-sm;
-
-        Icon {
-            name: IconName.list;
-            y: (parent.height - self.height) / 2;
-        }
 
         Text {
             text: root.list.name;

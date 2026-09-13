@@ -81,14 +81,8 @@ export component ProjectRow inherits Rectangle {
             border-radius: Theme.radius-sm;
             background: name-touch.has-hover ? Theme.surface-hover : transparent;
 
-            folder := Icon {
-                name: IconName.folder;
-                x: Theme.space-xs;
-                y: (parent.height - self.height) / 2;
-            }
-
             Text {
-                x: folder.x + folder.width + Theme.space-xs;
+                x: Theme.space-xs;
                 width: parent.width - self.x;
                 text: root.project.name;
                 color: Theme.text;

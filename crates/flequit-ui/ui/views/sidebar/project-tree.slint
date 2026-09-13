@@ -1,4 +1,5 @@
 import { Theme } from "../../globals/theme.slint";
+import { Layout } from "../../globals/layout.slint";
 import { AppState } from "../../globals/app-state.slint";
 import { Actions } from "../../globals/actions.slint";
 import { ProjectItem, TaskListItem, EditorKind } from "../../globals/types.slint";
@@ -65,7 +66,9 @@ export component ProjectTree inherits VerticalLayout {
         }
 
         if !root.collapsed && project.expanded: VerticalLayout {
-            padding-left: Theme.space-lg;
+            // Start child labels beyond the project label. The touch-target
+            // term tracks the chevron width at every responsive breakpoint.
+            padding-left: Layout.touch-target + Theme.space-lg;
             spacing: 0px;
 
             for list in project.task-lists: TaskListRow {
