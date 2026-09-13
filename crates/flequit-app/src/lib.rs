@@ -145,6 +145,12 @@ fn to_user_settings(settings: &Settings) -> UserSettings {
                 key: button.id.clone(),
                 query: query.to_string(),
                 visible: button.is_visible,
+                // The file stores the id as the name until the user renames it.
+                name: if button.name == button.id {
+                    String::new()
+                } else {
+                    button.name.clone()
+                },
             })
         })
         .collect();
@@ -164,24 +170,37 @@ fn to_user_settings(settings: &Settings) -> UserSettings {
         custom_due_filters: settings
             .custom_due_filters
             .iter()
-            .map(|filter| CustomDueFilter::new(filter.value, to_due_unit(filter.unit)))
+            .map(|filter| {
+                CustomDueFilter::named(
+                    filter.value,
+                    to_due_unit(filter.unit),
+                    filter.name.clone(),
+                )
+            })
             .collect(),
         recurrence_presets: settings
             .custom_recurrence_presets
             .iter()
-            .map(|preset| RecurrencePreset::new(preset.interval, to_recurrence_unit(preset.unit)))
+            .map(|preset| {
+                RecurrencePreset::named(
+                    preset.interval,
+                    to_recurrence_unit(preset.unit),
+                    preset.name.clone(),
+                )
+            })
             .collect(),
         reminder_presets: settings
             .reminder_presets
             .iter()
             .map(|preset| {
-                ReminderPreset::new(
+                ReminderPreset::named(
                     preset.value,
                     match preset.unit {
                         StoredReminderUnit::Minute => ReminderUnit::Minute,
                         StoredReminderUnit::Hour => ReminderUnit::Hour,
                         StoredReminderUnit::Day => ReminderUnit::Day,
                     },
+                    preset.name.clone(),
                 )
             })
             .collect(),
@@ -215,26 +234,33 @@ fn apply_user_settings(stored: &mut Settings, settings: UserSettings) {
     stored.custom_due_filters = settings
         .custom_due_filters
         .into_iter()
-        .map(|filter| StoredDueFilter::new(filter.value, from_due_unit(filter.unit)))
+        .map(|filter| {
+            StoredDueFilter::named(filter.value, from_due_unit(filter.unit), filter.name)
+        })
         .collect();
     stored.custom_recurrence_presets = settings
         .recurrence_presets
         .into_iter()
         .map(|preset| {
-            StoredRecurrencePreset::new(preset.interval, from_recurrence_unit(preset.unit))
+            StoredRecurrencePreset::named(
+                preset.interval,
+                from_recurrence_unit(preset.unit),
+                preset.name,
+            )
         })
         .collect();
     stored.reminder_presets = settings
         .reminder_presets
         .into_iter()
         .map(|preset| {
-            StoredReminderPreset::new(
+            StoredReminderPreset::named(
                 preset.value,
                 match preset.unit {
                     ReminderUnit::Minute => StoredReminderUnit::Minute,
                     ReminderUnit::Hour => StoredReminderUnit::Hour,
                     ReminderUnit::Day => StoredReminderUnit::Day,
                 },
+                preset.name,
             )
         })
         .collect();
@@ -253,7 +279,12 @@ fn apply_user_settings(stored: &mut Settings, settings: UserSettings) {
         .into_iter()
         .enumerate()
         .map(|(index, button)| {
-            DueDateButtons::new(button.key.clone(), button.key, button.visible, index as i32)
+            let name = if button.name.is_empty() {
+                button.key.clone()
+            } else {
+                button.name
+            };
+            DueDateButtons::new(button.key, name, button.visible, index as i32)
         })
         .collect();
 }
@@ -493,6 +524,47 @@ mod tests {
 
         assert_eq!(settings.due_buttons.len(), 9);
         assert!(!settings.due_buttons[1].visible);
+    }
+
+    #[test]
+    fn user_given_names_round_trip_through_the_settings_file() {
+        let mut stored = Settings {
+            custom_due_filters: vec![StoredDueFilter::named(
+                90,
+                StoredDueUnit::Day,
+                "3ヶ月以内".to_string(),
+            )],
+            custom_recurrence_presets: vec![StoredRecurrencePreset::named(
+                2,
+                StoredRecurrenceUnit::Week,
+                "隔週".to_string(),
+            )],
+            reminder_presets: vec![StoredReminderPreset::named(
+                1,
+                StoredReminderUnit::Day,
+                "前日".to_string(),
+            )],
+            ..Settings::default()
+        };
+        stored.due_date_buttons[6].name = "今期".to_string();
+
+        let ui = to_user_settings(&stored);
+        assert_eq!(ui.due_buttons[6].name, "今期");
+        assert_eq!(ui.due_buttons[1].name, "", "an unrenamed button has no name");
+        assert_eq!(ui.custom_due_filters[0].name, "3ヶ月以内");
+        assert_eq!(ui.recurrence_presets[0].name, "隔週");
+        assert_eq!(ui.reminder_presets[0].name, "前日");
+
+        let mut restored = Settings::default();
+        apply_user_settings(&mut restored, ui);
+        assert_eq!(restored.due_date_buttons[6].name, "今期");
+        assert_eq!(restored.due_date_buttons[1].name, "today");
+        assert_eq!(restored.custom_due_filters, stored.custom_due_filters);
+        assert_eq!(
+            restored.custom_recurrence_presets,
+            stored.custom_recurrence_presets
+        );
+        assert_eq!(restored.reminder_presets, stored.reminder_presets);
     }
 
     #[test]

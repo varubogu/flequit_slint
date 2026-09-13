@@ -73,7 +73,8 @@ export component ReminderEditor inherits VerticalLayout {
                 font-size: Theme.font-size-sm;
             }
             for preset in SettingsState.reminder-presets: ReminderOption {
-                label: I18n.reminder-offset-label(preset.value, preset.unit);
+                label: preset.name != "" ? preset.name
+                    : I18n.reminder-offset-label(preset.value, preset.unit);
                 selected => {
                     Actions.add-relative-reminder(root.task-id, true, preset.minutes-before);
                     root.editor-open = false;
@@ -90,7 +91,8 @@ export component ReminderEditor inherits VerticalLayout {
                 font-size: Theme.font-size-sm;
             }
             for preset in SettingsState.reminder-presets: ReminderOption {
-                label: I18n.reminder-offset-label(preset.value, preset.unit);
+                label: preset.name != "" ? preset.name
+                    : I18n.reminder-offset-label(preset.value, preset.unit);
                 selected => {
                     Actions.add-relative-reminder(root.task-id, false, preset.minutes-before);
                     root.editor-open = false;

@@ -73,9 +73,13 @@ export struct DateTimeFormatSetting {
     kind: string,
 }
 
+// In the settings types below, `name` is what the user calls the item, e.g.
+// "今期" for this quarter. Empty means the translated default label is shown.
+
 export struct DueButtonSetting {
     key: string,
     visible: bool,
+    name: string,
 }
 
 // The horizon a user-defined due filter covers. Longer periods are already
@@ -86,12 +90,14 @@ export enum DueUnit { minute, hour, day }
 export struct CustomDueFilterSetting {
     value: int,
     unit: DueUnit,
+    name: string,
 }
 
 // A recurrence pattern the user saved for reuse in the repeat editor.
 export struct RecurrencePresetSetting {
     interval: int,
     unit: RecurrenceUnit,
+    name: string,
 }
 
 // The unit used by configurable relative reminder choices.
@@ -101,6 +107,7 @@ export struct ReminderPresetSetting {
     value: int,
     unit: ReminderUnit,
     minutes-before: int,
+    name: string,
 }
 
 export struct ReminderItem {
@@ -268,6 +275,8 @@ export struct DueFilterItem {
     // `custom-unit` says what the value counts.
     custom-value: int,
     custom-unit: DueUnit,
+    // What the user calls this filter; empty shows the translated label.
+    name: string,
 }
 
 export enum SearchSuggestionKind { due, project, task-list, account, tag }

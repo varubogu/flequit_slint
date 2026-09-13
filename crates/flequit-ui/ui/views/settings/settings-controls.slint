@@ -1,5 +1,31 @@
+import { LineEdit } from "std-widgets.slint";
 import { Theme } from "../../globals/theme.slint";
 import { Layout } from "../../globals/layout.slint";
+
+// Edits what the user calls a filter or preset, e.g. "今期" for this quarter.
+//
+// The translated default label is the placeholder, so clearing the field goes
+// back to it. Commits on Enter or when focus leaves rather than on every
+// keystroke, so a half-typed name is not saved.
+export component NameField inherits LineEdit {
+    in property <string> name;
+    in property <string> default-label;
+    callback committed(string /* name */);
+
+    text: root.name;
+    placeholder-text: root.default-label;
+    accessible-label: @tr("Settings" => "Name for {0}", root.default-label);
+    accepted(value) => {
+        if (value != root.name) {
+            root.committed(value);
+        }
+    }
+    changed has-focus => {
+        if (!self.has-focus && self.text != root.name) {
+            root.committed(self.text);
+        }
+    }
+}
 
 export component SectionTitle inherits Text {
     color: Theme.text;

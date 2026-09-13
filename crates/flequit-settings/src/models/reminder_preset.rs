@@ -23,15 +23,22 @@ impl ReminderUnit {
 }
 
 /// ユーザーがリマインダー追加時に選べる相対時間 1 件。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReminderPreset {
     pub value: i32,
     pub unit: ReminderUnit,
+    /// ユーザーが付けた呼び名（「前日」など）。空なら既定の表示名を使う。
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub name: String,
 }
 
 impl ReminderPreset {
     pub fn new(value: i32, unit: ReminderUnit) -> Self {
-        Self { value, unit }
+        Self::named(value, unit, String::new())
+    }
+
+    pub fn named(value: i32, unit: ReminderUnit, name: String) -> Self {
+        Self { value, unit, name }
     }
 }
 
@@ -50,7 +57,12 @@ mod tests {
 
     #[test]
     fn presets_round_trip_through_yaml() {
-        let presets = default_reminder_presets();
+        let mut presets = default_reminder_presets();
+        presets.push(ReminderPreset::named(
+            1,
+            ReminderUnit::Day,
+            "前日".to_string(),
+        ));
         let yaml = serde_yaml::to_string(&presets).unwrap();
 
         assert_eq!(

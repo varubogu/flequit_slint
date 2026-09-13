@@ -10,6 +10,7 @@ fn normalize_fills_defaults_and_sanitizes_custom_due_filters() {
             key: "today".to_string(),
             query: "@today".to_string(),
             visible: false,
+            name: "  きょう  ".to_string(),
         }],
         custom_due_filters: vec![
             CustomDueFilter::new(5, CustomDueUnit::Day),
@@ -27,6 +28,7 @@ fn normalize_fills_defaults_and_sanitizes_custom_due_filters() {
 
     assert_eq!(settings.due_buttons.len(), BUILTIN_DUE_FILTERS.len());
     assert!(!settings.due_buttons[1].visible);
+    assert_eq!(settings.due_buttons[1].name, "きょう", "names are trimmed");
     assert_eq!(
         settings.custom_due_filters,
         [
@@ -35,6 +37,30 @@ fn normalize_fills_defaults_and_sanitizes_custom_due_filters() {
             CustomDueFilter::new(5, CustomDueUnit::Day),
         ],
         "invalid entries are dropped and the rest sort shortest horizon first"
+    );
+}
+
+#[test]
+fn filters_differing_only_by_name_are_one_filter() {
+    let long_name = "あ".repeat(60);
+    let settings = UserSettings {
+        custom_due_filters: vec![
+            CustomDueFilter::named(90, CustomDueUnit::Day, "今期".to_string()),
+            CustomDueFilter::named(90, CustomDueUnit::Day, "今Q".to_string()),
+            CustomDueFilter::named(3, CustomDueUnit::Day, long_name),
+        ],
+        ..UserSettings::default()
+    }
+    .normalize();
+
+    assert_eq!(settings.custom_due_filters.len(), 2);
+    assert_eq!(
+        settings.custom_due_filters[1].name, "今期",
+        "the first name written wins"
+    );
+    assert_eq!(
+        settings.custom_due_filters[0].name.chars().count(),
+        super::model::MAX_NAME_CHARS
     );
 }
 

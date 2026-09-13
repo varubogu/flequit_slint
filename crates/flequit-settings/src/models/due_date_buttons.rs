@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 pub struct DueDateButtons {
     /// ボタンID
     pub id: String,
-    /// ボタン表示名
+    /// ボタン表示名。ユーザーが呼び名を付けていなければ `id` と同じ値を持つ。
     pub name: String,
     /// 表示/非表示フラグ
     pub is_visible: bool,

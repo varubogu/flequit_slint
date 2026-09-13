@@ -30,15 +30,22 @@ impl CustomDueUnit {
 ///
 /// 旧形式（`custom_due_days: [1, 3, 7]`）の設定ファイルも読み込めるよう、
 /// 整数値は「日」として解釈する。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CustomDueFilter {
     pub value: i32,
     pub unit: CustomDueUnit,
+    /// ユーザーが付けた呼び名（「今期」など）。空なら既定の表示名を使う。
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub name: String,
 }
 
 impl CustomDueFilter {
     pub fn new(value: i32, unit: CustomDueUnit) -> Self {
-        Self { value, unit }
+        Self::named(value, unit, String::new())
+    }
+
+    pub fn named(value: i32, unit: CustomDueUnit, name: String) -> Self {
+        Self { value, unit, name }
     }
 
     pub fn days(value: i32) -> Self {
@@ -56,12 +63,14 @@ impl<'de> Deserialize<'de> for CustomDueFilter {
             Full {
                 value: i32,
                 unit: CustomDueUnit,
+                #[serde(default)]
+                name: String,
             },
         }
 
         match Repr::deserialize(deserializer)? {
             Repr::LegacyDays(days) => Ok(Self::days(days)),
-            Repr::Full { value, unit } => Ok(Self::new(value, unit)),
+            Repr::Full { value, unit, name } => Ok(Self::named(value, unit, name)),
         }
     }
 }
@@ -86,7 +95,7 @@ mod tests {
         let filters = vec![
             CustomDueFilter::new(10, CustomDueUnit::Minute),
             CustomDueFilter::new(1, CustomDueUnit::Hour),
-            CustomDueFilter::days(5),
+            CustomDueFilter::named(90, CustomDueUnit::Day, "今期".to_string()),
         ];
 
         let yaml = serde_yaml::to_string(&filters).unwrap();
@@ -95,5 +104,12 @@ mod tests {
             serde_yaml::from_str::<Vec<CustomDueFilter>>(&yaml).unwrap(),
             filters
         );
+    }
+
+    #[test]
+    fn an_unnamed_filter_writes_no_name_key() {
+        let yaml = serde_yaml::to_string(&CustomDueFilter::days(5)).unwrap();
+
+        assert!(!yaml.contains("name"), "unexpected yaml: {yaml}");
     }
 }

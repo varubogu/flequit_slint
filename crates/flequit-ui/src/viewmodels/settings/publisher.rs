@@ -24,6 +24,7 @@ pub(super) fn publish(window: &AppWindow, settings: &UserSettings) {
             .map(|button| DueButtonSetting {
                 key: button.key.clone().into(),
                 visible: button.visible,
+                name: button.name.clone().into(),
             })
             .collect::<Vec<_>>(),
     )));
@@ -34,6 +35,7 @@ pub(super) fn publish(window: &AppWindow, settings: &UserSettings) {
             .map(|filter| CustomDueFilterSetting {
                 value: filter.value,
                 unit: due_unit(filter.unit),
+                name: filter.name.clone().into(),
             })
             .collect::<Vec<_>>(),
     )));
@@ -44,6 +46,7 @@ pub(super) fn publish(window: &AppWindow, settings: &UserSettings) {
             .map(|preset| RecurrencePresetSetting {
                 interval: preset.interval,
                 unit: preset.unit,
+                name: preset.name.clone().into(),
             })
             .collect::<Vec<_>>(),
     )));
@@ -55,6 +58,7 @@ pub(super) fn publish(window: &AppWindow, settings: &UserSettings) {
                 value: preset.value,
                 unit: preset.unit,
                 minutes_before: preset.minutes_before(),
+                name: preset.name.clone().into(),
             })
             .collect::<Vec<_>>(),
     )));
@@ -179,6 +183,7 @@ fn publish_due_filters(window: &AppWindow, settings: &UserSettings) {
             visible: button.visible,
             custom_value: 0,
             custom_unit: DueUnit::Day,
+            name: button.name.clone().into(),
         })
         .collect::<Vec<_>>();
 
@@ -192,6 +197,7 @@ fn publish_due_filters(window: &AppWindow, settings: &UserSettings) {
             visible: true,
             custom_value: filter.value,
             custom_unit: due_unit(filter.unit),
+            name: filter.name.clone().into(),
         }
     }));
 

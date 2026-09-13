@@ -45,12 +45,24 @@ pub(super) const BUILTIN_DUE_FILTERS: &[(&str, &str, bool)] = &[
     ("this-fiscal-year", "@fiscalyear", false),
 ];
 
+/// Longest name a user can give a filter or preset, in characters.
+pub const MAX_NAME_CHARS: usize = 40;
+
+/// Trims a user-entered name and caps its length. Empty means "use the
+/// translated default label".
+pub fn clean_name(name: &str) -> String {
+    name.trim().chars().take(MAX_NAME_CHARS).collect()
+}
+
 /// A UI-facing due-filter preference.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DueButtonPreference {
     pub key: String,
     pub query: String,
     pub visible: bool,
+    /// What the user calls this filter, e.g. "今期" for this quarter. Empty
+    /// shows the translated default label.
+    pub name: String,
 }
 
 /// The horizon a user-defined due filter covers.
@@ -85,16 +97,33 @@ impl CustomDueUnit {
 }
 
 /// A due filter the user added, e.g. "within 10 minutes" or "next 5 days".
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+///
+/// The unit and the value identify the filter; the name is only what it is
+/// called, so two filters differing only by name are the same filter.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CustomDueFilter {
-    // Ordered by unit first so the list reads shortest horizon first.
     pub unit: CustomDueUnit,
     pub value: i32,
+    /// Empty shows the translated default label.
+    pub name: String,
 }
 
 impl CustomDueFilter {
     pub fn new(value: i32, unit: CustomDueUnit) -> Self {
-        Self { unit, value }
+        Self::named(value, unit, String::new())
+    }
+
+    pub fn named(value: i32, unit: CustomDueUnit, name: String) -> Self {
+        Self { unit, value, name }
+    }
+
+    /// Ordered by unit first so the list reads shortest horizon first.
+    pub(super) fn sort_key(&self) -> (CustomDueUnit, i32) {
+        (self.unit, self.value)
+    }
+
+    pub fn same_filter(&self, other: &Self) -> bool {
+        self.sort_key() == other.sort_key()
     }
 
     /// Stable identity used as the sidebar button key.
@@ -116,15 +145,30 @@ impl CustomDueFilter {
 ///
 /// The Slint-generated `RecurrenceUnit` has no `Ord`, so the ordering the list
 /// is shown in comes from `sort_key` rather than a derive.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RecurrencePreset {
     pub unit: RecurrenceUnit,
     pub interval: i32,
+    /// Empty shows the translated default summary.
+    pub name: String,
 }
 
 impl RecurrencePreset {
     pub fn new(interval: i32, unit: RecurrenceUnit) -> Self {
-        Self { unit, interval }
+        Self::named(interval, unit, String::new())
+    }
+
+    pub fn named(interval: i32, unit: RecurrenceUnit, name: String) -> Self {
+        Self {
+            unit,
+            interval,
+            name,
+        }
+    }
+
+    /// The name does not take part: it only says what the pattern is called.
+    pub fn same_pattern(&self, other: &Self) -> bool {
+        self.sort_key() == other.sort_key()
     }
 
     /// An interval of zero or less repeats nothing, and anything past a few
@@ -150,15 +194,26 @@ impl RecurrencePreset {
 }
 
 /// A relative reminder choice saved for reuse in the task detail editor.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ReminderPreset {
     pub unit: ReminderUnit,
     pub value: i32,
+    /// Empty shows the translated default label.
+    pub name: String,
 }
 
 impl ReminderPreset {
     pub fn new(value: i32, unit: ReminderUnit) -> Self {
-        Self { unit, value }
+        Self::named(value, unit, String::new())
+    }
+
+    pub fn named(value: i32, unit: ReminderUnit, name: String) -> Self {
+        Self { unit, value, name }
+    }
+
+    /// The name does not take part: it only says what the offset is called.
+    pub fn same_offset(&self, other: &Self) -> bool {
+        self.unit == other.unit && self.value == other.value
     }
 
     pub fn is_valid(&self) -> bool {
@@ -240,6 +295,7 @@ impl Default for UserSettings {
                     key: (*key).to_string(),
                     query: (*query).to_string(),
                     visible: *visible,
+                    name: String::new(),
                 })
                 .collect(),
             custom_due_filters: Vec::new(),
@@ -273,23 +329,38 @@ impl UserSettings {
                         key: (*key).to_string(),
                         query: (*query).to_string(),
                         visible: *default_visible,
+                        name: String::new(),
                     })
             })
             .collect();
+        for button in &mut self.due_buttons {
+            button.name = clean_name(&button.name);
+        }
+        // Stable sorts, so when two entries differ only by name the first one
+        // written is the one kept.
         self.custom_due_filters.retain(CustomDueFilter::is_valid);
-        self.custom_due_filters.sort_unstable();
-        self.custom_due_filters.dedup();
+        self.custom_due_filters
+            .sort_by_key(CustomDueFilter::sort_key);
+        self.custom_due_filters.dedup_by(|a, b| a.same_filter(b));
         self.custom_due_filters.truncate(20);
+        for filter in &mut self.custom_due_filters {
+            filter.name = clean_name(&filter.name);
+        }
         self.recurrence_presets.retain(RecurrencePreset::is_valid);
         self.recurrence_presets
-            .sort_unstable_by_key(RecurrencePreset::sort_key);
-        self.recurrence_presets.dedup();
+            .sort_by_key(RecurrencePreset::sort_key);
+        self.recurrence_presets.dedup_by(|a, b| a.same_pattern(b));
         self.recurrence_presets.truncate(20);
+        for preset in &mut self.recurrence_presets {
+            preset.name = clean_name(&preset.name);
+        }
         self.reminder_presets.retain(ReminderPreset::is_valid);
-        self.reminder_presets
-            .sort_unstable_by_key(ReminderPreset::sort_key);
-        self.reminder_presets.dedup();
+        self.reminder_presets.sort_by_key(ReminderPreset::sort_key);
+        self.reminder_presets.dedup_by(|a, b| a.same_offset(b));
         self.reminder_presets.truncate(20);
+        for preset in &mut self.reminder_presets {
+            preset.name = clean_name(&preset.name);
+        }
         self.datetime_formats
             .retain(|format| format.kind == DateTimeFormatKind::CustomFormat);
         self.datetime_formats.sort_by_key(|format| format.order);

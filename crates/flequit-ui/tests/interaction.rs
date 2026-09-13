@@ -192,12 +192,14 @@ fn window_with_content() -> AppWindow {
         visible: true,
         custom_value: 0,
         custom_unit: DueUnit::Day,
+        name: SharedString::new(),
     }])));
     window
         .global::<SettingsState>()
         .set_due_buttons(ModelRc::new(VecModel::from(vec![DueButtonSetting {
             key: SharedString::from("today"),
             visible: true,
+            name: SharedString::new(),
         }])));
     let settings = window.global::<SettingsState>();
     settings.set_timezone("UTC".into());
@@ -614,7 +616,7 @@ fn the_settings_dialog_reaches_its_handlers() {
     let week_starts = Rc::new(RefCell::new(Vec::<String>::new()));
     let vim_modes = Rc::new(RefCell::new(Vec::<bool>::new()));
     let due_buttons = Rc::new(RefCell::new(Vec::<(String, bool)>::new()));
-    let custom_due_filters = Rc::new(RefCell::new(Vec::<(i32, DueUnit)>::new()));
+    let custom_due_filters = Rc::new(RefCell::new(Vec::<(i32, DueUnit, String)>::new()));
     let searches = Rc::new(RefCell::new(Vec::<String>::new()));
     let themes = Rc::new(RefCell::new(Vec::<ThemeMode>::new()));
     let timezones = Rc::new(RefCell::new(Vec::<String>::new()));
@@ -670,7 +672,9 @@ fn the_settings_dialog_reaches_its_handlers() {
         let seen = Rc::clone(&custom_due_filters);
         window
             .global::<Actions>()
-            .on_add_custom_due_filter(move |value, unit| seen.borrow_mut().push((value, unit)));
+            .on_add_custom_due_filter(move |value, unit, name| {
+                seen.borrow_mut().push((value, unit, name.to_string()));
+            });
         let seen = Rc::clone(&themes);
         window
             .global::<Actions>()
@@ -736,14 +740,36 @@ fn the_settings_dialog_reaches_its_handlers() {
         due_buttons.borrow().as_slice(),
         [("today".to_string(), false)]
     );
+    // The add form is folded away until asked for.
+    assert!(
+        ElementHandle::find_by_accessible_label(&window, "Due filter amount")
+            .next()
+            .is_none()
+    );
     assert!(activate(&window, "Add due filter"));
-    assert_eq!(custom_due_filters.borrow().as_slice(), [(5, DueUnit::Day)]);
-    // A horizon shorter than a day is added the same way, with a unit picked first.
+    settle();
+    set_value(&window, "Due filter name", "今期");
+    assert!(activate(&window, "Save due filter"));
+    settle();
+    assert_eq!(
+        custom_due_filters.borrow().as_slice(),
+        [(5, DueUnit::Day, "今期".to_string())]
+    );
+    assert!(
+        ElementHandle::find_by_accessible_label(&window, "Save due filter")
+            .next()
+            .is_none(),
+        "saving folds the form away again"
+    );
+    // A horizon shorter than a day is added the same way, with a unit picked
+    // first. Without a name the default label is used.
+    assert!(activate(&window, "Add due filter"));
+    settle();
     assert!(activate(&window, "Minutes"));
-    assert!(activate(&window, "Add due filter"));
+    assert!(activate(&window, "Save due filter"));
     assert_eq!(
         custom_due_filters.borrow().last(),
-        Some(&(5, DueUnit::Minute))
+        Some(&(5, DueUnit::Minute, String::new()))
     );
 
     assert!(activate(&window, "Date and time"));
@@ -988,21 +1014,26 @@ fn reminder_controls_reach_their_handlers() {
                 value: 30,
                 unit: ReminderUnit::Minute,
                 minutes_before: 30,
+                name: SharedString::new(),
             },
             ReminderPresetSetting {
                 value: 1,
                 unit: ReminderUnit::Hour,
                 minutes_before: 60,
+                name: SharedString::new(),
             },
             ReminderPresetSetting {
                 value: 1,
                 unit: ReminderUnit::Day,
                 minutes_before: 1440,
+                name: SharedString::new(),
             },
+            // A named choice is offered under the name the user gave it.
             ReminderPresetSetting {
                 value: 2,
                 unit: ReminderUnit::Day,
                 minutes_before: 2880,
+                name: SharedString::from("2日前の朝"),
             },
         ])));
     window.global::<Capabilities>().set_local_notification(true);
@@ -1059,7 +1090,7 @@ fn reminder_controls_reach_their_handlers() {
     assert!(activate(&window, "Add a reminder"));
     assert!(activate(&window, "1 day before"));
     assert!(activate(&window, "Add a reminder"));
-    assert!(activate(&window, "2 days before"));
+    assert!(activate(&window, "2日前の朝"));
     assert_eq!(
         relative.borrow().as_slice(),
         [
@@ -1189,23 +1220,51 @@ fn reminder_settings_add_and_remove_choices() {
     let settings = window.global::<SettingsState>();
     settings.set_open(true);
     settle();
-    scroll_settings_to(&window, "Reminder amount");
-    set_value(&window, "Reminder amount", "45");
+    scroll_settings_to(&window, "Add reminder preset");
     assert!(activate(&window, "Add reminder preset"));
     settle();
+    scroll_settings_to(&window, "Reminder amount");
+    set_value(&window, "Reminder amount", "45");
+    scroll_settings_to(&window, "Reminder preset name");
+    set_value(&window, "Reminder preset name", "  会議の前  ");
+    scroll_settings_to(&window, "Save reminder preset");
+    assert!(activate(&window, "Save reminder preset"));
+    settle();
     assert_eq!(settings.get_reminder_presets().row_count(), 4);
-    assert!(
-        settings
-            .get_reminder_presets()
-            .iter()
-            .any(|preset| preset.minutes_before == 45)
-    );
+    let added = settings
+        .get_reminder_presets()
+        .iter()
+        .find(|preset| preset.minutes_before == 45)
+        .expect("the new choice is listed");
+    assert_eq!(added.name, "会議の前", "the name is stored trimmed");
+
+    // The same offset under another name is still a duplicate.
+    scroll_settings_to(&window, "Add reminder preset");
     assert!(activate(&window, "Add reminder preset"));
+    settle();
+    scroll_settings_to(&window, "Reminder preset name");
+    set_value(&window, "Reminder preset name", "別名");
+    scroll_settings_to(&window, "Save reminder preset");
+    assert!(activate(&window, "Save reminder preset"));
+    settle();
     assert_eq!(
         settings.get_reminder_presets().row_count(),
         4,
         "duplicates are ignored"
     );
+
+    // Renaming keeps the offset; an empty name goes back to the default label.
+    let actions = window.global::<Actions>();
+    actions.invoke_rename_reminder_preset(1, ReminderUnit::Hour, "直前".into());
+    settle();
+    assert!(
+        settings
+            .get_reminder_presets()
+            .iter()
+            .any(|preset| preset.minutes_before == 60 && preset.name == "直前")
+    );
+    actions.invoke_rename_reminder_preset(45, ReminderUnit::Minute, "".into());
+    settle();
     scroll_settings_to(&window, "Remove the 45 minutes before reminder preset");
     assert!(activate(
         &window,
@@ -2017,18 +2076,19 @@ fn recurrence_presets_reach_their_handlers() {
         RecurrencePresetSetting {
             interval: 2,
             unit: RecurrenceUnit::Week,
+            name: SharedString::new(),
         },
     ])));
     settle();
 
-    let added = Rc::new(RefCell::new(Vec::<(i32, RecurrenceUnit)>::new()));
+    let added = Rc::new(RefCell::new(Vec::<(i32, RecurrenceUnit, String)>::new()));
     let removed = Rc::new(RefCell::new(Vec::<(i32, RecurrenceUnit)>::new()));
     {
         let added = Rc::clone(&added);
         let removed = Rc::clone(&removed);
         let actions = window.global::<Actions>();
-        actions.on_add_recurrence_preset(move |interval, unit| {
-            added.borrow_mut().push((interval, unit));
+        actions.on_add_recurrence_preset(move |interval, unit, name| {
+            added.borrow_mut().push((interval, unit, name.to_string()));
         });
         actions.on_remove_recurrence_preset(move |interval, unit| {
             removed.borrow_mut().push((interval, unit));
@@ -2040,11 +2100,30 @@ fn recurrence_presets_reach_their_handlers() {
         "the preset controls are not reachable: {:?}",
         accessible_labels(&window)
     );
+    settle();
+    // The form opens below the fold; only visible controls enter the test tree.
+    scroll_settings_to(&window, "Recurrence preset name");
+    set_value(&window, "Recurrence preset name", "隔週");
+    scroll_settings_to(&window, "Save recurrence preset");
+    assert!(activate(&window, "Save recurrence preset"));
+    settle();
+    scroll_settings_to(&window, "Remove the Every 2 weeks preset");
     assert!(activate(&window, "Remove the Every 2 weeks preset"));
-    assert_eq!(added.borrow().as_slice(), [(2, RecurrenceUnit::Week)]);
+    assert_eq!(
+        added.borrow().as_slice(),
+        [(2, RecurrenceUnit::Week, "隔週".to_string())]
+    );
     assert_eq!(removed.borrow().as_slice(), [(2, RecurrenceUnit::Week)]);
 
     settings.set_open(false);
+    // Stands in for the ViewModel publishing the saved name.
+    settings.set_recurrence_presets(ModelRc::new(VecModel::from(vec![
+        RecurrencePresetSetting {
+            interval: 2,
+            unit: RecurrenceUnit::Week,
+            name: SharedString::from("隔週"),
+        },
+    ])));
     settle();
 
     // The same preset applies the unit and the interval in the repeat editor.
@@ -2054,8 +2133,8 @@ fn recurrence_presets_reach_their_handlers() {
     settle();
 
     assert!(
-        activate(&window, "Every 2 weeks"),
-        "the repeat editor does not offer the saved presets: {:?}",
+        activate(&window, "隔週"),
+        "the repeat editor does not offer the saved presets by name: {:?}",
         accessible_labels(&window)
     );
     state.set_recurrence_open(false);

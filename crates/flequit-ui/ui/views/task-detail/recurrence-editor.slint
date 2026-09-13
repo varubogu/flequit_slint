@@ -242,7 +242,8 @@ export component RecurrenceEditor inherits Rectangle {
                             vertical-stretch: 0;
                             spacing: Theme.space-xs;
                             for preset in SettingsState.recurrence-presets: OptionButton {
-                                label: I18n.recurrence-summary(preset.unit, preset.interval);
+                                label: preset.name != "" ? preset.name
+                                    : I18n.recurrence-summary(preset.unit, preset.interval);
                                 selected: root.unit == preset.unit
                                     && root.interval == preset.interval;
                                 clicked => {

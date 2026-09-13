@@ -2026,3 +2026,43 @@ msgstr "Cancel"
 msgctxt "Calendar"
 msgid "OK"
 msgstr "OK"
+
+#: crates/flequit-ui/ui/views/settings/settings-controls.slint:16
+msgctxt "Settings"
+msgid "Name for {0}"
+msgstr "Name for {0}"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:77
+msgctxt "Settings"
+msgid "Type a name to call a filter what you usually call it. Leave it empty to use the default name."
+msgstr "Type a name to call a filter what you usually call it. Leave it empty to use the default name."
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:178
+msgctxt "Settings"
+msgid "Due filter name"
+msgstr "Due filter name"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:181
+msgctxt "Settings"
+msgid "Save due filter"
+msgstr "Save due filter"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:268
+msgctxt "Settings"
+msgid "Recurrence preset name"
+msgstr "Recurrence preset name"
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:271
+msgctxt "Settings"
+msgid "Save recurrence preset"
+msgstr "Save recurrence preset"
+
+#: crates/flequit-ui/ui/views/settings/reminder-settings.slint:86
+msgctxt "Settings"
+msgid "Reminder preset name"
+msgstr "Reminder preset name"
+
+#: crates/flequit-ui/ui/views/settings/reminder-settings.slint:89
+msgctxt "Settings"
+msgid "Save reminder preset"
+msgstr "Save reminder preset"

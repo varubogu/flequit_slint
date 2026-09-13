@@ -108,11 +108,19 @@ export global Actions {
     callback update-week-start(string /* week_start */);
     callback update-vim-mode(bool /* enabled */);
     callback update-due-button(string /* key */, bool /* visible */);
-    callback add-custom-due-filter(int /* value */, DueUnit /* unit */);
+    // Names are what the user calls an item; an empty name restores the
+    // translated default label.
+    callback rename-due-button(string /* key */, string /* name */);
+    callback add-custom-due-filter(int /* value */, DueUnit /* unit */, string /* name */);
+    callback rename-custom-due-filter(int /* value */, DueUnit /* unit */, string /* name */);
     callback remove-custom-due-filter(int /* value */, DueUnit /* unit */);
-    callback add-recurrence-preset(int /* interval */, RecurrenceUnit /* unit */);
+    callback add-recurrence-preset(int /* interval */, RecurrenceUnit /* unit */,
+                                   string /* name */);
+    callback rename-recurrence-preset(int /* interval */, RecurrenceUnit /* unit */,
+                                      string /* name */);
     callback remove-recurrence-preset(int /* interval */, RecurrenceUnit /* unit */);
-    callback add-reminder-preset(int /* value */, ReminderUnit /* unit */);
+    callback add-reminder-preset(int /* value */, ReminderUnit /* unit */, string /* name */);
+    callback rename-reminder-preset(int /* value */, ReminderUnit /* unit */, string /* name */);
     callback remove-reminder-preset(int /* value */, ReminderUnit /* unit */);
     callback filter-timezones(string /* query */);
     callback filter-fonts(string /* query */);

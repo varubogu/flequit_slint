@@ -1,4 +1,4 @@
-import { CheckBox, SpinBox } from "std-widgets.slint";
+import { CheckBox, LineEdit, SpinBox } from "std-widgets.slint";
 import { Theme } from "../../globals/theme.slint";
 import { Layout } from "../../globals/layout.slint";
 import { Actions } from "../../globals/actions.slint";
@@ -8,9 +8,13 @@ import { DueUnit, RecurrenceUnit } from "../../globals/types.slint";
 import { ReminderSettings } from "reminder-settings.slint";
 import { I18n } from "../../globals/i18n.slint";
 import { DialogButton } from "../../components/dialog-button.slint";
-import { CapabilityRow, ChoiceButton, FieldLabel, SectionTitle } from "settings-controls.slint";
+import { CapabilityRow, ChoiceButton, FieldLabel, NameField, SectionTitle } from "settings-controls.slint";
 
 export component BasicSettings inherits Rectangle {
+    // Adding a filter or preset is rare, so each add form stays folded away
+    // until its button is pressed.
+    private property <bool> adding-due-filter: false;
+    private property <bool> adding-recurrence-preset: false;
     // Unit picked for the filter about to be added.
     private property <DueUnit> new-due-unit: DueUnit.day;
     // Unit picked for the recurrence preset about to be added.
@@ -69,24 +73,42 @@ export component BasicSettings inherits Rectangle {
         VerticalLayout {
             spacing: Theme.space-sm;
             FieldLabel { text: @tr("Settings" => "Due filter buttons"); }
-            for button in SettingsState.due-buttons: CheckBox {
-                text: button.key == "overdue" ? @tr("Settings" => "Show Overdue due filter")
-                    : button.key == "today" ? @tr("Settings" => "Show Today due filter")
-                    : button.key == "tomorrow" ? @tr("Settings" => "Show Tomorrow due filter")
-                    : button.key == "three-days" ? @tr("Settings" => "Show Next 3 days due filter")
-                    : button.key == "this-week" ? @tr("Settings" => "Show This week due filter")
-                    : button.key == "this-month" ? @tr("Settings" => "Show This month due filter")
-                    : button.key == "this-quarter" ? @tr("Settings" => "Show This quarter due filter")
-                    : button.key == "this-year" ? @tr("Settings" => "Show This year due filter")
-                    : @tr("Settings" => "Show This fiscal year due filter");
-                checked: button.visible;
-                toggled => { Actions.update-due-button(button.key, self.checked); }
+            Text {
+                text: @tr("Settings" => "Type a name to call a filter what you usually call it. Leave it empty to use the default name.");
+                color: Theme.text-muted;
+                font-size: Theme.font-size-sm;
+                wrap: word-wrap;
+            }
+            for button in SettingsState.due-buttons: HorizontalLayout {
+                spacing: Theme.space-sm;
+                CheckBox {
+                    horizontal-stretch: 1;
+                    text: button.key == "overdue" ? @tr("Settings" => "Show Overdue due filter")
+                        : button.key == "today" ? @tr("Settings" => "Show Today due filter")
+                        : button.key == "tomorrow" ? @tr("Settings" => "Show Tomorrow due filter")
+                        : button.key == "three-days" ? @tr("Settings" => "Show Next 3 days due filter")
+                        : button.key == "this-week" ? @tr("Settings" => "Show This week due filter")
+                        : button.key == "this-month" ? @tr("Settings" => "Show This month due filter")
+                        : button.key == "this-quarter" ? @tr("Settings" => "Show This quarter due filter")
+                        : button.key == "this-year" ? @tr("Settings" => "Show This year due filter")
+                        : @tr("Settings" => "Show This fiscal year due filter");
+                    checked: button.visible;
+                    toggled => { Actions.update-due-button(button.key, self.checked); }
+                }
+                NameField {
+                    horizontal-stretch: 1;
+                    name: button.name;
+                    default-label: I18n.due-filter-label(button.key, 0, DueUnit.day);
+                    committed(name) => { Actions.rename-due-button(button.key, name); }
+                }
             }
         }
 
         VerticalLayout {
             spacing: Theme.space-sm;
-            FieldLabel { text: @tr("Settings" => "Custom due filters"); }
+            if SettingsState.custom-due-filters.length > 0 || root.adding-due-filter: FieldLabel {
+                text: @tr("Settings" => "Custom due filters");
+            }
             for filter in SettingsState.custom-due-filters: HorizontalLayout {
                 height: Layout.touch-target;
                 spacing: Theme.space-sm;
@@ -96,34 +118,48 @@ export component BasicSettings inherits Rectangle {
                     font-size: Theme.font-size-base;
                     vertical-alignment: center;
                     horizontal-stretch: 1;
+                    overflow: elide;
+                }
+                NameField {
+                    horizontal-stretch: 1;
+                    name: filter.name;
+                    default-label: I18n.custom-due-label(filter.value, filter.unit);
+                    committed(name) => {
+                        Actions.rename-custom-due-filter(filter.value, filter.unit, name);
+                    }
                 }
                 DialogButton {
                     label: @tr("Settings" => "Remove the {0} filter",
-                        I18n.custom-due-label(filter.value, filter.unit));
+                        filter.name != "" ? filter.name : I18n.custom-due-label(filter.value, filter.unit));
                     destructive: true;
                     clicked => { Actions.remove-custom-due-filter(filter.value, filter.unit); }
                 }
             }
-            HorizontalLayout {
-                spacing: Theme.space-sm;
-                ChoiceButton {
-                    label: @tr("Settings" => "Minutes");
-                    selected: root.new-due-unit == DueUnit.minute;
-                    clicked => { root.new-due-unit = DueUnit.minute; }
-                }
-                ChoiceButton {
-                    label: @tr("Settings" => "Hours");
-                    selected: root.new-due-unit == DueUnit.hour;
-                    clicked => { root.new-due-unit = DueUnit.hour; }
-                }
-                ChoiceButton {
-                    label: @tr("Settings" => "Days");
-                    selected: root.new-due-unit == DueUnit.day;
-                    clicked => { root.new-due-unit = DueUnit.day; }
-                }
+            DialogButton {
+                label: @tr("Settings" => "Add due filter");
+                primary: !root.adding-due-filter;
+                clicked => { root.adding-due-filter = !root.adding-due-filter; }
             }
-            HorizontalLayout {
+            if root.adding-due-filter: VerticalLayout {
                 spacing: Theme.space-sm;
+                HorizontalLayout {
+                    spacing: Theme.space-sm;
+                    ChoiceButton {
+                        label: @tr("Settings" => "Minutes");
+                        selected: root.new-due-unit == DueUnit.minute;
+                        clicked => { root.new-due-unit = DueUnit.minute; }
+                    }
+                    ChoiceButton {
+                        label: @tr("Settings" => "Hours");
+                        selected: root.new-due-unit == DueUnit.hour;
+                        clicked => { root.new-due-unit = DueUnit.hour; }
+                    }
+                    ChoiceButton {
+                        label: @tr("Settings" => "Days");
+                        selected: root.new-due-unit == DueUnit.day;
+                        clicked => { root.new-due-unit = DueUnit.day; }
+                    }
+                }
                 due-value := SpinBox {
                     value: 5;
                     minimum: 1;
@@ -132,10 +168,17 @@ export component BasicSettings inherits Rectangle {
                         : root.new-due-unit == DueUnit.hour ? 8760 : 3650;
                     accessible-label: @tr("Settings" => "Due filter amount");
                 }
+                due-name := LineEdit {
+                    placeholder-text: I18n.custom-due-label(due-value.value, root.new-due-unit);
+                    accessible-label: @tr("Settings" => "Due filter name");
+                }
                 DialogButton {
-                    label: @tr("Settings" => "Add due filter");
+                    label: @tr("Settings" => "Save due filter");
                     primary: true;
-                    clicked => { Actions.add-custom-due-filter(due-value.value, root.new-due-unit); }
+                    clicked => {
+                        Actions.add-custom-due-filter(due-value.value, root.new-due-unit, due-name.text);
+                        root.adding-due-filter = false;
+                    }
                 }
             }
         }
@@ -146,7 +189,9 @@ export component BasicSettings inherits Rectangle {
         // so a rule used often does not have to be dialled in every time.
         VerticalLayout {
             spacing: Theme.space-sm;
-            FieldLabel { text: @tr("Settings" => "Custom recurrence presets"); }
+            if SettingsState.recurrence-presets.length > 0 || root.adding-recurrence-preset: FieldLabel {
+                text: @tr("Settings" => "Custom recurrence presets");
+            }
             for preset in SettingsState.recurrence-presets: HorizontalLayout {
                 height: Layout.touch-target;
                 spacing: Theme.space-sm;
@@ -156,53 +201,74 @@ export component BasicSettings inherits Rectangle {
                     font-size: Theme.font-size-base;
                     vertical-alignment: center;
                     horizontal-stretch: 1;
+                    overflow: elide;
+                }
+                NameField {
+                    horizontal-stretch: 1;
+                    name: preset.name;
+                    default-label: I18n.recurrence-summary(preset.unit, preset.interval);
+                    committed(name) => {
+                        Actions.rename-recurrence-preset(preset.interval, preset.unit, name);
+                    }
                 }
                 DialogButton {
                     label: @tr("Settings" => "Remove the {0} preset",
-                        I18n.recurrence-summary(preset.unit, preset.interval));
+                        preset.name != "" ? preset.name : I18n.recurrence-summary(preset.unit, preset.interval));
                     destructive: true;
                     clicked => {
                         Actions.remove-recurrence-preset(preset.interval, preset.unit);
                     }
                 }
             }
-            HorizontalLayout {
-                spacing: Theme.space-sm;
-                ChoiceButton {
-                    label: @tr("Recurrence" => "Days");
-                    selected: root.new-recurrence-unit == RecurrenceUnit.day;
-                    clicked => { root.new-recurrence-unit = RecurrenceUnit.day; }
-                }
-                ChoiceButton {
-                    label: @tr("Recurrence" => "Weeks");
-                    selected: root.new-recurrence-unit == RecurrenceUnit.week;
-                    clicked => { root.new-recurrence-unit = RecurrenceUnit.week; }
-                }
-                ChoiceButton {
-                    label: @tr("Recurrence" => "Months");
-                    selected: root.new-recurrence-unit == RecurrenceUnit.month;
-                    clicked => { root.new-recurrence-unit = RecurrenceUnit.month; }
-                }
-                ChoiceButton {
-                    label: @tr("Recurrence" => "Years");
-                    selected: root.new-recurrence-unit == RecurrenceUnit.year;
-                    clicked => { root.new-recurrence-unit = RecurrenceUnit.year; }
-                }
+            DialogButton {
+                label: @tr("Settings" => "Add recurrence preset");
+                primary: !root.adding-recurrence-preset;
+                clicked => { root.adding-recurrence-preset = !root.adding-recurrence-preset; }
             }
-            HorizontalLayout {
+            if root.adding-recurrence-preset: VerticalLayout {
                 spacing: Theme.space-sm;
+                HorizontalLayout {
+                    spacing: Theme.space-sm;
+                    ChoiceButton {
+                        label: @tr("Recurrence" => "Days");
+                        selected: root.new-recurrence-unit == RecurrenceUnit.day;
+                        clicked => { root.new-recurrence-unit = RecurrenceUnit.day; }
+                    }
+                    ChoiceButton {
+                        label: @tr("Recurrence" => "Weeks");
+                        selected: root.new-recurrence-unit == RecurrenceUnit.week;
+                        clicked => { root.new-recurrence-unit = RecurrenceUnit.week; }
+                    }
+                    ChoiceButton {
+                        label: @tr("Recurrence" => "Months");
+                        selected: root.new-recurrence-unit == RecurrenceUnit.month;
+                        clicked => { root.new-recurrence-unit = RecurrenceUnit.month; }
+                    }
+                    ChoiceButton {
+                        label: @tr("Recurrence" => "Years");
+                        selected: root.new-recurrence-unit == RecurrenceUnit.year;
+                        clicked => { root.new-recurrence-unit = RecurrenceUnit.year; }
+                    }
+                }
                 recurrence-interval := SpinBox {
                     value: 2;
                     minimum: 1;
                     maximum: 999;
                     accessible-label: @tr("Settings" => "Recurrence interval");
                 }
+                recurrence-name := LineEdit {
+                    placeholder-text: I18n.recurrence-summary(root.new-recurrence-unit,
+                                                              recurrence-interval.value);
+                    accessible-label: @tr("Settings" => "Recurrence preset name");
+                }
                 DialogButton {
-                    label: @tr("Settings" => "Add recurrence preset");
+                    label: @tr("Settings" => "Save recurrence preset");
                     primary: true;
                     clicked => {
                         Actions.add-recurrence-preset(recurrence-interval.value,
-                                                      root.new-recurrence-unit);
+                                                      root.new-recurrence-unit,
+                                                      recurrence-name.text);
+                        root.adding-recurrence-preset = false;
                     }
                 }
             }
