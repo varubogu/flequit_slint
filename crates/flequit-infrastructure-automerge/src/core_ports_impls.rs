@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use flequit_core::ports::infrastructure_repositories::{
-    AutomergeProjectRepositoryPort, AutomergeRepositoriesPort, TagBookmarkAutomergeRepositoryPort,
+    AutomergeProjectRepositoryPort, AutomergeRepositoriesPort, AutomergeTaskRepositoryPort,
+    TagBookmarkAutomergeRepositoryPort,
 };
 use flequit_model::models::task_projects::project::Project;
 use flequit_model::models::task_projects::tag::Tag;
@@ -15,6 +16,7 @@ use crate::infrastructure::local_automerge_repositories::LocalAutomergeRepositor
 use crate::infrastructure::task_projects::project::{
     ProjectDocument, ProjectLocalAutomergeRepository,
 };
+use crate::infrastructure::task_projects::task::TaskLocalAutomergeRepository;
 use crate::infrastructure::user_preferences::tag_bookmark::TagBookmarkLocalAutomergeRepository;
 
 #[async_trait]
@@ -250,10 +252,32 @@ impl AutomergeProjectRepositoryPort for ProjectLocalAutomergeRepository {
     }
 }
 
+#[async_trait]
+impl AutomergeTaskRepositoryPort for TaskLocalAutomergeRepository {
+    async fn save_task(
+        &self,
+        project_id: &ProjectId,
+        task: &Task,
+        user_id: &UserId,
+        timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError> {
+        <Self as flequit_repository::repositories::project_repository_trait::ProjectRepository<
+            Task,
+            TaskId,
+        >>::save(self, project_id, task, user_id, timestamp)
+        .await
+    }
+}
+
 impl AutomergeRepositoriesPort for LocalAutomergeRepositories {
     type ProjectsRepository = ProjectLocalAutomergeRepository;
+    type TasksRepository = TaskLocalAutomergeRepository;
 
     fn projects_repo(&self) -> &Self::ProjectsRepository {
         &self.projects
+    }
+
+    fn tasks_repo(&self) -> &Self::TasksRepository {
+        &self.tasks
     }
 }

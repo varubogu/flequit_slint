@@ -3,7 +3,7 @@
 SvelteKit + Tauri 版 [`varubogu/flequit`](https://github.com/varubogu/flequit) から
 Rust + Slint への移植における残作業の記録。
 
-- 最終更新: 2026-09-08
+- 最終更新: 2026-09-13
 - 正本: 本ファイル。設計の詳細は `docs/ja/` を参照する
 - 完了した項目はチェックを入れ、判断が変わった項目は理由を残す
 
@@ -699,12 +699,25 @@ IndexedDB / OPFS 上の Repository 実装は**作らない**。
 - [ ] 同期の粒度と競合解決（Automerge をそのまま転送するのか、API を切るのか）
 - [x] オフライン時の書き込みをどう扱うか（キュー / ローカルへフォールバック）
       → ローカルが正なので書き込みは常に成功し、キューは要らない
+- [x] ローカルのSQLite / Automergeの片方だけが失敗したときの扱い（2026-09-12）
+      → 両方の成功を保存成功とし、既知の失敗はrollback、クラッシュ時は
+        SQLiteの操作ジャーナルから再開または補償する
 - [ ] 同期の起動契機（起動時 / 変更時 / 定期 / 手動）と失敗時の再試行
 - [ ] 複数の同期先があるときの順序と、片方だけ失敗したときの扱い
 - [ ] サーバ側の実装言語とホスティング
 
 ### 実装作業（設計確定後）
 
+2026-09-13に第1段階としてタスク更新経路へ着手した。Runtime Storeの
+revision付きPending Mutation、同一タスクの保存直列化、SQLiteのentity revisionと
+操作ジャーナル、SQLite + Automergeのtransaction port、起動時のprepared復旧を
+実装済み。作成・削除・復元とタスク以外のエンティティへの展開は後続作業とする。
+
+- [ ] Runtime Storeを実行時の唯一のエンティティ状態源にする
+- [ ] エンティティrevisionと順序付きPending Mutationを実装する
+- [ ] SQLite操作ジャーナルと起動時復旧を実装する
+- [ ] 作成・更新・削除・復元をSQLite + Automergeのtransaction portへ統合する
+- [ ] 途中失敗、連続変更、クラッシュ復旧のテストを追加する
 - [ ] バックエンドサーバ本体（別リポジトリになる可能性あり）
 - [ ] `flequit-infrastructure-remote`。デスクトップ / モバイルでは**同期層**として
       ローカルの後ろに置き、Web では repository trait の実装そのものになる。
@@ -728,6 +741,10 @@ IndexedDB / OPFS 上の Repository 実装は**作らない**。
   という保留が、「Web だけの話ではなく全プラットフォーム共通の保存先設計」に変わった
 - 保存先を差し替えるのは repository trait の裏側なので、レイヤ構造は既に対応済み。
   `flequit-core` 以上を触らずに追加できる想定
+- 2026-09-12に、アプリ実行中はRuntime Storeを唯一の状態源とし、
+  revision付きPending Mutationをエンティティ単位で直列化する方針を決定した。
+  ローカル二層保存のクラッシュ復旧にはSQLiteの永続操作ジャーナルを使用する。
+  詳細は`docs/ja/develop/design/data/runtime-store-and-mutations.md`
 
 ---
 

@@ -133,6 +133,15 @@ impl SqliteTaskRepositoryPort for TaskLocalSqliteRepository {
     ) -> Result<(), RepositoryError> {
         self.delete_with_txn(txn, project_id, id).await
     }
+
+    async fn save_with_txn(
+        &self,
+        txn: &DatabaseTransaction,
+        project_id: &ProjectId,
+        task: &flequit_model::models::task_projects::task::Task,
+    ) -> Result<(), RepositoryError> {
+        self.save_with_txn(txn, project_id, task).await
+    }
 }
 
 #[async_trait]

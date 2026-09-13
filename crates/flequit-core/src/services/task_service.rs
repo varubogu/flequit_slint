@@ -3,7 +3,6 @@ use chrono::Utc;
 use flequit_model::models::task_projects::task::{PartialTask, Task};
 use flequit_model::types::id_types::{ProjectId, TaskId, UserId};
 use flequit_model::types::task_types::TaskStatus;
-use flequit_repository::repositories::project_patchable_trait::ProjectPatchable;
 use flequit_repository::repositories::project_repository_trait::ProjectRepository;
 use flequit_types::errors::service_error::ServiceError;
 
@@ -126,8 +125,7 @@ where
 {
     let now = Utc::now();
     Ok(repositories
-        .tasks()
-        .patch(project_id, task_id, patch, user_id, &now)
+        .update_task_transactionally(project_id, task_id, patch, user_id, &now)
         .await?)
 }
 

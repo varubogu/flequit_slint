@@ -165,6 +165,41 @@ impl TaskLocalSqliteRepository {
         Ok(())
     }
 
+    /// Saves one task inside a transaction owned by the integrated repository.
+    pub async fn save_with_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        project_id: &ProjectId,
+        task: &Task,
+    ) -> Result<(), RepositoryError> {
+        let active_model = task
+            .to_sqlite_model_with_project_id(project_id)
+            .await
+            .map_err(|error| RepositoryError::from(SQLiteError::ConversionError(error)))?;
+
+        let existing = TaskEntity::find_by_id((project_id.to_string(), task.id.to_string()))
+            .one(txn)
+            .await
+            .map_err(|error| RepositoryError::from(SQLiteError::from(error)))?;
+
+        if existing.is_some() {
+            active_model
+                .update(txn)
+                .await
+                .map_err(|error| RepositoryError::from(SQLiteError::from(error)))?;
+        } else {
+            active_model
+                .insert(txn)
+                .await
+                .map_err(|error| RepositoryError::from(SQLiteError::from(error)))?;
+        }
+
+        self.task_tag_repository
+            .update_task_tag_relations(txn, project_id, &task.id, &task.tag_ids)
+            .await?;
+        Ok(())
+    }
+
     /// 指定プロジェクトの全タスクのIDリストを取得
     pub async fn find_ids_by_project_id(
         &self,

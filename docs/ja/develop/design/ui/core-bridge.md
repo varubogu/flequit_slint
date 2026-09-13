@@ -71,11 +71,16 @@ flequit-infrastructure-{sqlite,automerge}
   ID 採番結果を UI が即座に使えるようにするため
 - 部分更新は `patch` 型で受け取る（`design/data/partial-update-implementation.md` 参照）
 
-### 削除系 facade のトランザクション境界
+### 変更系 facade のトランザクション境界
 
-削除 facade は `flequit-core` の `TransactionalDeletionPort` を呼び出す。
-SQLite のトランザクション型、削除順序、Automerge のスナップショット復元は
-`flequit-infrastructure` の実装内に閉じ込める。
+作成、更新、削除、復元 facade は、操作単位のtransaction portを呼び出す。
+SQLiteのトランザクション型、操作ジャーナル、Automergeのスナップショット復元と
+補償Mutationは`flequit-infrastructure`の実装内に閉じ込める。
+
+SQLiteとAutomergeの両方が成功した時点をローカル保存の成功とする。既知の失敗は
+呼び出し中にrollbackし、クラッシュで残った操作は起動時にSQLiteの永続ジャーナル
+から再開または補償する。詳細は
+[Runtime Store と Mutation](../data/runtime-store-and-mutations.md)を参照。
 
 この境界により ViewModel はほかの facade と同じく
 `Result<T, ServiceError>` だけを扱い、ストレージ固有型や repository trait を参照しない。
@@ -175,4 +180,5 @@ Adapter がドメイン型から変換する。
 - [ViewModel アーキテクチャ](./viewmodel-architecture.md)
 - [Rust 設計ガイドライン](../backend/rust-guidelines.md)
 - [部分更新システム](../data/partial-update-implementation.md)
+- [Runtime Store と Mutation](../data/runtime-store-and-mutations.md)
 - [全体アーキテクチャ](../architecture.md)

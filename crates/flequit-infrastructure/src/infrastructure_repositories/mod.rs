@@ -13,10 +13,11 @@ use flequit_infrastructure_automerge::infrastructure::local_automerge_repositori
 use flequit_infrastructure_automerge::infrastructure::user_preferences::tag_bookmark::TagBookmarkLocalAutomergeRepository;
 use flequit_infrastructure_sqlite::infrastructure::local_sqlite_repositories::LocalSqliteRepositories;
 use flequit_infrastructure_sqlite::infrastructure::user_preferences::tag_bookmark::TagBookmarkLocalSqliteRepository;
-use flequit_model::types::id_types::{ProjectId, TagId};
+use flequit_model::types::id_types::{ProjectId, TagId, TaskId};
 use flequit_types::errors::repository_error::RepositoryError;
-use std::sync::Arc;
-use tokio::sync::RwLock;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex as StdMutex};
+use tokio::sync::{Mutex, OwnedMutexGuard, RwLock};
 
 #[async_trait]
 impl TagRepositoryExt for TagUnifiedRepository {
@@ -56,6 +57,8 @@ pub struct InfrastructureRepositories {
 
     // Unified層の設定・管理
     pub(crate) unified_manager: UnifiedManager,
+    /// Serializes writes to the same task in registration order.
+    task_write_locks: StdMutex<HashMap<String, Arc<Mutex<()>>>>,
 }
 
 impl InfrastructureRepositories {
@@ -91,6 +94,7 @@ impl InfrastructureRepositories {
             },
             tag_bookmarks_automerge: TagBookmarkLocalAutomergeRepository::default(),
             unified_manager: UnifiedManager::default(),
+            task_write_locks: StdMutex::new(HashMap::new()),
         }
     }
 
@@ -151,7 +155,7 @@ impl InfrastructureRepositories {
 
         tracing::info!("全UnifiedRepositoryの構築完了");
 
-        Ok(Self {
+        let repositories = Self {
             accounts,
             projects,
             tasks,
@@ -169,7 +173,10 @@ impl InfrastructureRepositories {
             tag_bookmarks_sqlite,
             tag_bookmarks_automerge,
             unified_manager,
-        })
+            task_write_locks: StdMutex::new(HashMap::new()),
+        };
+        repositories.recover_prepared_operations().await?;
+        Ok(repositories)
     }
 
     /// 設定を更新し、バックエンドを再構築
@@ -198,6 +205,22 @@ impl InfrastructureRepositories {
     /// 現在の設定を取得
     pub fn config(&self) -> &UnifiedConfig {
         self.unified_manager.config()
+    }
+
+    pub(super) async fn lock_task_write(
+        &self,
+        project_id: &ProjectId,
+        task_id: &TaskId,
+    ) -> OwnedMutexGuard<()> {
+        let key = format!("{project_id}:{task_id}");
+        let lock = {
+            let mut locks = self
+                .task_write_locks
+                .lock()
+                .expect("task write lock registry poisoned");
+            Arc::clone(locks.entry(key).or_insert_with(|| Arc::new(Mutex::new(()))))
+        };
+        lock.lock_owned().await
     }
 }
 
@@ -396,5 +419,25 @@ mod tests {
 
         assert!(result.expect("mock deletion should succeed"));
         assert_eq!(repositories.get_call_log(), ["delete_task_transactionally"]);
+    }
+
+    #[tokio::test]
+    async fn task_facade_delegates_transactional_update() {
+        use flequit_core::facades::task_facades;
+        use flequit_model::models::task_projects::task::PartialTask;
+        use flequit_model::types::id_types::{ProjectId, TaskId, UserId};
+
+        let repositories = MockInfrastructureRepositories::new();
+        let result = task_facades::update_task(
+            &repositories,
+            &ProjectId::new(),
+            &TaskId::new(),
+            &PartialTask::default(),
+            &UserId::new(),
+        )
+        .await;
+
+        assert!(result.expect("mock update should succeed"));
+        assert_eq!(repositories.get_call_log(), ["update_task_transactionally"]);
     }
 }

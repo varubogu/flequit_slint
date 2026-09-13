@@ -7,13 +7,14 @@ use crate::unified::*;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use flequit_core::ports::infrastructure_repositories::{
-    InfrastructureRepositoriesTrait, TransactionalDeletionPort,
+    InfrastructureRepositoriesTrait, TransactionalDeletionPort, TransactionalTaskWritePort,
 };
 use flequit_infrastructure_automerge::infrastructure::local_automerge_repositories::LocalAutomergeRepositories;
 use flequit_infrastructure_automerge::infrastructure::user_preferences::tag_bookmark::TagBookmarkLocalAutomergeRepository;
 use flequit_infrastructure_sqlite::infrastructure::database_manager::DatabaseManager;
 use flequit_infrastructure_sqlite::infrastructure::local_sqlite_repositories::LocalSqliteRepositories;
 use flequit_infrastructure_sqlite::infrastructure::user_preferences::tag_bookmark::TagBookmarkLocalSqliteRepository;
+use flequit_model::models::task_projects::task::PartialTask;
 use flequit_model::types::id_types::{ProjectId, TagId, TaskId, TaskListId, UserId};
 use flequit_types::errors::repository_error::RepositoryError;
 use std::sync::{Arc, Mutex};
@@ -143,6 +144,21 @@ impl TransactionalDeletionPort for MockInfrastructureRepositories {
     ) -> Result<(), RepositoryError> {
         self.log_call("delete_tag_transactionally");
         Ok(())
+    }
+}
+
+#[async_trait]
+impl TransactionalTaskWritePort for MockInfrastructureRepositories {
+    async fn update_task_transactionally(
+        &self,
+        _project_id: &ProjectId,
+        _task_id: &TaskId,
+        _patch: &PartialTask,
+        _user_id: &UserId,
+        _timestamp: &DateTime<Utc>,
+    ) -> Result<bool, RepositoryError> {
+        self.log_call("update_task_transactionally");
+        Ok(true)
     }
 }
 

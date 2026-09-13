@@ -83,6 +83,12 @@ flequit-infrastructure  ← 統合層。ローカル（SQLite + Automerge）
 現在の実装のまま。SQLite が検索、Automerge が永続化を担う
 （[`automerge-repo-dataflow.md`](./automerge-repo-dataflow.md)）。
 
+SQLiteとAutomergeの両方が成功した時点をローカル保存の成功とする。片方だけが
+失敗した場合は、SQLite transactionとAutomergeのスナップショット復元または
+補償Mutationで両方を変更前へ戻す。クラッシュ時の再開・補償に必要な操作は
+SQLiteの永続ジャーナルへ記録する。詳細は
+[`runtime-store-and-mutations.md`](./runtime-store-and-mutations.md)を参照。
+
 ### クラウドストレージ
 
 ユーザーが選んだディレクトリに Automerge ドキュメントを置く。アプリから見ると

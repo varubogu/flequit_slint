@@ -1,7 +1,9 @@
 use async_trait::async_trait;
 
 pub mod accounts;
+pub mod entity_revision;
 pub mod initialized_data;
+pub mod operation_journal;
 pub mod search;
 pub mod task_projects;
 pub mod user_preferences;

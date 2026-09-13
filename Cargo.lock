@@ -1973,11 +1973,14 @@ dependencies = [
  "flequit-repository",
  "flequit-types",
  "log",
+ "partially",
  "scopeguard",
  "sea-orm",
  "serde",
+ "serde_json",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]

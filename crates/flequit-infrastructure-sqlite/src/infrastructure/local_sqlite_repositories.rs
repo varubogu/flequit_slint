@@ -6,6 +6,7 @@
 use crate::errors::sqlite_error::SQLiteError;
 use crate::infrastructure::{
     accounts::account::AccountLocalSqliteRepository, database_manager::DatabaseManager,
+    entity_revision::EntityRevisionRepository, operation_journal::OperationJournalRepository,
     task_projects::project::ProjectLocalSqliteRepository,
     task_projects::subtask::SubTaskLocalSqliteRepository,
     task_projects::subtask_assignments::SubtaskAssignmentLocalSqliteRepository,
@@ -28,6 +29,8 @@ use tokio::sync::RwLock;
 #[derive(Debug)]
 pub struct LocalSqliteRepositories {
     db_manager: Arc<RwLock<DatabaseManager>>,
+    pub entity_revisions: EntityRevisionRepository,
+    pub operation_journal: OperationJournalRepository,
     pub projects: ProjectLocalSqliteRepository,
     pub task_lists: TaskListLocalSqliteRepository,
     pub tasks: TaskLocalSqliteRepository,
@@ -48,6 +51,8 @@ impl LocalSqliteRepositories {
     pub fn new_with_manager(db_manager: Arc<RwLock<DatabaseManager>>) -> Self {
         Self {
             db_manager: db_manager.clone(),
+            entity_revisions: EntityRevisionRepository::new(db_manager.clone()),
+            operation_journal: OperationJournalRepository::new(db_manager.clone()),
             projects: ProjectLocalSqliteRepository::new(db_manager.clone()),
             task_lists: TaskListLocalSqliteRepository::new(db_manager.clone()),
             tasks: TaskLocalSqliteRepository::new(db_manager.clone()),
@@ -130,6 +135,14 @@ impl LocalSqliteRepositories {
     /// データベースマネージャーへのアクセス
     pub fn database_manager(&self) -> &Arc<RwLock<DatabaseManager>> {
         &self.db_manager
+    }
+
+    pub fn entity_revisions(&self) -> &EntityRevisionRepository {
+        &self.entity_revisions
+    }
+
+    pub fn operation_journal(&self) -> &OperationJournalRepository {
+        &self.operation_journal
     }
 }
 

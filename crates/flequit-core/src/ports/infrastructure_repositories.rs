@@ -8,7 +8,7 @@ use flequit_model::models::task_projects::subtask_assignment::SubTaskAssignment;
 use flequit_model::models::task_projects::subtask_recurrence::SubTaskRecurrence;
 use flequit_model::models::task_projects::subtask_tag::SubTaskTag;
 use flequit_model::models::task_projects::tag::Tag;
-use flequit_model::models::task_projects::task::Task;
+use flequit_model::models::task_projects::task::{PartialTask, Task};
 use flequit_model::models::task_projects::task_assignment::TaskAssignment;
 use flequit_model::models::task_projects::task_list::TaskList;
 use flequit_model::models::task_projects::task_recurrence::TaskRecurrence;
@@ -116,6 +116,12 @@ pub trait SqliteTaskRepositoryPort: Send + Sync {
         txn: &DatabaseTransaction,
         project_id: &ProjectId,
         id: &TaskId,
+    ) -> Result<(), RepositoryError>;
+    async fn save_with_txn(
+        &self,
+        txn: &DatabaseTransaction,
+        project_id: &ProjectId,
+        task: &Task,
     ) -> Result<(), RepositoryError>;
 }
 
@@ -355,10 +361,23 @@ pub trait AutomergeProjectRepositoryPort: Send + Sync {
     ) -> Result<Option<TaskList>, RepositoryError>;
 }
 
+#[async_trait]
+pub trait AutomergeTaskRepositoryPort: Send + Sync {
+    async fn save_task(
+        &self,
+        project_id: &ProjectId,
+        task: &Task,
+        user_id: &UserId,
+        timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError>;
+}
+
 pub trait AutomergeRepositoriesPort: Send + Sync {
     type ProjectsRepository: AutomergeProjectRepositoryPort;
+    type TasksRepository: AutomergeTaskRepositoryPort;
 
     fn projects_repo(&self) -> &Self::ProjectsRepository;
+    fn tasks_repo(&self) -> &Self::TasksRepository;
 }
 
 /// Storage-agnostic boundary for deletions that must span multiple backends.
@@ -399,9 +418,25 @@ pub trait TransactionalDeletionPort: Send + Sync {
     ) -> Result<(), RepositoryError>;
 }
 
+/// Storage-agnostic boundary for task writes spanning SQLite and Automerge.
+///
+/// The implementation owns both rollback mechanisms. Callers only observe
+/// whether the patch changed the task or failed as one logical operation.
+#[async_trait]
+pub trait TransactionalTaskWritePort: Send + Sync {
+    async fn update_task_transactionally(
+        &self,
+        project_id: &ProjectId,
+        task_id: &TaskId,
+        patch: &PartialTask,
+        user_id: &UserId,
+        timestamp: &DateTime<Utc>,
+    ) -> Result<bool, RepositoryError>;
+}
+
 #[async_trait]
 pub trait InfrastructureRepositoriesTrait:
-    TransactionalDeletionPort + Send + Sync + std::fmt::Debug
+    TransactionalDeletionPort + TransactionalTaskWritePort + Send + Sync + std::fmt::Debug
 {
     type AccountsRepository: Repository<Account, AccountId> + Send + Sync;
     type ProjectsRepository: Repository<Project, ProjectId>

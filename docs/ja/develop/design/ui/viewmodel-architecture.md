@@ -7,7 +7,7 @@ UI 状態の保持（Slint の `property` / `Model`）と、ドメイン操作�
 
 ## 目的
 
-- Slint の宣言的 UI に必要な状態を一箇所に集約し、更新経路を一本化する
+- Rust の Runtime Store に実行時の正規状態を集約し、更新経路を一本化する
 - 副作用（永続化・通知・ファイル I/O）を ViewModel に閉じ込め、View を純粋に保つ
 - 初期化順序と依存関係を明確化し、循環参照を防ぐ
 - テスト容易性を確保する（ViewModel は UI を起動せずに検証できる）
@@ -28,7 +28,7 @@ Slint 版では以下に対応する。
 
 | Svelte 版 | Slint 版 | 配置 |
 | --- | --- | --- |
-| Stores（状態管理） | Slint `global` の `property` / `Model` | `ui/globals/`、実体は ViewModel が保持 |
+| Stores（状態管理） | Rust の Runtime Store + Slint projection | `src/viewmodels/`、表示用モデルは ViewModel が保持 |
 | Services - Operations（ビジネスロジック + 楽観的更新） | ViewModel | `src/viewmodels/` |
 | Services - Backend（永続化） | `flequit-core` の facade | Rust コア側に吸収 |
 | Services - UI（UI 特有操作） | ViewModel | `src/viewmodels/`（層を分けない） |
@@ -50,6 +50,17 @@ Svelte 版で「廃止予定」とされていた UI Services 層は、Slint 版
   必要な連携は `AppViewModel` が仲介するか、コールバックを注入する
 - ViewModel から `.slint` の具体的な要素を触らない。`global` のプロパティ経由のみ
 
+## Runtime Store
+
+アプリ実行中のエンティティ状態は、ドメイン型だけを保持するRuntime Storeを
+唯一の状態源とする。Slintの`global`や`Model`はStoreから生成する表示用projectionであり、
+別の正規状態として扱わない。
+
+Storeは確定済み状態、エンティティrevision、順序付きPending Mutationを保持する。
+変更時はStoreが影響対象を通知し、ViewModelが一覧、詳細、期限件数、検索結果などの
+関連projectionを同じ変更から更新する。詳細は
+[Runtime Store と Mutation](../data/runtime-store-and-mutations.md)を参照。
+
 ## 状態の置き場所
 
 Slint では状態を `global singleton` の `property` として宣言し、
@@ -57,7 +68,8 @@ Rust 側が setter で値を注入する。
 
 | 状態の種類 | 置き場所 | 理由 |
 | --- | --- | --- |
-| 一覧データ | `ModelRc<T>`（`VecModel` の実体は ViewModel が保持） | 差分通知で効率的に更新するため |
+| エンティティの正規状態 | Runtime Storeのドメイン型 | すべての画面で同じ実行時状態を参照するため |
+| 一覧データ | `ModelRc<T>`（`VecModel` の実体は ViewModel が保持） | Storeのprojectionを差分通知で効率的に表示するため |
 | 選択・展開・フィルタ | `global AppState` の `property` | View から直接参照するため |
 | 一時的な入力状態（編集中テキスト等） | `.slint` のローカル `property` | Rust 側に持ち出す必要がないため |
 | ローディング / エラー | `global AppState` の `property` | 全画面で共通表示するため |
@@ -84,11 +96,11 @@ Rust に持ち上げるのは、永続化・ドメイン操作・複数画面共
 
 すべての変更操作はこのパターンに従う。
 
-1. 変更対象の現在値をスナップショット（`row_data()` で取得）
-2. Slint の `Model` / `property` を即座に更新（楽観的更新）
-3. `tokio::spawn` で facade を呼び出し永続化を試行
-4. 失敗時は `upgrade_in_event_loop` でスナップショットから復元し、
-   `AppState.error` にエラーを記録する
+1. Storeの確定revisionを基にMutationを登録する
+2. Store上でPending Mutationを適用し、UI projectionを即座に更新する
+3. `tokio::spawn` で facade を呼び出し永続化を試行する
+4. 成功時はMutationを確定し、失敗時はMutationを除外して状態を再計算する
+5. `upgrade_in_event_loop` で影響したprojectionを更新し、失敗時はエラーを記録する
 
 ### メリット
 
@@ -98,8 +110,9 @@ Rust に持ち上げるのは、永続化・ドメイン操作・複数画面共
 
 ### 注意点
 
-- スナップショットは **UI 型** で取る（ドメイン型への往復変換を挟まない）
-- ロールバック中に別の更新が入ることを考慮し、対象行の ID を照合してから復元する
+- Pending Mutationとrollback用データはドメイン型で保持し、Slint型をワーカーへ渡さない
+- 新しいrevisionが存在する場合は古いUI行を直接復元せず、確定状態と残るMutationから再計算する
+- 同じエンティティの永続化は登録順に直列化する
 
 ## スレッド境界
 
@@ -207,4 +220,5 @@ Slint ウィンドウを生成せずに検証できるようにする。
 - [UI レイヤーアーキテクチャ](./layers.md)
 - [Slint 設計パターン](./slint-patterns.md)
 - [コアとの接続](./core-bridge.md)
+- [Runtime Store と Mutation](../data/runtime-store-and-mutations.md)
 - [レスポンシブレイアウト](./responsive-layout.md)

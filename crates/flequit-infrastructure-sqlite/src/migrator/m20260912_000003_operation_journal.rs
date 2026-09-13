@@ -1,0 +1,162 @@
+use sea_orm_migration::prelude::*;
+
+#[derive(DeriveMigrationName)]
+pub struct Migration;
+
+#[async_trait::async_trait]
+impl MigrationTrait for Migration {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .create_table(
+                Table::create()
+                    .table(EntityRevisions::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(EntityRevisions::EntityKind)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(EntityRevisions::ProjectId)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(EntityRevisions::EntityId)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(EntityRevisions::Revision)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(EntityRevisions::UpdatedAt)
+                            .timestamp_with_time_zone()
+                            .not_null(),
+                    )
+                    .primary_key(
+                        Index::create()
+                            .col(EntityRevisions::EntityKind)
+                            .col(EntityRevisions::ProjectId)
+                            .col(EntityRevisions::EntityId),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(OperationJournal::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(OperationJournal::OperationId)
+                            .string()
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(OperationJournal::EntityKind)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(OperationJournal::ProjectId)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(OperationJournal::EntityId)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(OperationJournal::BaseRevision)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(OperationJournal::ForwardData)
+                            .text()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(OperationJournal::RollbackData)
+                            .text()
+                            .not_null(),
+                    )
+                    .col(ColumnDef::new(OperationJournal::Status).string().not_null())
+                    .col(
+                        ColumnDef::new(OperationJournal::RecoveryFilePath)
+                            .string()
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(OperationJournal::RecoveryFileChecksum)
+                            .string()
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(OperationJournal::CreatedAt)
+                            .timestamp_with_time_zone()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(OperationJournal::UpdatedAt)
+                            .timestamp_with_time_zone()
+                            .not_null(),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx-operation-journal-status-created-at")
+                    .table(OperationJournal::Table)
+                    .col(OperationJournal::Status)
+                    .col(OperationJournal::CreatedAt)
+                    .to_owned(),
+            )
+            .await
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(Table::drop().table(OperationJournal::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(EntityRevisions::Table).to_owned())
+            .await
+    }
+}
+
+#[derive(DeriveIden)]
+enum EntityRevisions {
+    Table,
+    EntityKind,
+    ProjectId,
+    EntityId,
+    Revision,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum OperationJournal {
+    Table,
+    OperationId,
+    EntityKind,
+    ProjectId,
+    EntityId,
+    BaseRevision,
+    ForwardData,
+    RollbackData,
+    Status,
+    RecoveryFilePath,
+    RecoveryFileChecksum,
+    CreatedAt,
+    UpdatedAt,
+}

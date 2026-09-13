@@ -64,6 +64,7 @@ use crate::viewmodels::ordering;
 use crate::viewmodels::project_editor;
 use crate::viewmodels::recurrence::{occurrence, preview_limit, rule_from_state};
 use crate::viewmodels::reload_gate::ReloadGate;
+use crate::viewmodels::runtime_store::RuntimeStore;
 use crate::viewmodels::search::{
     DueKeyword, SearchQuery, SubTaskCandidate, SuggestionKind, SuggestionSources, TaskCandidate,
     suggestions,
@@ -140,7 +141,7 @@ struct SharedState {
     ///
     /// Kept so that changing the selected list can re-derive the visible tasks
     /// without another round trip to storage.
-    trees: Vec<ProjectTree>,
+    trees: RuntimeStore,
     /// Which projects are expanded in the sidebar.
     expanded_projects: HashSet<String>,
     /// Which task rows are expanded.
@@ -3540,11 +3541,11 @@ where
         app_state.set_loading(false);
 
         match outcome {
-            Ok((trees, tags_by_project, tag_names, tag_bookmarks)) => {
+            Ok((mut trees, tags_by_project, tag_names, tag_bookmarks)) => {
+                ordering::normalize(&mut trees);
                 {
                     let mut guard = state.lock().expect("shared state poisoned");
-                    guard.trees = trees;
-                    ordering::normalize(&mut guard.trees);
+                    guard.trees.replace_trees(trees);
                     guard.tags_by_project = tags_by_project;
                     guard.tag_names = tag_names;
                     guard.tag_bookmarks = tag_bookmarks;
@@ -4249,7 +4250,11 @@ fn spawn_debounced_task_patch<R>(
     });
 }
 
-/// Persists a task patch, rolling the row back if the write fails.
+/// Persists a task patch and reloads every derived view from the canonical tree.
+///
+/// The visible row is updated optimistically by the caller. A successful write
+/// must still refresh [`SharedState::trees`], or changing projects rebuilds the
+/// row from the stale pre-edit snapshot. A failed write restores the row.
 #[allow(clippy::too_many_arguments)]
 fn spawn_task_patch<R>(
     weak: &Weak<AppWindow>,
@@ -4262,23 +4267,32 @@ fn spawn_task_patch<R>(
 ) where
     R: InfrastructureRepositoriesTrait + Send + Sync + 'static,
 {
-    let (project_id, user_id) = {
-        let state = state.lock().expect("shared state poisoned");
-        (state.project_of_task(&task_id), state.current_user)
-    };
-    let (Some(project_id), Some(user_id)) = (project_id, user_id) else {
-        tracing::error!(%task_id, "cannot update a task: unknown project or user");
-        rollback_task_row(weak, snapshot);
-        report_error(weak, "task.save-failed");
-        return;
-    };
     let Ok(parsed_id) = TaskId::try_from_str(&task_id) else {
         rollback_task_row(weak, snapshot);
         report_error(weak, "input.malformed-id");
         return;
     };
+    let (project_id, user_id, mutation_id) = {
+        let mut state = state.lock().expect("shared state poisoned");
+        let project_id = state.project_of_task(&task_id);
+        let user_id = state.current_user;
+        let mutation_id = state.trees.begin_task_mutation(&parsed_id, patch.clone());
+        (project_id, user_id, mutation_id)
+    };
+    let (Some(project_id), Some(user_id), Some(mutation_id)) = (project_id, user_id, mutation_id)
+    else {
+        tracing::error!(%task_id, "cannot update a task: unknown project, task, or user");
+        rollback_task_row(weak, snapshot);
+        report_error(weak, "task.save-failed");
+        return;
+    };
+    let timezone = weak.upgrade().map_or(DisplayTimezone::System, |window| {
+        DisplayTimezone::from_setting(window.global::<UiSettingsState>().get_timezone().as_str())
+    });
+    refresh_task_projections(weak, state, timezone);
 
     let weak = weak.clone();
+    let state = Arc::clone(state);
     let repositories = Arc::clone(repositories);
     runtime.spawn(async move {
         let result = task_facades::update_task(
@@ -4290,13 +4304,46 @@ fn spawn_task_patch<R>(
         )
         .await;
 
-        if let Err(error) = result {
-            let ui_error = UiError::from(error);
-            tracing::error!(%ui_error, %task_id, "failed to update task");
-            rollback_task_row(&weak, snapshot);
-            report_error(&weak, ui_error.code());
+        match result {
+            Ok(_) => {
+                state
+                    .lock()
+                    .expect("shared state poisoned")
+                    .trees
+                    .resolve_task_mutation(&parsed_id, mutation_id, true);
+                reload_projects(&weak, &state, &repositories, timezone).await;
+            }
+            Err(error) => {
+                let ui_error = UiError::from(error);
+                tracing::error!(%ui_error, %task_id, "failed to update task");
+                state
+                    .lock()
+                    .expect("shared state poisoned")
+                    .trees
+                    .resolve_task_mutation(&parsed_id, mutation_id, false);
+                refresh_task_projections(&weak, &state, timezone);
+                report_error(&weak, ui_error.code());
+            }
         }
     });
+}
+
+fn refresh_task_projections(
+    weak: &Weak<AppWindow>,
+    state: &Arc<Mutex<SharedState>>,
+    timezone: DisplayTimezone,
+) {
+    let state = Arc::clone(state);
+    let posted = weak.upgrade_in_event_loop(move |window| {
+        refresh_tasks(&window, &state, timezone);
+        let selected_task_id = window.global::<AppState>().get_selected_task_id();
+        if !selected_task_id.is_empty() {
+            sync_selected_task(&window, &selected_task_id);
+        }
+    });
+    if let Err(error) = posted {
+        tracing::error!(%error, "could not refresh task projections");
+    }
 }
 
 /// Persists a batch of `order_index` (and list) changes.
@@ -4411,7 +4458,10 @@ fn spawn_debounced_subtask_patch<R>(
     });
 }
 
-/// Persists a subtask patch, rolling the row back when the write fails.
+/// Persists a subtask patch and reloads the parent task's derived views.
+///
+/// Subtask state contributes to the parent row's progress, so success reloads
+/// the canonical tree. A failed write restores the optimistic row snapshot.
 fn spawn_subtask_patch<R>(
     weak: &Weak<AppWindow>,
     state: &Arc<Mutex<SharedState>>,
@@ -4438,8 +4488,12 @@ fn spawn_subtask_patch<R>(
         report_error(weak, "input.malformed-id");
         return;
     };
+    let timezone = weak.upgrade().map_or(DisplayTimezone::System, |window| {
+        DisplayTimezone::from_setting(window.global::<UiSettingsState>().get_timezone().as_str())
+    });
 
     let weak = weak.clone();
+    let state = Arc::clone(state);
     let repositories = Arc::clone(repositories);
     runtime.spawn(async move {
         let result = subtask_facades::update_sub_task(
@@ -4451,11 +4505,16 @@ fn spawn_subtask_patch<R>(
         )
         .await;
 
-        if let Err(error) = result {
-            let ui_error = UiError::from(error);
-            tracing::error!(%ui_error, %subtask_id, "failed to update subtask");
-            rollback_subtask_row(&weak, snapshot);
-            report_error(&weak, ui_error.code());
+        match result {
+            Ok(_) => {
+                reload_projects(&weak, &state, &repositories, timezone).await;
+            }
+            Err(error) => {
+                let ui_error = UiError::from(error);
+                tracing::error!(%ui_error, %subtask_id, "failed to update subtask");
+                rollback_subtask_row(&weak, snapshot);
+                report_error(&weak, ui_error.code());
+            }
         }
     });
 }
@@ -4880,7 +4939,7 @@ mod tests {
         let expected_project = live.id.as_str();
         let expected_list = live.task_lists[0].id.as_str();
         let mut state = SharedState {
-            trees: vec![archived, live],
+            trees: vec![archived, live].into(),
             ..SharedState::default()
         };
 
@@ -4900,7 +4959,7 @@ mod tests {
         let chosen_project = second.id.as_str();
         let chosen_list = second.task_lists[0].id.as_str();
         let mut state = SharedState {
-            trees: vec![first, second],
+            trees: vec![first, second].into(),
             selected_project_id: chosen_project.clone(),
             selected_list_id: chosen_list.clone(),
             ..SharedState::default()
@@ -4928,7 +4987,7 @@ mod tests {
         let gone = project.task_lists[0].id.as_str();
         let survivor = project.task_lists[1].id.as_str();
         let mut state = SharedState {
-            trees: vec![project],
+            trees: vec![project].into(),
             selected_project_id: project_id.clone(),
             selected_list_id: gone,
             ..SharedState::default()
@@ -4947,7 +5006,8 @@ mod tests {
             trees: vec![ProjectTree {
                 deleted: true,
                 ..project_named("Work", vec![list_named("Inbox", Vec::new())])
-            }],
+            }]
+            .into(),
             selected_project_id: "stale".to_string(),
             selected_list_id: "stale".to_string(),
             ..SharedState::default()
@@ -4990,7 +5050,7 @@ mod tests {
         let list_id = project.task_lists[0].id.as_str();
 
         let mut state = SharedState {
-            trees: vec![project, other],
+            trees: vec![project, other].into(),
             ..SharedState::default()
         };
 

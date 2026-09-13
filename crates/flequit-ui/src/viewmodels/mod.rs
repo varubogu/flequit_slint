@@ -11,6 +11,7 @@ pub mod ordering;
 pub mod project_editor;
 pub mod recurrence;
 pub mod reload_gate;
+mod runtime_store;
 pub mod search;
 pub mod settings;
 pub mod tag_editor;

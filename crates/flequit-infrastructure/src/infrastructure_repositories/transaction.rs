@@ -7,7 +7,10 @@ mod task_list;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use flequit_core::ports::infrastructure_repositories::TransactionalDeletionPort;
+use flequit_core::ports::infrastructure_repositories::{
+    TransactionalDeletionPort, TransactionalTaskWritePort,
+};
+use flequit_model::models::task_projects::task::PartialTask;
 use flequit_model::traits::TransactionManager;
 use flequit_model::types::id_types::{ProjectId, TagId, TaskId, TaskListId, UserId};
 use flequit_types::errors::repository_error::RepositoryError;
@@ -16,6 +19,25 @@ use sea_orm::DatabaseTransaction;
 use super::InfrastructureRepositories;
 
 impl InfrastructureRepositories {
+    pub async fn recover_prepared_operations(&self) -> Result<(), RepositoryError> {
+        let sqlite = self.unified_manager.sqlite_repositories().ok_or_else(|| {
+            RepositoryError::ConfigurationError("SQLite repositories not initialized".to_string())
+        })?;
+        let operations = sqlite.read().await.operation_journal().prepared().await?;
+
+        for operation in operations {
+            match operation.entity_kind.as_str() {
+                "task" => task::recover(self, &operation).await?,
+                entity_kind => {
+                    return Err(RepositoryError::InvalidOperation(format!(
+                        "unsupported prepared operation kind: {entity_kind}"
+                    )));
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub(super) async fn rollback_with_error(
         &self,
         transaction: DatabaseTransaction,
@@ -114,5 +136,19 @@ impl TransactionalDeletionPort for InfrastructureRepositories {
         timestamp: &DateTime<Utc>,
     ) -> Result<(), RepositoryError> {
         tag::delete(self, project_id, tag_id, user_id, timestamp).await
+    }
+}
+
+#[async_trait]
+impl TransactionalTaskWritePort for InfrastructureRepositories {
+    async fn update_task_transactionally(
+        &self,
+        project_id: &ProjectId,
+        task_id: &TaskId,
+        patch: &PartialTask,
+        user_id: &UserId,
+        timestamp: &DateTime<Utc>,
+    ) -> Result<bool, RepositoryError> {
+        task::update(self, project_id, task_id, patch, user_id, timestamp).await
     }
 }
