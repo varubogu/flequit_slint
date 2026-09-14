@@ -550,36 +550,26 @@ export component RecurrenceEditor inherits Rectangle {
                                     accessible-action-default => { end-touch.clicked(); }
                                 }
 
-                                if root.end-kind == RecurrenceEnd.after-count: SpinBox {
-                                    x: 0px;
-                                    width: 6 * Theme.space-xl;
+                                if root.end-kind == RecurrenceEnd.after-count: HorizontalLayout {
+                                    width: 100%;
                                     height: Layout.touch-target;
                                     vertical-stretch: 0;
-                                    value: root.max-occurrences;
-                                    minimum: 1;
-                                    maximum: 999;
-                                    accessible-label: @tr("Recurrence" => "Number of times");
-                                    edited(value) => {
-                                        root.max-occurrences = value;
-                                        root.changed();
+
+                                    Rectangle { horizontal-stretch: 1; }
+                                    SpinBox {
+                                        width: 6 * Theme.space-xl;
+                                        height: Layout.touch-target;
+                                        vertical-stretch: 0;
+                                        value: root.max-occurrences;
+                                        minimum: 1;
+                                        maximum: 999;
+                                        accessible-label: @tr("Recurrence" => "Number of times");
+                                        edited(value) => {
+                                            root.max-occurrences = value;
+                                            root.changed();
+                                        }
                                     }
                                 }
-                            }
-                        }
-
-                        // --- Preview ---
-                        VerticalLayout {
-                            vertical-stretch: 0;
-                            spacing: Theme.space-xs;
-                            Text {
-                                text: @tr("Recurrence" => "Next dates");
-                                color: Theme.text-muted;
-                                font-size: Theme.font-size-sm;
-                            }
-
-                            Rectangle {
-                                height: Layout.touch-target;
-                                vertical-stretch: 0;
 
                                 if root.end-kind == RecurrenceEnd.never: HorizontalLayout {
                                     width: 100%;
@@ -607,6 +597,17 @@ export component RecurrenceEditor inherits Rectangle {
                                         }
                                     }
                                 }
+                            }
+                        }
+
+                        // --- Preview ---
+                        VerticalLayout {
+                            vertical-stretch: 0;
+                            spacing: Theme.space-xs;
+                            Text {
+                                text: @tr("Recurrence" => "Next dates");
+                                color: Theme.text-muted;
+                                font-size: Theme.font-size-sm;
                             }
 
                             if AppState.recurrence-preview.length == 0: Text {

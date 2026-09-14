@@ -1805,12 +1805,12 @@ fn the_repeat_editor_reaches_its_handlers() {
         preview_count.size().height <= 48.0,
         "the one-line preview count input stretched vertically"
     );
+    let preview_count_position = preview_count.absolute_position();
 
     assert!(activate(&window, "On a date"));
-    let date_editor = ElementHandle::find_by_accessible_label(&window, "Choose the last date")
+    ElementHandle::find_by_accessible_label(&window, "Choose the last date")
         .next()
         .expect("the end-date editor is not reachable");
-    let end_editor_position = date_editor.absolute_position();
 
     assert!(activate(&window, "After a number of times"));
     let count_editor = ElementHandle::find_by_accessible_label(&window, "Number of times")
@@ -1818,8 +1818,8 @@ fn the_repeat_editor_reaches_its_handlers() {
         .expect("the occurrence-count editor is not reachable");
     assert_eq!(
         count_editor.absolute_position(),
-        end_editor_position,
-        "end-condition editors must occupy the same fixed layout slot"
+        preview_count_position,
+        "the finite and endless repeat-count inputs must be aligned"
     );
     assert!(
         count_editor.size().height <= 48.0,
