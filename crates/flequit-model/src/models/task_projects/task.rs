@@ -80,6 +80,12 @@ pub struct Task {
     pub project_id: ProjectId,
     /// 所属タスクリストID
     pub list_id: TaskListId,
+    /// 前タスクID（繰り返しで自動生成されたタスクの生成元）
+    ///
+    /// 親だけを持ち、次タスクIDは持たない。次タスクは「前タスクIDが自分のタスク」を
+    /// 探して求める（二重管理を避けるため）。
+    #[serde(default)]
+    pub previous_task_id: Option<TaskId>,
     /// タスクタイトル（必須）
     pub title: String,
     /// タスクの詳細説明
@@ -164,6 +170,7 @@ pub struct Task {
 ///     id: TaskId::new(),
 ///     project_id: ProjectId::new(),
 ///     list_id: TaskListId::new(),
+///     previous_task_id: None,
 ///     title: "新機能の実装".to_string(),
 ///     description: Some("ユーザー管理機能を実装".to_string()),
 ///     status: TaskStatus::InProgress,
@@ -194,6 +201,9 @@ pub struct TaskTree {
     pub project_id: ProjectId,
     /// 所属タスクリストID
     pub list_id: TaskListId,
+    /// 前タスクID（繰り返しで自動生成されたタスクの生成元）
+    #[serde(default)]
+    pub previous_task_id: Option<TaskId>,
     /// タスクタイトル（必須）
     pub title: String,
     /// タスクの詳細説明
@@ -245,6 +255,7 @@ impl ModelConverter<Task> for TaskTree {
             id: self.id,
             project_id: self.project_id,
             list_id: self.list_id,
+            previous_task_id: self.previous_task_id,
             title: self.title.clone(),
             description: self.description.clone(),
             status: self.status.clone(),

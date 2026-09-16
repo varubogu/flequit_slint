@@ -2,8 +2,10 @@ use tracing::info;
 
 use crate::InfrastructureRepositoriesTrait;
 use crate::ports::infrastructure_repositories::*;
+use crate::services::recurring_task_service::{self, SuccessorChange};
 use crate::services::{tag_service, task_service, task_tag_service};
 use chrono::{DateTime, Utc};
+use flequit_model::models::task_projects::recurrence_rule::RecurrenceRule;
 use flequit_model::models::task_projects::tag::Tag;
 use flequit_model::models::task_projects::task::{PartialTask, Task};
 use flequit_model::models::task_projects::task_tag::TaskTag;
@@ -74,6 +76,25 @@ where
         Err(ServiceError::ValidationError(message)) => Err(ServiceError::ValidationError(message)),
         Err(error) => Err(error),
     }
+}
+
+/// 繰り返しタスクの完了・キャンセルに合わせて次タスクを生成・削除する。
+///
+/// ステータスの保存に成功した後に呼ぶ。詳細は
+/// [`recurring_task_service::sync_successor`] を参照。
+pub async fn sync_recurring_successor<R, F>(
+    repositories: &R,
+    project_id: &ProjectId,
+    task_id: &TaskId,
+    user_id: &UserId,
+    next_due: F,
+) -> Result<SuccessorChange, ServiceError>
+where
+    R: InfrastructureRepositoriesTrait + Send + Sync,
+    F: FnOnce(&RecurrenceRule, &DateTime<Utc>, u32) -> Option<DateTime<Utc>> + Send,
+{
+    recurring_task_service::sync_successor(repositories, project_id, task_id, user_id, next_due)
+        .await
 }
 
 pub async fn delete_task<R>(

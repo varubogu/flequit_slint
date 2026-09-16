@@ -1049,6 +1049,7 @@ async fn test_task_repository_crud_operations() -> Result<(), Box<dyn std::error
         id: task_id,
         project_id,
         list_id: task_list_id,
+        previous_task_id: None,
         title: "統合テスト用タスク".to_string(),
         reminders: vec![timestamp + chrono::Duration::hours(1)],
         description: Some("Automerge Repository統合テストのためのタスク".to_string()),

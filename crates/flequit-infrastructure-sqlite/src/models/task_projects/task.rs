@@ -33,6 +33,10 @@ pub struct Model {
     #[sea_orm(indexed)] // タスクリスト別検索用
     pub list_id: String,
 
+    /// 前タスクID（繰り返しで自動生成されたタスクの生成元）
+    #[sea_orm(indexed)] // 次タスク検索用
+    pub previous_task_id: Option<String>,
+
     /// タスクタイトル
     #[sea_orm(indexed)] // タイトル検索用
     pub title: String,
@@ -150,6 +154,7 @@ impl SqliteModelConverter<Task> for Model {
             id: TaskId::from(self.id.clone()),
             project_id: ProjectId::from(self.project_id.clone()),
             list_id: TaskListId::from(self.list_id.clone()),
+            previous_task_id: self.previous_task_id.as_deref().map(TaskId::from),
             title: self.title.clone(),
             description: self.description.clone(),
             status,
@@ -197,6 +202,7 @@ impl DomainToSqliteConverter<ActiveModel> for Task {
             id: Set(self.id.to_string()),
             project_id: Set(self.project_id.to_string()),
             list_id: Set(self.list_id.to_string()),
+            previous_task_id: Set(self.previous_task_id.map(|id| id.to_string())),
             title: Set(self.title.clone()),
             description: Set(self.description.clone()),
             status: Set(status_string),
@@ -242,6 +248,7 @@ impl DomainToSqliteConverterWithProjectId<ActiveModel> for Task {
             id: Set(self.id.to_string()),
             project_id: Set(project_id.to_string()),
             list_id: Set(self.list_id.to_string()),
+            previous_task_id: Set(self.previous_task_id.map(|id| id.to_string())),
             title: Set(self.title.clone()),
             description: Set(self.description.clone()),
             status: Set(status_string),

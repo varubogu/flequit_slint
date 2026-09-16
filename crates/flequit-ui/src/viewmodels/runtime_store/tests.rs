@@ -130,6 +130,7 @@ fn store_with_one_task() -> (RuntimeStore, TaskId) {
         id: task_id,
         project_id,
         list_id,
+        previous_task_id: None,
         title: "original".to_string(),
         description: None,
         status: TaskStatus::NotStarted,

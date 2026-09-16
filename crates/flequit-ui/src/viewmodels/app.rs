@@ -62,7 +62,7 @@ use crate::bindings::{
 use crate::viewmodels::TaskListUiViewModel;
 use crate::viewmodels::ordering;
 use crate::viewmodels::project_editor;
-use crate::viewmodels::recurrence::{occurrence, preview_limit, rule_from_state};
+use crate::viewmodels::recurrence::{next_due_after, occurrence, preview_limit, rule_from_state};
 use crate::viewmodels::reload_gate::ReloadGate;
 use crate::viewmodels::runtime_store::RuntimeStore;
 use crate::viewmodels::search::{
@@ -813,6 +813,7 @@ where
                     id: TaskId::new(),
                     project_id,
                     list_id,
+                    previous_task_id: None,
                     title,
                     description: None,
                     status: DomainStatus::NotStarted,
@@ -4290,6 +4291,7 @@ fn spawn_task_patch<R>(
         DisplayTimezone::from_setting(window.global::<UiSettingsState>().get_timezone().as_str())
     });
     refresh_task_projections(weak, state, timezone);
+    let status_changed = patch.status.is_some();
 
     let weak = weak.clone();
     let state = Arc::clone(state);
@@ -4311,6 +4313,24 @@ fn spawn_task_patch<R>(
                     .expect("shared state poisoned")
                     .trees
                     .resolve_task_mutation(&parsed_id, mutation_id, true);
+                // Completing a repeating task brings in the next one, and
+                // cancelling it takes an untouched next one back out.
+                if status_changed
+                    && let Err(error) = task_facades::sync_recurring_successor(
+                        repositories.as_ref(),
+                        &project_id,
+                        &parsed_id,
+                        &user_id,
+                        move |rule, anchor, position| {
+                            next_due_after(rule, anchor, timezone, position)
+                        },
+                    )
+                    .await
+                {
+                    let ui_error = UiError::from(error);
+                    tracing::error!(%ui_error, %task_id, "failed to sync the next repeating task");
+                    report_error(&weak, "recurrence.save-failed");
+                }
                 reload_projects(&weak, &state, &repositories, timezone).await;
             }
             Err(error) => {
@@ -4811,6 +4831,7 @@ mod tests {
             id: TaskId::new(),
             project_id: ProjectId::new(),
             list_id: TaskListId::new(),
+            previous_task_id: None,
             title: "Buy milk".to_string(),
             description: None,
             status: DomainStatus::NotStarted,

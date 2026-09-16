@@ -162,6 +162,7 @@ mod tests {
             id: TaskId::new(),
             project_id,
             list_id,
+            previous_task_id: None,
             title: title.to_string(),
             description: None,
             status: TaskStatus::NotStarted,

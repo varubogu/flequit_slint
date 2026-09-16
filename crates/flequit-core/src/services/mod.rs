@@ -3,6 +3,7 @@ pub mod datetime_service;
 pub mod initialization_service;
 pub mod project_service;
 pub mod recurrence_service;
+pub mod recurring_task_service;
 pub mod subtask_assignment_service;
 pub mod subtask_service;
 pub mod subtask_tag_service;

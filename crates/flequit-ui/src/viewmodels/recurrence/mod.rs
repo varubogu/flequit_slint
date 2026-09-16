@@ -8,7 +8,7 @@
 
 pub mod occurrence;
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use flequit_model::models::task_projects::recurrence_details::RecurrenceDetails;
 use flequit_model::models::task_projects::recurrence_rule::RecurrenceRule;
 use flequit_model::types::datetime_calendar_types::{DayOfWeek, RecurrenceUnit as DomainUnit};
@@ -34,6 +34,28 @@ pub fn preview_limit(rule: &RecurrenceRule, requested: i32) -> usize {
     } else {
         requested.clamp(1, MAX_PREVIEW_COUNT) as usize
     }
+}
+
+/// The due date of the task that follows a completed occurrence.
+///
+/// `position` is how far into the series the completed task is, the first
+/// task being 1. `max_occurrences` counts the whole series, so the rule is
+/// shortened by the occurrences already behind before it is expanded from
+/// `anchor`, which the expander treats as the first.
+pub fn next_due_after(
+    rule: &RecurrenceRule,
+    anchor: &DateTime<Utc>,
+    timezone: DisplayTimezone,
+    position: u32,
+) -> Option<DateTime<Utc>> {
+    let mut remaining = rule.clone();
+    if let Some(max) = rule.max_occurrences {
+        let behind = i32::try_from(position.saturating_sub(1)).unwrap_or(i32::MAX);
+        remaining.max_occurrences = Some(max.saturating_sub(behind));
+    }
+    occurrence::next_occurrences(&remaining, anchor, timezone, 1)
+        .into_iter()
+        .next()
 }
 
 /// The rule the editor's working copy describes.
@@ -272,6 +294,31 @@ mod tests {
         dated_state.end_day = 31;
         let dated = rule_from_state(&dated_state, None, DisplayTimezone::Utc, user_id).unwrap();
         assert_eq!(preview_limit(&dated, 7), usize::MAX);
+    }
+
+    #[test]
+    fn the_next_due_date_follows_the_completed_one() {
+        // The default draft repeats daily.
+        let rule = rule_from_state(&state(), None, DisplayTimezone::Utc, UserId::new()).unwrap();
+        let anchor = Utc.with_ymd_and_hms(2026, 9, 6, 9, 0, 0).unwrap();
+
+        assert_eq!(
+            next_due_after(&rule, &anchor, DisplayTimezone::Utc, 1),
+            Some(Utc.with_ymd_and_hms(2026, 9, 7, 9, 0, 0).unwrap())
+        );
+    }
+
+    #[test]
+    fn a_counted_series_stops_after_its_last_occurrence() {
+        let mut draft = state();
+        draft.end_kind = RecurrenceEnd::AfterCount;
+        draft.max_occurrences = 3;
+        let rule = rule_from_state(&draft, None, DisplayTimezone::Utc, UserId::new()).unwrap();
+        let anchor = Utc.with_ymd_and_hms(2026, 9, 6, 9, 0, 0).unwrap();
+
+        assert!(next_due_after(&rule, &anchor, DisplayTimezone::Utc, 2).is_some());
+        assert!(next_due_after(&rule, &anchor, DisplayTimezone::Utc, 3).is_none());
+        assert!(next_due_after(&rule, &anchor, DisplayTimezone::Utc, 9).is_none());
     }
 
     #[test]

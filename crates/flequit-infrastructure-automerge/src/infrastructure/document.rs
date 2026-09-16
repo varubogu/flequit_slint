@@ -7,6 +7,28 @@ use automerge::{ObjType, ReadDoc, ScalarValue};
 use automerge_repo::DocHandle;
 use flequit_model::types::id_types::ProjectId;
 
+/// JSON のスカラー値を Automerge のスカラー値にする。
+fn json_scalar(value: &serde_json::Value) -> Result<ScalarValue, automerge::AutomergeError> {
+    Ok(match value {
+        serde_json::Value::Null => ScalarValue::Null,
+        serde_json::Value::Bool(b) => ScalarValue::Boolean(*b),
+        serde_json::Value::Number(n) => match (n.as_i64(), n.as_f64()) {
+            (Some(i), _) => ScalarValue::Int(i),
+            (None, Some(f)) => ScalarValue::F64(f),
+            (None, None) => return Err(automerge::AutomergeError::InvalidOp(ObjType::Map)),
+        },
+        serde_json::Value::String(s) => ScalarValue::Str(s.as_str().into()),
+        serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
+            return Err(automerge::AutomergeError::InvalidOp(ObjType::Map));
+        }
+    })
+}
+
+/// 既存の値が `scalar` と同じスカラーか。
+fn is_same_scalar(existing: Option<&automerge::Value>, scalar: &ScalarValue) -> bool {
+    matches!(existing, Some(automerge::Value::Scalar(current)) if current.as_ref() == scalar)
+}
+
 #[derive(Debug, Clone)]
 pub struct Document {
     pub base_path: PathBuf,
@@ -427,7 +449,12 @@ impl Document {
         Ok(current_obj)
     }
 
-    /// JSON ValueをAutomergeに変換するヘルパー
+    /// JSON ValueをAutomergeに書き込むヘルパー
+    ///
+    /// 既存の値との差分だけを書く。リポジトリは保存のたびにエンティティ配列全体を
+    /// 渡してくるため、毎回オブジェクトを作り直すと変更履歴が保存回数に比例して
+    /// 膨らみ、書き込みそのものが次第に遅くなる（数件のタスクで 1 回数秒）。
+    /// 同じ値は書かず、マップとリストは既存オブジェクトをその場で更新する。
     fn put_json_value(
         &self,
         tx: &mut automerge::transaction::Transaction,
@@ -435,44 +462,101 @@ impl Document {
         key: &str,
         value: &serde_json::Value,
     ) -> Result<(), automerge::AutomergeError> {
+        let existing = tx.get(obj, key)?;
         match value {
-            serde_json::Value::Null => {
-                tx.put(obj, key, ScalarValue::Null)?;
-                Ok(())
-            }
-            serde_json::Value::Bool(b) => {
-                tx.put(obj, key, *b)?;
-                Ok(())
-            }
-            serde_json::Value::Number(n) => {
-                if let Some(i) = n.as_i64() {
-                    tx.put(obj, key, i)?;
-                } else if let Some(f) = n.as_f64() {
-                    tx.put(obj, key, f)?;
-                } else {
-                    return Err(automerge::AutomergeError::InvalidOp(ObjType::Map));
-                }
-                Ok(())
-            }
-            serde_json::Value::String(s) => {
-                tx.put(obj, key, s.as_str())?;
-                Ok(())
-            }
             serde_json::Value::Array(arr) => {
-                let list_id = tx.put_object(obj, key, ObjType::List)?;
-                for (i, item) in arr.iter().enumerate() {
-                    self.put_json_value_at_index(tx, &list_id, i, item)?;
-                }
-                Ok(())
+                let list_id = match existing {
+                    Some((automerge::Value::Object(ObjType::List), id)) => id,
+                    _ => tx.put_object(obj, key, ObjType::List)?,
+                };
+                self.reconcile_list(tx, &list_id, arr)
             }
             serde_json::Value::Object(map) => {
-                let map_id = tx.put_object(obj, key, ObjType::Map)?;
-                for (k, v) in map.iter() {
-                    self.put_json_value(tx, &map_id, k, v)?;
+                let map_id = match existing {
+                    Some((automerge::Value::Object(ObjType::Map), id)) => id,
+                    _ => tx.put_object(obj, key, ObjType::Map)?,
+                };
+                self.reconcile_map(tx, &map_id, map)
+            }
+            scalar => {
+                let scalar = json_scalar(scalar)?;
+                if !is_same_scalar(existing.as_ref().map(|(value, _)| value), &scalar) {
+                    tx.put(obj, key, scalar)?;
                 }
                 Ok(())
             }
         }
+    }
+
+    /// 既存のマップを `map` と同じ内容に揃える。
+    fn reconcile_map(
+        &self,
+        tx: &mut automerge::transaction::Transaction,
+        map_id: &automerge::ObjId,
+        map: &serde_json::Map<String, serde_json::Value>,
+    ) -> Result<(), automerge::AutomergeError> {
+        let stale: Vec<String> = tx
+            .keys(map_id)
+            .filter(|key| !map.contains_key(key))
+            .collect();
+        for key in stale {
+            tx.delete(map_id, key.as_str())?;
+        }
+        for (k, v) in map.iter() {
+            self.put_json_value(tx, map_id, k, v)?;
+        }
+        Ok(())
+    }
+
+    /// 既存のリストを `arr` と同じ内容に揃える。
+    ///
+    /// 位置ごとに突き合わせる。保存は末尾への追加か既存要素の更新がほとんどなので、
+    /// 要素の対応付けを探すより単純で十分に差分が小さい。
+    fn reconcile_list(
+        &self,
+        tx: &mut automerge::transaction::Transaction,
+        list_id: &automerge::ObjId,
+        arr: &[serde_json::Value],
+    ) -> Result<(), automerge::AutomergeError> {
+        let length = tx.length(list_id);
+        for index in (arr.len()..length).rev() {
+            tx.delete(list_id, index)?;
+        }
+
+        for (index, item) in arr.iter().enumerate() {
+            if index >= length {
+                self.put_json_value_at_index(tx, list_id, index, item)?;
+                continue;
+            }
+            let existing = tx.get(list_id, index)?;
+            match item {
+                serde_json::Value::Array(nested) => match existing {
+                    Some((automerge::Value::Object(ObjType::List), id)) => {
+                        self.reconcile_list(tx, &id, nested)?;
+                    }
+                    _ => {
+                        let id = tx.put_object(list_id, index, ObjType::List)?;
+                        self.reconcile_list(tx, &id, nested)?;
+                    }
+                },
+                serde_json::Value::Object(map) => match existing {
+                    Some((automerge::Value::Object(ObjType::Map), id)) => {
+                        self.reconcile_map(tx, &id, map)?;
+                    }
+                    _ => {
+                        let id = tx.put_object(list_id, index, ObjType::Map)?;
+                        self.reconcile_map(tx, &id, map)?;
+                    }
+                },
+                scalar => {
+                    let scalar = json_scalar(scalar)?;
+                    if !is_same_scalar(existing.as_ref().map(|(value, _)| value), &scalar) {
+                        tx.put(list_id, index, scalar)?;
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     /// 配列インデックスに値を設定するヘルパー

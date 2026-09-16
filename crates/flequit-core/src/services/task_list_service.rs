@@ -238,6 +238,7 @@ where
                 id: task.id,
                 project_id: task.project_id,
                 list_id: task.list_id,
+                previous_task_id: task.previous_task_id,
                 title: task.title.clone(),
                 description: task.description.clone(),
                 status: task.status.clone(),

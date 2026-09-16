@@ -41,6 +41,7 @@ fn make_test_task(project_id: &ProjectId, task_list_id: &TaskListId, user_id: &U
         id: TaskId::new(),
         project_id: *project_id,
         list_id: *task_list_id,
+        previous_task_id: None,
         title: "Test Task".to_string(),
         reminders: vec![],
         description: None,

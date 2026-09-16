@@ -92,3 +92,13 @@ strip = true
 # Slint's generated code is large; keep incremental builds usable.
 opt-level = 0
 debug = 1
+
+# Unoptimized automerge runs its debug-only consistency scans on every list
+# operation, which makes each document write several times slower. These
+# crates are rarely rebuilt, so optimizing them costs little compile time.
+[profile.dev.package.automerge]
+opt-level = 3
+debug-assertions = false
+
+[profile.dev.package.automerge_repo]
+opt-level = 3
