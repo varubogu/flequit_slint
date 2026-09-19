@@ -135,10 +135,10 @@ tokio::spawn(async move {
 ```slint
 Rectangle {
     // ...
-    TouchArea { clicked => { Actions.select-project(project.id); } }
+    TouchArea { clicked => { Actions.toggle-project-expansion(project.id); } }
     accessible-role: button;
     accessible-label: project.name;
-    accessible-action-default => { Actions.select-project(project.id); }
+    accessible-action-default => { Actions.toggle-project-expansion(project.id); }
 }
 ```
 
@@ -233,6 +233,9 @@ tail := FocusSentinel { wrapped => { head.focus(); } }
   `tests/interaction.rs` から操作できるのは開くところまで
 - ポップアップの中からさらに別のポップアップを開く連鎖は避ける。
   日付と時刻は 1 つの `CalendarPopup` で完結させている
+- **開くとキーボードフォーカスを奪う**。入力を続けながら使う一覧（検索ボックスの入力候補など）には使わず、
+  入力欄の直下にインラインで描く。フォーカスが入力欄に残るので、←→ はキャレット移動、
+  ↑↓ は入力欄の `key-pressed` で一覧の選択に割り当てられる（`views/sidebar/search-box.slint`）
 
 「開くたびに初期化したい」状態は、呼び出し側で加算するトークンを
 `in property <int> open-token` で受け、`changed` ハンドラでリセットする。

@@ -10,7 +10,8 @@ import { TaskItem, ProjectItem, TaskListItem, SubTaskItem, DueFilterItem, Locale
          ColorOption, DateTimeFormatSetting, DueButtonSetting, ReminderItem, EditorState, SettingsCategory, TaskStatus,
          TaskPriority, TaskSort, EditorKind, Pane, TagItem, BookmarkedTagItem, RecurrenceState,
          RecurrenceUnit, RecurrenceMonthlyMode, RecurrenceWeekOfMonth, RecurrenceEnd,
-         ReminderUnit, ReminderPresetSetting, SearchSuggestion, SearchSuggestionKind } from "globals/types.slint";
+         ReminderUnit, ReminderPresetSetting, SearchSuggestion, SearchSuggestionKind,
+         FilterHighlight, FilterKind, QueryEdit, StatusFilterItem, AddTargetItem } from "globals/types.slint";
 import { Sidebar } from "views/sidebar/sidebar.slint";
 import { ItemEditor } from "views/sidebar/item-editor.slint";
 import { TagManager } from "views/tags/tag-manager.slint";
@@ -28,7 +29,8 @@ export { Theme, Layout, AppState, Actions, Capabilities, I18n, SettingsState }
 export { TaskItem, ProjectItem, TaskListItem, SubTaskItem, DueFilterItem, LocaleItem,
          ColorOption, DateTimeFormatSetting, DueButtonSetting, ReminderItem, EditorState, SettingsCategory, TaskStatus,
          TaskPriority, TaskSort, EditorKind, Pane, TagItem, BookmarkedTagItem, ThemeMode, Breakpoint,
-         SearchSuggestion, SearchSuggestionKind }
+         SearchSuggestion, SearchSuggestionKind, FilterHighlight, FilterKind, QueryEdit,
+         StatusFilterItem, AddTargetItem }
 export { RecurrenceState, RecurrenceUnit, RecurrenceMonthlyMode, RecurrenceWeekOfMonth, RecurrenceEnd }
 export { ReminderUnit, ReminderPresetSetting }
 
@@ -44,6 +46,11 @@ export component AppWindow inherits Window {
     min-width: 320px;
     min-height: 480px;
     forward-focus: shortcut-scope;
+
+    // Keywords in the search box are shown in the UI language, so they are
+    // rewritten when it changes.
+    private property <string> locale: I18n.current-locale;
+    changed locale => { Actions.locale-changed(); }
 
     // Single source of truth for every responsive decision in the app.
     // Assigning here means a narrow desktop window behaves exactly like a phone.

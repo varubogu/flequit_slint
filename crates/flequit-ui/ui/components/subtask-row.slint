@@ -16,7 +16,11 @@ export component SubTaskRow inherits Rectangle {
 
     height: Layout.touch-target;
     border-radius: Theme.radius-sm;
-    background: row-touch.has-hover ? Theme.surface-hover : transparent;
+    // A subtask the search found while its parent task did not match is
+    // marked, since it is the reason the parent row is listed.
+    background: row-touch.has-hover ? Theme.surface-hover
+        : root.subtask.search-match ? Theme.surface-selected
+        : transparent;
 
     row-touch := TouchArea {
         // Keep the row target behind the checkbox and edit button so each
@@ -72,6 +76,8 @@ export component SubTaskRow inherits Rectangle {
     }
 
     accessible-role: button;
-    accessible-label: @tr("TaskList" => "Open subtask {0}", root.subtask.title);
+    accessible-label: root.subtask.search-match
+        ? @tr("TaskList" => "Open subtask {0}, matches the search", root.subtask.title)
+        : @tr("TaskList" => "Open subtask {0}", root.subtask.title);
     accessible-action-default => { root.clicked(); }
 }

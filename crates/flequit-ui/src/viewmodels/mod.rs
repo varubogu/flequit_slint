@@ -17,7 +17,6 @@ pub mod tag_editor;
 pub mod task_list_ui;
 
 pub use app::AppViewModel;
-pub use search::SearchQuery;
 pub use settings::{
     CustomDueFilter, CustomDueUnit, DateTimeFormatKind, DateTimeFormatPreference,
     DueButtonPreference, RecurrencePreset, ReminderPreset, SettingsSaveFuture, SettingsStore,

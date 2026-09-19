@@ -15,11 +15,11 @@ mod worker;
 #[cfg(test)]
 mod tests;
 
-pub use binding::SettingsViewModel;
+pub use binding::{SearchMemory, SettingsViewModel};
 pub use font::filter as filter_fonts;
 pub use locale::{SUPPORTED_LOCALES, resolve_locale, supported, system_locale};
 pub use model::{
     CustomDueFilter, CustomDueUnit, DateTimeFormatKind, DateTimeFormatPreference,
-    DueButtonPreference, RecurrencePreset, ReminderPreset, SettingsSaveFuture, SettingsStore,
-    SettingsStoreError, UserSettings,
+    DueButtonPreference, RECENT_ADD_TARGETS, RecurrencePreset, ReminderPreset, SettingsSaveFuture,
+    SettingsStore, SettingsStoreError, UserSettings,
 };

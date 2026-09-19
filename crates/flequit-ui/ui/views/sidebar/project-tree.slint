@@ -1,7 +1,7 @@
 import { Theme } from "../../globals/theme.slint";
 import { AppState } from "../../globals/app-state.slint";
 import { Actions } from "../../globals/actions.slint";
-import { ProjectItem, TaskListItem, EditorKind } from "../../globals/types.slint";
+import { ProjectItem, TaskListItem, EditorKind, FilterKind } from "../../globals/types.slint";
 import { ProjectRow } from "project-row.slint";
 import { TaskListRow } from "task-list-row.slint";
 
@@ -56,10 +56,8 @@ export component ProjectTree inherits VerticalLayout {
         ProjectRow {
             project: project;
             collapsed: root.collapsed;
-            selected: AppState.selected-project-id == project.id
-                && AppState.selected-list-id == "";
             toggle-expansion => { Actions.toggle-project-expansion(project.id); }
-            chosen => { Actions.select-project(project.id); }
+            filter(edit) => { Actions.apply-filter(FilterKind.project, project.id, edit); }
             edit => { root.edit-project(project); }
             add-list => { root.add-task-list(project.id); }
         }
@@ -70,8 +68,7 @@ export component ProjectTree inherits VerticalLayout {
 
             for list in project.task-lists: TaskListRow {
                 list: list;
-                selected: AppState.selected-list-id == list.id;
-                chosen => { Actions.select-task-list(project.id, list.id); }
+                filter(edit) => { Actions.apply-filter(FilterKind.task-list, list.id, edit); }
                 edit => { root.edit-task-list(list); }
             }
         }

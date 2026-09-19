@@ -194,6 +194,8 @@ fn to_user_settings(settings: &Settings) -> UserSettings {
         font_size: settings.font_size,
         font_color: settings.font_color.clone(),
         background_color: settings.background_color.clone(),
+        search_query: settings.search_query.clone(),
+        recent_add_targets: settings.recent_task_destinations.clone(),
     }
     .normalize()
 }
@@ -248,6 +250,8 @@ fn apply_user_settings(stored: &mut Settings, settings: UserSettings) {
     stored.font_size = settings.font_size;
     stored.font_color = settings.font_color;
     stored.background_color = settings.background_color;
+    stored.search_query = settings.search_query;
+    stored.recent_task_destinations = settings.recent_add_targets;
     stored.due_date_buttons = settings
         .due_buttons
         .into_iter()
@@ -531,6 +535,22 @@ mod tests {
         assert_eq!(stored.font_size, 18);
         assert_eq!(stored.language, "en");
         assert_eq!(stored.timezone, "UTC");
+    }
+
+    #[test]
+    fn the_search_query_and_quick_add_history_survive_a_restart() {
+        let mut stored = Settings::default();
+        let settings = UserSettings {
+            search_query: "(@due:today | @project:{p1}) -#hold".to_string(),
+            recent_add_targets: vec!["l2".to_string(), "l1".to_string()],
+            ..to_user_settings(&stored)
+        };
+
+        apply_user_settings(&mut stored, settings);
+        let restored = to_user_settings(&stored);
+
+        assert_eq!(restored.search_query, "(@due:today | @project:{p1}) -#hold");
+        assert_eq!(restored.recent_add_targets, ["l2", "l1"]);
     }
 
     #[test]

@@ -8,7 +8,7 @@ use super::mutations::apply_locale;
 use crate::adapters::datetime::{DateTimeDisplaySettings, to_display_parts};
 use crate::bindings::{
     AppState, AppWindow, CustomDueFilterSetting, DateTimeFormatSetting, DueButtonSetting,
-    DueFilterItem, DueUnit, I18n, RecurrencePresetSetting, ReminderPresetSetting,
+    DueFilterItem, DueUnit, FilterHighlight, I18n, RecurrencePresetSetting, ReminderPresetSetting,
     SettingsState as UiSettingsState, Theme,
 };
 
@@ -161,12 +161,16 @@ fn kind_name(kind: DateTimeFormatKind) -> &'static str {
 
 fn publish_due_filters(window: &AppWindow, settings: &UserSettings) {
     let current = window.global::<AppState>().get_due_filters();
-    let count_for = |key: &str| {
+    // Counts and highlights come from the task list and the search box, not
+    // from settings, so a republish keeps them.
+    let previous = |key: &str| {
         (0..current.row_count())
             .filter_map(|index| current.row_data(index))
             .find(|item| item.key.as_str() == key)
-            .map_or(0, |item| item.count)
     };
+    let count_for = |key: &str| previous(key).map_or(0, |item| item.count);
+    let highlight_for =
+        |key: &str| previous(key).map_or(FilterHighlight::None, |item| item.highlight);
 
     let mut filters = settings
         .due_buttons
@@ -179,6 +183,7 @@ fn publish_due_filters(window: &AppWindow, settings: &UserSettings) {
             visible: button.visible,
             custom_value: 0,
             custom_unit: DueUnit::Day,
+            highlight: highlight_for(&button.key),
         })
         .collect::<Vec<_>>();
 
@@ -192,6 +197,7 @@ fn publish_due_filters(window: &AppWindow, settings: &UserSettings) {
             visible: true,
             custom_value: filter.value,
             custom_unit: due_unit(filter.unit),
+            highlight: highlight_for(&key),
         }
     }));
 

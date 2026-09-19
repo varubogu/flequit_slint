@@ -15,11 +15,11 @@ use std::rc::Rc;
 use flequit_ui::bindings::DueUnit;
 use flequit_ui::bindings::{
     Actions, AppState, AppWindow, BookmarkedTagItem, Capabilities, ColorOption, DueButtonSetting,
-    DueFilterItem, EditorKind, Layout, ProjectItem, RecurrenceEnd, RecurrenceMonthlyMode,
-    RecurrencePresetSetting, RecurrenceState, RecurrenceUnit, RecurrenceWeekOfMonth, ReminderItem,
-    ReminderPresetSetting, ReminderUnit, SearchSuggestion, SearchSuggestionKind, SettingsCategory,
-    SettingsState, SubTaskItem, TagItem, TaskItem, TaskListItem, TaskPriority, TaskSort,
-    TaskStatus, Theme, ThemeMode,
+    DueFilterItem, EditorKind, FilterHighlight, FilterKind, Layout, ProjectItem, QueryEdit,
+    RecurrenceEnd, RecurrenceMonthlyMode, RecurrencePresetSetting, RecurrenceState, RecurrenceUnit,
+    RecurrenceWeekOfMonth, ReminderItem, ReminderPresetSetting, ReminderUnit, SearchSuggestion,
+    SearchSuggestionKind, SettingsCategory, SettingsState, SubTaskItem, TagItem, TaskItem,
+    TaskListItem, TaskPriority, TaskSort, TaskStatus, Theme, ThemeMode,
 };
 use i_slint_backend_testing::ElementHandle;
 use slint::{Brush, Color, ComponentHandle, Model, ModelRc, SharedString, VecModel};
@@ -37,6 +37,7 @@ fn task_list_item(id: &str, name: &str) -> TaskListItem {
         project_id: SharedString::from("p1"),
         name: SharedString::from(name),
         task_count: 0,
+        highlight: FilterHighlight::None,
     }
 }
 
@@ -51,6 +52,7 @@ fn project_item(expanded: bool) -> ProjectItem {
         is_archived: false,
         expanded,
         task_lists: ModelRc::new(VecModel::from(vec![task_list_item("l1", "Inbox")])),
+        highlight: FilterHighlight::None,
     }
 }
 
@@ -92,6 +94,8 @@ fn task_item(id: &str, title: &str) -> TaskItem {
             label: SharedString::from("2026-09-07 12:00"),
         }])),
         expanded: false,
+        search_dimmed: false,
+        matched_subtask_count: 0,
     }
 }
 
@@ -112,6 +116,7 @@ fn subtask_item(id: &str, title: &str) -> SubTaskItem {
         due_day: 6,
         due_hour: 12,
         due_minute: 0,
+        search_match: false,
     }
 }
 
@@ -162,6 +167,7 @@ fn bookmarked_tag_item(id: &str, name: &str) -> BookmarkedTagItem {
         name: SharedString::from(name),
         color_brush: Color::from_rgb_u8(0x4c, 0x6e, 0xf5).into(),
         has_color: true,
+        highlight: FilterHighlight::None,
     }
 }
 
@@ -192,6 +198,7 @@ fn window_with_content() -> AppWindow {
         visible: true,
         custom_value: 0,
         custom_unit: DueUnit::Day,
+        highlight: FilterHighlight::None,
     }])));
     window
         .global::<SettingsState>()
@@ -234,6 +241,20 @@ fn window_with_content() -> AppWindow {
         swatch: Color::from_rgb_u8(0x4c, 0x6e, 0xf5).into(),
     }])));
     window
+}
+
+type FilterLog = Rc<RefCell<Vec<(FilterKind, String, QueryEdit)>>>;
+
+/// Records every query edit a sidebar item sends.
+fn record_filters(window: &AppWindow) -> FilterLog {
+    let seen: FilterLog = Rc::new(RefCell::new(Vec::new()));
+    let log = Rc::clone(&seen);
+    window
+        .global::<Actions>()
+        .on_apply_filter(move |kind, key, edit| {
+            log.borrow_mut().push((kind, key.to_string(), edit))
+        });
+    seen
 }
 
 /// Lists every labelled control, for diagnosing a failed lookup.
@@ -356,33 +377,21 @@ fn select_next_option(window: &AppWindow, field_label: &str) {
 
 fn selecting_a_project_reaches_its_handler() {
     let window = window_with_content();
-    let seen = Rc::new(RefCell::new(Vec::<String>::new()));
-    {
-        let seen = Rc::clone(&seen);
-        window
-            .global::<Actions>()
-            .on_select_project(move |id| seen.borrow_mut().push(id.to_string()));
-    }
+    let seen = record_filters(&window);
 
     assert!(
         activate(&window, "My Tasks"),
         "the project row is not reachable through the accessibility tree"
     );
-    assert_eq!(seen.borrow().as_slice(), ["p1"]);
+    assert_eq!(
+        seen.borrow().as_slice(),
+        [(FilterKind::Project, "p1".to_string(), QueryEdit::Click)]
+    );
 }
 
 fn selecting_a_task_list_reaches_its_handler() {
     let window = window_with_content();
-    let seen = Rc::new(RefCell::new(Vec::<(String, String)>::new()));
-    {
-        let seen = Rc::clone(&seen);
-        window
-            .global::<Actions>()
-            .on_select_task_list(move |project, list| {
-                seen.borrow_mut()
-                    .push((project.to_string(), list.to_string()))
-            });
-    }
+    let seen = record_filters(&window);
 
     assert!(
         activate(&window, "Inbox"),
@@ -390,25 +399,71 @@ fn selecting_a_task_list_reaches_its_handler() {
     );
     assert_eq!(
         seen.borrow().as_slice(),
-        [("p1".to_string(), "l1".to_string())]
+        [(FilterKind::TaskList, "l1".to_string(), QueryEdit::Click)]
     );
 }
 
 fn a_due_filter_reaches_its_handler() {
     let window = window_with_content();
-    let seen = Rc::new(RefCell::new(Vec::<String>::new()));
-    {
-        let seen = Rc::clone(&seen);
-        window
-            .global::<Actions>()
-            .on_due_filter_clicked(move |key| seen.borrow_mut().push(key.to_string()));
-    }
+    let seen = record_filters(&window);
 
     assert!(
         activate(&window, "Today"),
         "the due filter is not reachable"
     );
-    assert_eq!(seen.borrow().as_slice(), ["today"]);
+    assert!(
+        activate(&window, "Open"),
+        "the state filter is not reachable"
+    );
+    assert_eq!(
+        seen.borrow().as_slice(),
+        [
+            (FilterKind::Due, "today".to_string(), QueryEdit::Click),
+            (FilterKind::Status, "open".to_string(), QueryEdit::Click),
+        ]
+    );
+}
+
+/// A modifier held while clicking turns the click into AND or OR.
+fn modifier_clicks_combine_sidebar_items() {
+    use slint::LogicalPosition;
+    use slint::platform::{Key, PointerEventButton, WindowEvent};
+
+    let window = window_with_content();
+    resize(&window, 1200.0, 800.0);
+    let seen = record_filters(&window);
+    let element = ElementHandle::find_by_accessible_label(&window, "My Tasks")
+        .next()
+        .expect("the project row is in the element tree");
+    let position = element.absolute_position();
+    let size = element.size();
+    let centre = LogicalPosition::new(
+        position.x + size.width / 2.0,
+        position.y + size.height / 2.0,
+    );
+
+    for (key, expected) in [
+        (Key::Control, QueryEdit::ToggleAnd),
+        (Key::Alt, QueryEdit::ToggleOr),
+    ] {
+        let adapter = window.window();
+        adapter.dispatch_event(WindowEvent::KeyPressed { text: key.into() });
+        adapter.dispatch_event(WindowEvent::PointerPressed {
+            position: centre,
+            button: PointerEventButton::Left,
+        });
+        adapter.dispatch_event(WindowEvent::PointerReleased {
+            position: centre,
+            button: PointerEventButton::Left,
+        });
+        adapter.dispatch_event(WindowEvent::KeyReleased { text: key.into() });
+        settle();
+        assert_eq!(
+            seen.borrow().last(),
+            Some(&(FilterKind::Project, "p1".to_string(), expected)),
+            "holding {key:?} while clicking"
+        );
+    }
 }
 
 fn a_task_row_can_be_selected_and_completed() {
@@ -465,17 +520,23 @@ fn a_search_suggestion_reaches_its_handler() {
     window
         .global::<AppState>()
         .set_search_suggestions(ModelRc::new(VecModel::from(vec![SearchSuggestion {
-            query: SharedString::from("@today"),
-            replacement: SharedString::from("@today"),
+            label: SharedString::from("@today"),
             kind: SearchSuggestionKind::Due,
+            detail: SharedString::from("today"),
+            ..SearchSuggestion::default()
         }])));
 
     let searches = Rc::new(RefCell::new(Vec::<String>::new()));
+    let chosen = Rc::new(RefCell::new(Vec::<i32>::new()));
     {
         let searches = Rc::clone(&searches);
         window
             .global::<Actions>()
             .on_search_changed(move |query| searches.borrow_mut().push(query.to_string()));
+        let chosen = Rc::clone(&chosen);
+        window
+            .global::<Actions>()
+            .on_search_suggestion_chosen(move |index| chosen.borrow_mut().push(index));
     }
 
     set_value(&window, "Search tasks", "@to");
@@ -484,7 +545,107 @@ fn a_search_suggestion_reaches_its_handler() {
         "the search suggestion is not reachable: {:?}",
         accessible_labels(&window)
     );
-    assert_eq!(searches.borrow().as_slice(), ["@to", "@today"]);
+    assert_eq!(searches.borrow().as_slice(), ["@to"]);
+    assert_eq!(chosen.borrow().as_slice(), [0]);
+}
+
+/// Suggestions appear under the field without taking keyboard focus from it.
+///
+/// A `PopupWindow` grabs focus when shown, which pulled the caret out of the
+/// field after the first `@`. Typing on, moving the caret and picking with the
+/// arrow keys must all keep working from the field.
+fn search_suggestions_leave_focus_in_the_field() {
+    use slint::platform::Key;
+
+    let window = window_with_content();
+    let state = window.global::<AppState>();
+    let searches = Rc::new(RefCell::new(Vec::<String>::new()));
+    let chosen = Rc::new(RefCell::new(Vec::<i32>::new()));
+    {
+        let searches = Rc::clone(&searches);
+        let weak = window.as_weak();
+        window.global::<Actions>().on_search_changed(move |query| {
+            searches.borrow_mut().push(query.to_string());
+            // Suggestions arrive while typing, as the ViewModel publishes them.
+            if let Some(window) = weak.upgrade() {
+                let suggestion = |label: &str| SearchSuggestion {
+                    label: SharedString::from(label),
+                    kind: SearchSuggestionKind::Due,
+                    ..SearchSuggestion::default()
+                };
+                window
+                    .global::<AppState>()
+                    .set_search_suggestions(ModelRc::new(VecModel::from(vec![
+                        suggestion("@today"),
+                        suggestion("@tomorrow"),
+                    ])));
+            }
+        });
+        let chosen = Rc::clone(&chosen);
+        window
+            .global::<Actions>()
+            .on_search_suggestion_chosen(move |index| chosen.borrow_mut().push(index));
+    }
+
+    state.set_focus_search_request(state.get_focus_search_request() + 1);
+    settle();
+    press_key(&window, '@');
+    press_key(&window, 't');
+    // Left moves the caret inside the field, so the next letter lands before `t`.
+    press_key(&window, char::from(Key::LeftArrow));
+    press_key(&window, 'o');
+    assert_eq!(searches.borrow().as_slice(), ["@", "@t", "@ot"]);
+
+    press_key(&window, char::from(Key::DownArrow));
+    press_key(&window, char::from(Key::Return));
+    assert_eq!(
+        chosen.borrow().as_slice(),
+        [1],
+        "Down then Enter picks the second suggestion"
+    );
+}
+
+/// A name that fits several targets opens a list to pick from.
+fn search_candidates_open_and_reach_their_handler() {
+    let window = window_with_content();
+    let state = window.global::<AppState>();
+    let chosen = Rc::new(RefCell::new(Vec::<i32>::new()));
+    {
+        let chosen = Rc::clone(&chosen);
+        window
+            .global::<Actions>()
+            .on_search_candidate_chosen(move |index| chosen.borrow_mut().push(index));
+    }
+
+    state.set_search_ambiguous("@山田".into());
+    state.set_search_candidates(ModelRc::new(VecModel::from(vec![
+        SearchSuggestion {
+            label: SharedString::from("@山田"),
+            kind: SearchSuggestionKind::Project,
+            ..SearchSuggestion::default()
+        },
+        SearchSuggestion {
+            label: SharedString::from("@山田 "),
+            kind: SearchSuggestionKind::User,
+            detail: SharedString::from("@yamada"),
+            ..SearchSuggestion::default()
+        },
+    ])));
+    state.set_search_candidates_request(state.get_search_candidates_request() + 1);
+    settle();
+
+    assert!(
+        activate(&window, "Use search suggestion @山田 "),
+        "the candidate list did not open: {:?}",
+        accessible_labels(&window)
+    );
+    assert_eq!(chosen.borrow().as_slice(), [1]);
+    assert!(
+        ElementHandle::find_by_accessible_label(&window, "Choose what @山田 means")
+            .next()
+            .is_some(),
+        "the warning that reopens the list is missing"
+    );
 }
 
 fn project_and_task_list_management_reaches_its_handlers() {
@@ -860,7 +1021,7 @@ fn task_list_empty_states_offer_a_next_action() {
 
     state.set_projects(ModelRc::new(VecModel::default()));
     state.set_selected_project_id(SharedString::default());
-    state.set_selected_list_id(SharedString::default());
+    state.set_add_target_list_id(SharedString::default());
     settle();
     assert!(activate(&window, "Create project"));
     assert!(state.get_editor_open());
@@ -876,7 +1037,7 @@ fn task_list_empty_states_offer_a_next_action() {
     assert_eq!(state.get_editor().project_id.as_str(), "p1");
 
     state.set_editor_open(false);
-    state.set_selected_list_id("l1".into());
+    state.set_add_target_list_id("l1".into());
     settle();
     assert!(activate(&window, "Add your first task"));
     assert!(
@@ -1423,19 +1584,12 @@ fn tag_management_and_assignment_reach_their_handlers() {
     )])));
     settle();
 
-    let selected_bookmarks = Rc::new(RefCell::new(Vec::<(String, String)>::new()));
+    let selected_bookmarks = record_filters(&window);
     let created = Rc::new(RefCell::new(Vec::<(String, String, String)>::new()));
     let updated = Rc::new(RefCell::new(Vec::<(String, String, String, String)>::new()));
     let deleted = Rc::new(RefCell::new(Vec::<(String, String)>::new()));
     let bookmarked = Rc::new(RefCell::new(Vec::<(String, String, bool)>::new()));
     {
-        let seen = Rc::clone(&selected_bookmarks);
-        window
-            .global::<Actions>()
-            .on_select_tag_bookmark(move |project_id, name| {
-                seen.borrow_mut()
-                    .push((project_id.to_string(), name.to_string()));
-            });
         let seen = Rc::clone(&created);
         window
             .global::<Actions>()
@@ -1476,7 +1630,7 @@ fn tag_management_and_assignment_reach_their_handlers() {
     assert!(activate(&window, "Filter by tag home"));
     assert_eq!(
         selected_bookmarks.borrow().as_slice(),
-        [("p1".to_string(), "home".to_string())]
+        [(FilterKind::Tag, "home".to_string(), QueryEdit::Click)]
     );
 
     assert!(activate(&window, "Manage tags"));
@@ -2220,13 +2374,7 @@ fn a_modal_keeps_keyboard_focus_inside_itself() {
 fn a_pointer_click_reaches_the_control_under_it() {
     let window = window_with_content();
     resize(&window, 1200.0, 800.0);
-    let seen = Rc::new(RefCell::new(Vec::<String>::new()));
-    {
-        let seen = Rc::clone(&seen);
-        window
-            .global::<Actions>()
-            .on_select_project(move |id| seen.borrow_mut().push(id.to_string()));
-    }
+    let seen = record_filters(&window);
 
     assert!(
         click(&window, "My Tasks"),
@@ -2234,7 +2382,7 @@ fn a_pointer_click_reaches_the_control_under_it() {
     );
     assert_eq!(
         seen.borrow().as_slice(),
-        ["p1"],
+        [(FilterKind::Project, "p1".to_string(), QueryEdit::Click)],
         "the project row does not respond to a click at its own centre"
     );
 }
@@ -2250,13 +2398,7 @@ fn a_pointer_click_reaches_the_control_under_it() {
 fn an_open_dialog_absorbs_clicks_meant_for_the_shell() {
     let window = window_with_content();
     resize(&window, 1200.0, 800.0);
-    let selected = Rc::new(RefCell::new(Vec::<String>::new()));
-    {
-        let selected = Rc::clone(&selected);
-        window
-            .global::<Actions>()
-            .on_select_project(move |id| selected.borrow_mut().push(id.to_string()));
-    }
+    let selected = record_filters(&window);
 
     // Positive control: the row reacts to a click, so the assertion after the
     // dialog opens can fail.
@@ -2264,7 +2406,7 @@ fn an_open_dialog_absorbs_clicks_meant_for_the_shell() {
         click(&window, "My Tasks"),
         "the project row is not reachable"
     );
-    assert_eq!(selected.borrow().as_slice(), ["p1"]);
+    assert_eq!(selected.borrow().len(), 1);
     selected.borrow_mut().clear();
 
     assert!(activate(&window, "New project"), "the editor does not open");
@@ -2337,13 +2479,7 @@ fn the_compact_sidebar_overlay_covers_the_task_list() {
 fn the_loading_veil_swallows_clicks() {
     let window = window_with_content();
     resize(&window, 1200.0, 800.0);
-    let seen = Rc::new(RefCell::new(Vec::<String>::new()));
-    {
-        let seen = Rc::clone(&seen);
-        window
-            .global::<Actions>()
-            .on_select_project(move |id| seen.borrow_mut().push(id.to_string()));
-    }
+    let seen = record_filters(&window);
 
     window.global::<AppState>().set_loading(true);
     settle();
@@ -2404,6 +2540,7 @@ fn the_shell_responds_to_user_actions() {
     selecting_a_project_reaches_its_handler();
     selecting_a_task_list_reaches_its_handler();
     a_due_filter_reaches_its_handler();
+    modifier_clicks_combine_sidebar_items();
     a_task_row_can_be_selected_and_completed();
     a_task_row_shows_its_tags();
     tag_management_is_available_without_pinned_tags();
@@ -2413,6 +2550,8 @@ fn the_shell_responds_to_user_actions() {
     a_sidebar_list_becomes_a_drop_target();
     expanding_a_project_reaches_its_handler();
     a_search_suggestion_reaches_its_handler();
+    search_suggestions_leave_focus_in_the_field();
+    search_candidates_open_and_reach_their_handler();
     project_and_task_list_management_reaches_its_handlers();
     the_settings_dialog_reaches_its_handlers();
     the_account_menu_reaches_its_destinations();

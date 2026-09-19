@@ -7,6 +7,7 @@ import { EditorKind } from "../../globals/types.slint";
 import { IconButton } from "../../components/icon-button.slint";
 import { IconName } from "../../components/icon.slint";
 import { DueFilterList } from "due-filter-list.slint";
+import { StatusFilterList } from "status-filter-list.slint";
 import { ProjectTree } from "project-tree.slint";
 import { TagBookmarkList } from "tag-bookmark-list.slint";
 import { SearchBox } from "search-box.slint";
@@ -53,10 +54,9 @@ export component Sidebar inherits Rectangle {
 
             if !root.collapsed: SearchBox {
                 horizontal-stretch: 1;
-                text: AppState.search-query;
+                text <=> AppState.search-query;
                 suggestions: AppState.search-suggestions;
-                edited(value) => { Actions.search-changed(value); }
-                suggestion-selected(query) => { Actions.search-changed(query); }
+                candidates: AppState.search-candidates;
             }
         }
 
@@ -69,8 +69,16 @@ export component Sidebar inherits Rectangle {
                 spacing: Theme.space-lg;
                 alignment: start;
 
-                DueFilterList {
-                    collapsed: root.collapsed;
+                VerticalLayout {
+                    spacing: 2px;
+
+                    DueFilterList {
+                        collapsed: root.collapsed;
+                    }
+
+                    StatusFilterList {
+                        collapsed: root.collapsed;
+                    }
                 }
 
                 TagBookmarkList {

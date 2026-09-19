@@ -112,6 +112,27 @@ impl SettingsUpdater {
         if let Some(window) = self.weak.upgrade() {
             publisher::publish(&window, &next);
         }
+        self.enqueue(next, revision);
+    }
+
+    /// Saves a change that has no settings-dialog control to refresh.
+    ///
+    /// The search box and quick-add destination are remembered this way:
+    /// republishing every setting on each keystroke would rebuild the sidebar
+    /// filter models for nothing.
+    pub(super) fn update_silently(&self, mutate: impl FnOnce(&mut UserSettings)) {
+        let Some((next, revision)) = self
+            .model
+            .lock()
+            .expect("settings state poisoned")
+            .update(mutate)
+        else {
+            return;
+        };
+        self.enqueue(next, revision);
+    }
+
+    fn enqueue(&self, next: UserSettings, revision: u64) {
         if self
             .sender
             .send(SaveRequest {

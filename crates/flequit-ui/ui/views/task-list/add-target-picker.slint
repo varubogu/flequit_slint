@@ -1,0 +1,155 @@
+import { LineEdit, ListView } from "std-widgets.slint";
+import { Theme } from "../../globals/theme.slint";
+import { Layout } from "../../globals/layout.slint";
+import { AppState } from "../../globals/app-state.slint";
+import { Actions } from "../../globals/actions.slint";
+
+// The list the quick-add field adds to, and a picker to change it.
+//
+// The task list shows whatever the search finds, so it does not say which list
+// a new task belongs in. The ViewModel picks a default from the query (the one
+// list or project it narrows to, else the last list used); choosing here
+// overrides that until the query points somewhere else.
+export component AddTargetPicker inherits Rectangle {
+    private property <int> visible-rows: 8;
+
+    min-width: Layout.touch-target;
+    preferred-width: label.preferred-width + 2 * Theme.space-sm + 24px;
+    height: Layout.touch-target;
+    border-radius: Theme.radius-sm;
+    border-width: 1px;
+    border-color: Theme.border;
+    background: touch.has-hover ? Theme.surface-hover : Theme.surface;
+
+    function open() {
+        Actions.filter-add-targets("");
+        popup.show();
+    }
+
+    HorizontalLayout {
+        padding-left: Theme.space-sm;
+        padding-right: Theme.space-sm;
+        spacing: Theme.space-xs;
+
+        if AppState.add-target-has-color: Rectangle {
+            width: 8px;
+            height: 8px;
+            y: (parent.height - self.height) / 2;
+            border-radius: 4px;
+            background: AppState.add-target-color;
+        }
+
+        label := Text {
+            text: AppState.add-target-list-id == ""
+                ? @tr("TaskList" => "No list")
+                : AppState.add-target-project-name + " › " + AppState.add-target-list-name;
+            color: Theme.text;
+            font-size: Theme.font-size-sm;
+            vertical-alignment: center;
+            overflow: elide;
+            horizontal-stretch: 1;
+        }
+
+        Text {
+            text: "▾";
+            color: Theme.text-muted;
+            font-size: Theme.font-size-sm;
+            vertical-alignment: center;
+        }
+    }
+
+    touch := TouchArea {
+        clicked => { root.open(); }
+    }
+    accessible-role: button;
+    accessible-label: AppState.add-target-list-id == ""
+        ? @tr("TaskList" => "Choose where new tasks go")
+        : @tr("TaskList" => "New tasks go to {0} › {1}. Change",
+            AppState.add-target-project-name, AppState.add-target-list-name);
+    accessible-action-default => { root.open(); }
+
+    popup := PopupWindow {
+        // Opens upwards: the quick-add bar sits at the bottom of the pane.
+        x: 0px;
+        y: -self.height - Theme.space-xs;
+        width: Math.max(root.width, 280px);
+        height: filter.preferred-height + Math.min(AppState.add-targets.length, root.visible-rows)
+            * Layout.touch-target + 3 * Theme.space-xs;
+        close-policy: close-on-click-outside;
+
+        Rectangle {
+            border-radius: Theme.radius-sm;
+            border-width: 1px;
+            border-color: Theme.border;
+            background: Theme.surface-raised;
+            clip: true;
+
+            VerticalLayout {
+                padding: Theme.space-xs;
+                spacing: Theme.space-xs;
+
+                filter := LineEdit {
+                    placeholder-text: @tr("TaskList" => "Filter lists");
+                    accessible-label: @tr("TaskList" => "Filter lists");
+                    edited(query) => { Actions.filter-add-targets(query); }
+                }
+
+                ListView {
+                    for target in AppState.add-targets: Rectangle {
+                        height: Layout.touch-target;
+                        border-radius: Theme.radius-sm;
+                        background: target.list-id == AppState.add-target-list-id ? Theme.surface-selected
+                            : row-touch.has-hover ? Theme.surface-hover
+                            : transparent;
+
+                        HorizontalLayout {
+                            padding-left: Theme.space-sm;
+                            padding-right: Theme.space-sm;
+                            spacing: Theme.space-sm;
+
+                            Rectangle {
+                                width: 8px;
+                                height: 8px;
+                                y: (parent.height - self.height) / 2;
+                                border-radius: 4px;
+                                background: target.has-color ? target.color-brush : transparent;
+                            }
+
+                            Text {
+                                text: target.list-name;
+                                color: Theme.text;
+                                font-size: Theme.font-size-base;
+                                vertical-alignment: center;
+                                overflow: elide;
+                                horizontal-stretch: 1;
+                            }
+
+                            Text {
+                                text: target.recent
+                                    ? @tr("TaskList" => "{0} · recent", target.project-name)
+                                    : target.project-name;
+                                color: Theme.text-muted;
+                                font-size: Theme.font-size-sm;
+                                vertical-alignment: center;
+                                overflow: elide;
+                            }
+                        }
+
+                        row-touch := TouchArea {
+                            clicked => {
+                                Actions.choose-add-target(target.list-id);
+                                popup.close();
+                            }
+                        }
+                        accessible-role: button;
+                        accessible-label: target.project-name + " › " + target.list-name;
+                        accessible-action-default => {
+                            Actions.choose-add-target(target.list-id);
+                            popup.close();
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

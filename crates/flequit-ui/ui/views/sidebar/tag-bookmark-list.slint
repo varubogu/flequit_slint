@@ -2,8 +2,10 @@ import { Theme } from "../../globals/theme.slint";
 import { Layout } from "../../globals/layout.slint";
 import { AppState } from "../../globals/app-state.slint";
 import { Actions } from "../../globals/actions.slint";
+import { FilterKind, QueryEdit } from "../../globals/types.slint";
 import { IconButton } from "../../components/icon-button.slint";
 import { Icon, IconName } from "../../components/icon.slint";
+import { FilterStyle, FilterTarget } from "../../components/filter-target.slint";
 
 export component TagBookmarkList inherits VerticalLayout {
     in property <bool> collapsed: false;
@@ -31,7 +33,12 @@ export component TagBookmarkList inherits VerticalLayout {
     for tag in AppState.bookmarked-tags: Rectangle {
         height: Layout.touch-target;
         border-radius: Theme.radius-sm;
-        background: tag-touch.has-hover ? Theme.surface-hover : transparent;
+        background: FilterStyle.background(tag.highlight, tag-target.has-hover);
+
+        tag-target := FilterTarget {
+            highlight: tag.highlight;
+            activated(edit) => { Actions.apply-filter(FilterKind.tag, tag.name, edit); }
+        }
 
         HorizontalLayout {
             padding-left: root.collapsed ? 0px : Theme.space-sm;
@@ -62,11 +69,8 @@ export component TagBookmarkList inherits VerticalLayout {
             }
         }
 
-        tag-touch := TouchArea {
-            clicked => { Actions.select-tag-bookmark(tag.project-id, tag.name); }
-        }
         accessible-role: button;
         accessible-label: @tr("Sidebar" => "Filter by tag {0}", tag.name);
-        accessible-action-default => { Actions.select-tag-bookmark(tag.project-id, tag.name); }
+        accessible-action-default => { Actions.apply-filter(FilterKind.tag, tag.name, QueryEdit.click); }
     }
 }

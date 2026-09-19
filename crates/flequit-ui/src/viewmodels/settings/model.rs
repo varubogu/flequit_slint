@@ -223,7 +223,17 @@ pub struct UserSettings {
     pub font_size: i32,
     pub font_color: String,
     pub background_color: String,
+    /// The search box's internal query, restored at startup.
+    ///
+    /// Language-neutral: confirmed `@` tokens are stored as references
+    /// (`@project:{id}`), see `viewmodels::search`.
+    pub search_query: String,
+    /// Task lists recently used as the quick-add destination, newest first.
+    pub recent_add_targets: Vec<String>,
 }
+
+/// How many recent quick-add destinations are remembered.
+pub const RECENT_ADD_TARGETS: usize = 5;
 
 impl Default for UserSettings {
     fn default() -> Self {
@@ -250,6 +260,8 @@ impl Default for UserSettings {
             font_size: 14,
             font_color: "default".to_string(),
             background_color: "default".to_string(),
+            search_query: String::new(),
+            recent_add_targets: Vec::new(),
         }
     }
 }
@@ -293,6 +305,10 @@ impl UserSettings {
         self.datetime_formats
             .retain(|format| format.kind == DateTimeFormatKind::CustomFormat);
         self.datetime_formats.sort_by_key(|format| format.order);
+        let mut seen = std::collections::HashSet::new();
+        self.recent_add_targets
+            .retain(|list_id| !list_id.is_empty() && seen.insert(list_id.clone()));
+        self.recent_add_targets.truncate(RECENT_ADD_TARGETS);
         self
     }
 }

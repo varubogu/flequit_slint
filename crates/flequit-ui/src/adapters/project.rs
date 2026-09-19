@@ -4,7 +4,7 @@ use flequit_model::models::task_projects::project::ProjectTree;
 use slint::{Brush, ModelRc, SharedString, VecModel};
 
 use super::color::parse_hex;
-use crate::bindings::{ProjectItem, TaskListItem};
+use crate::bindings::{FilterHighlight, ProjectItem, TaskListItem};
 
 /// Number of leading characters shown when the sidebar is collapsed and the
 /// project has no icon.
@@ -49,6 +49,7 @@ pub fn to_project_item(project: &ProjectTree, expanded: bool) -> ProjectItem {
                 .iter()
                 .filter(|task| !task.deleted && !task.is_archived)
                 .count() as i32,
+            highlight: FilterHighlight::None,
         })
         .collect();
 
@@ -67,6 +68,7 @@ pub fn to_project_item(project: &ProjectTree, expanded: bool) -> ProjectItem {
         is_archived: project.is_archived,
         task_lists: ModelRc::new(VecModel::from(task_lists)),
         expanded,
+        highlight: FilterHighlight::None,
     }
 }
 

@@ -1,16 +1,16 @@
 import { Theme } from "../../globals/theme.slint";
 import { Layout } from "../../globals/layout.slint";
 import { AppState } from "../../globals/app-state.slint";
-import { TaskListItem } from "../../globals/types.slint";
+import { FilterHighlight, QueryEdit, TaskListItem } from "../../globals/types.slint";
 import { RowButton } from "../../components/row-button.slint";
 import { Icon, IconName } from "../../components/icon.slint";
+import { FilterStyle, FilterTarget } from "../../components/filter-target.slint";
 
 // One task list under a project, and a drop target for a dragged task.
 export component TaskListRow inherits Rectangle {
     in property <TaskListItem> list;
-    in property <bool> selected: false;
 
-    callback chosen();
+    callback filter(QueryEdit);
     callback edit();
 
     // A dragged task can only be dropped on a list in its own project; moving
@@ -38,9 +38,12 @@ export component TaskListRow inherits Rectangle {
     border-width: self.drop-target ? 1px : 0px;
     border-color: Theme.accent;
     background: self.drop-target ? Theme.surface-hover
-        : root.selected ? Theme.surface-selected
-        : row-touch.has-hover ? Theme.surface-hover
-        : transparent;
+        : FilterStyle.background(root.list.highlight, row-target.has-hover);
+
+    row-target := FilterTarget {
+        highlight: root.list.highlight;
+        activated(edit) => { root.filter(edit); }
+    }
 
     HorizontalLayout {
         padding-left: Theme.space-sm;
@@ -54,6 +57,7 @@ export component TaskListRow inherits Rectangle {
 
         Text {
             text: root.list.name;
+            font-italic: root.list.highlight == FilterHighlight.excluded;
             color: Theme.text;
             font-size: Theme.font-size-base;
             vertical-alignment: center;
@@ -75,12 +79,7 @@ export component TaskListRow inherits Rectangle {
         }
     }
 
-    row-touch := TouchArea {
-        // Behind the edit button so that it wins the click.
-        z: -1;
-        clicked => { root.chosen(); }
-    }
     accessible-role: button;
     accessible-label: root.list.name;
-    accessible-action-default => { root.chosen(); }
+    accessible-action-default => { root.filter(QueryEdit.click); }
 }

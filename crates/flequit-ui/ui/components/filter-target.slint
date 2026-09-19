@@ -1,0 +1,79 @@
+import { Theme } from "../globals/theme.slint";
+import { FilterHighlight, QueryEdit } from "../globals/types.slint";
+
+// The clickable surface of a sidebar item that filters the task list.
+//
+// Turns a click into a query edit: plain click replaces the query, Command /
+// Ctrl + click ANDs the item in, Option / Alt + click ORs it in. Slint reports
+// Command as `control` on Apple platforms, so no OS check is needed. The
+// context menu (right click, the Menu key, a long press on Android) offers the
+// same edits and is the only way to combine items on a touch screen.
+//
+// Place it behind the item's content: text lets clicks through, and buttons
+// drawn on top of it keep their own.
+export component FilterTarget inherits Rectangle {
+    in property <FilterHighlight> highlight: FilterHighlight.none;
+    callback activated(QueryEdit);
+    out property <bool> has-hover: touch.has-hover;
+
+    private property <bool> primary-held: false;
+    private property <bool> secondary-held: false;
+
+    menu-area := ContextMenuArea {
+        width: 100%;
+        height: 100%;
+
+        Menu {
+            MenuItem {
+                title: @tr("FilterMenu" => "Show only this");
+                activated => { root.activated(QueryEdit.replace); }
+            }
+            MenuItem {
+                title: @tr("FilterMenu" => "Add with AND (Ctrl/⌘ + click)");
+                activated => { root.activated(QueryEdit.and); }
+            }
+            MenuItem {
+                title: @tr("FilterMenu" => "Add with OR (Alt/⌥ + click)");
+                activated => { root.activated(QueryEdit.or); }
+            }
+            MenuItem {
+                title: @tr("FilterMenu" => "Exclude");
+                activated => { root.activated(QueryEdit.exclude); }
+            }
+            MenuItem {
+                title: @tr("FilterMenu" => "Remove from the search");
+                enabled: root.highlight != FilterHighlight.none;
+                activated => { root.activated(QueryEdit.remove); }
+            }
+        }
+
+        touch := TouchArea {
+            width: 100%;
+            height: 100%;
+            pointer-event(event) => {
+                if event.kind == PointerEventKind.down {
+                    root.primary-held = event.modifiers.control;
+                    root.secondary-held = event.modifiers.alt;
+                }
+            }
+            clicked => {
+                root.activated(root.primary-held ? QueryEdit.toggle-and
+                    : root.secondary-held ? QueryEdit.toggle-or
+                    : QueryEdit.click);
+            }
+        }
+    }
+
+    @children
+}
+
+// The background a filtering sidebar item is drawn with.
+export global FilterStyle {
+    pure public function background(highlight: FilterHighlight, hover: bool) -> brush {
+        return highlight == FilterHighlight.strong ? Theme.surface-selected
+            : highlight == FilterHighlight.weak || highlight == FilterHighlight.excluded
+                ? Theme.surface-hover
+            : hover ? Theme.surface-hover
+            : transparent;
+    }
+}

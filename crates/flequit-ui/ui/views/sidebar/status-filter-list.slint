@@ -1,30 +1,30 @@
 import { Theme } from "../../globals/theme.slint";
 import { Layout } from "../../globals/layout.slint";
 import { AppState } from "../../globals/app-state.slint";
-import { I18n } from "../../globals/i18n.slint";
 import { Actions } from "../../globals/actions.slint";
 import { FilterKind, QueryEdit } from "../../globals/types.slint";
 import { Icon, IconName } from "../../components/icon.slint";
 import { FilterStyle, FilterTarget } from "../../components/filter-target.slint";
 
-// The due-date filter buttons at the top of the sidebar.
-//
-// Each button writes its keyword into the search box, so the filters and a
-// typed query are the same mechanism.
-export component DueFilterList inherits VerticalLayout {
+// "Open" and "Completed": the empty query shows finished tasks too, and these
+// narrow it in one click.
+export component StatusFilterList inherits VerticalLayout {
     in property <bool> collapsed: false;
 
     spacing: 2px;
 
-    for filter in AppState.due-filters: Rectangle {
-        visible: filter.visible;
-        height: filter.visible ? Layout.touch-target : 0px;
+    function label(key: string) -> string {
+        return key == "completed" ? @tr("StatusFilter" => "Completed") : @tr("StatusFilter" => "Open");
+    }
+
+    for filter in AppState.status-filters: Rectangle {
+        height: Layout.touch-target;
         border-radius: Theme.radius-sm;
         background: FilterStyle.background(filter.highlight, target.has-hover);
 
         target := FilterTarget {
             highlight: filter.highlight;
-            activated(edit) => { Actions.apply-filter(FilterKind.due, filter.key, edit); }
+            activated(edit) => { Actions.apply-filter(FilterKind.status, filter.key, edit); }
 
             HorizontalLayout {
                 padding-left: Theme.space-sm;
@@ -32,12 +32,12 @@ export component DueFilterList inherits VerticalLayout {
                 spacing: Theme.space-sm;
 
                 Icon {
-                    name: IconName.clock;
+                    name: filter.key == "completed" ? IconName.check : IconName.circle;
                     y: (parent.height - self.height) / 2;
                 }
 
                 if !root.collapsed: Text {
-                    text: I18n.due-filter-label(filter.key, filter.custom-value, filter.custom-unit);
+                    text: root.label(filter.key);
                     color: Theme.text;
                     font-size: Theme.font-size-base;
                     vertical-alignment: center;
@@ -55,7 +55,7 @@ export component DueFilterList inherits VerticalLayout {
         }
 
         accessible-role: button;
-        accessible-label: I18n.due-filter-label(filter.key, filter.custom-value, filter.custom-unit);
-        accessible-action-default => { Actions.apply-filter(FilterKind.due, filter.key, QueryEdit.click); }
+        accessible-label: root.label(filter.key);
+        accessible-action-default => { Actions.apply-filter(FilterKind.status, filter.key, QueryEdit.click); }
     }
 }

@@ -1016,21 +1016,6 @@ msgctxt "TaskList"
 msgid "Create a project to get started."
 msgstr "まずプロジェクトを作成しましょう。"
 
-#: crates/flequit-ui/ui/views/task-list/task-list.slint:149
-msgctxt "TaskList"
-msgid "Select a project from the sidebar."
-msgstr "サイドバーからプロジェクトを選択してください。"
-
-#: crates/flequit-ui/ui/views/task-list/task-list.slint:151
-msgctxt "TaskList"
-msgid "Select a task list, or create a new one."
-msgstr "タスクリストを選択するか、新しく作成してください。"
-
-#: crates/flequit-ui/ui/views/task-list/task-list.slint:152
-msgctxt "TaskList"
-msgid "Add your first task to this list."
-msgstr "このリストに最初のタスクを追加しましょう。"
-
 #: crates/flequit-ui/ui/views/task-list/task-list.slint:160
 msgctxt "TaskList"
 msgid "Clear search"
@@ -1860,11 +1845,6 @@ msgctxt "SearchSuggestion"
 msgid "Task list"
 msgstr "タスクリスト"
 
-#: crates/flequit-ui/ui/views/sidebar/search-box.slint:29
-msgctxt "SearchSuggestion"
-msgid "Account"
-msgstr "アカウント"
-
 #: crates/flequit-ui/ui/views/sidebar/search-box.slint:31
 msgctxt "SearchSuggestion"
 msgid "Tag"
@@ -2024,3 +2004,107 @@ msgstr "キャンセル"
 msgctxt "Calendar"
 msgid "OK"
 msgstr "OK"
+
+msgctxt "FilterMenu"
+msgid "Show only this"
+msgstr "この条件だけで表示"
+
+msgctxt "FilterMenu"
+msgid "Add with AND (Ctrl/⌘ + click)"
+msgstr "AND で追加（Ctrl/⌘ + クリック）"
+
+msgctxt "FilterMenu"
+msgid "Add with OR (Alt/⌥ + click)"
+msgstr "OR で追加（Alt/⌥ + クリック）"
+
+msgctxt "FilterMenu"
+msgid "Exclude"
+msgstr "除外する"
+
+msgctxt "FilterMenu"
+msgid "Remove from the search"
+msgstr "検索条件から外す"
+
+msgctxt "StatusFilter"
+msgid "Completed"
+msgstr "完了"
+
+msgctxt "StatusFilter"
+msgid "Open"
+msgstr "未完了"
+
+msgctxt "SearchSuggestion"
+msgid "State"
+msgstr "状態"
+
+msgctxt "SearchSuggestion"
+msgid "User"
+msgstr "ユーザー"
+
+msgctxt "SearchSuggestion"
+msgid "{0} lists, archived"
+msgstr "{0} リスト・アーカイブ済み"
+
+msgctxt "SearchSuggestion"
+msgid "{0} lists"
+msgstr "{0} リスト"
+
+msgctxt "SearchSuggestion"
+msgid "{0} matches several items"
+msgstr "{0} に該当する項目が複数あります"
+
+msgctxt "Sidebar"
+msgid "Choose what {0} means"
+msgstr "{0} の意味を選ぶ"
+
+msgctxt "Sidebar"
+msgid "Part of the search was ignored"
+msgstr "検索条件の一部を無視しました"
+
+msgctxt "Sidebar"
+msgid "Several matches for {0}. Choose one from the list."
+msgstr "{0} に該当する項目が複数あります。一覧から選んでください。"
+
+msgctxt "Sidebar"
+msgid "Not found, ignored: {0}"
+msgstr "見つからないため無視しました: {0}"
+
+msgctxt "Sidebar"
+msgid "An unmatched ) or | was ignored."
+msgstr "対応しない ) または | を無視しました。"
+
+msgctxt "TaskList"
+msgid "{0} matching subtasks"
+msgstr "一致するサブタスク {0} 件"
+
+msgctxt "TaskList"
+msgid "Open subtask {0}, matches the search"
+msgstr "サブタスク {0} を開く（検索に一致）"
+
+msgctxt "TaskList"
+msgid "Create a task list to add tasks to."
+msgstr "タスクを追加するタスクリストを作成してください。"
+
+msgctxt "TaskList"
+msgid "Add your first task."
+msgstr "最初のタスクを追加しましょう。"
+
+msgctxt "TaskList"
+msgid "No list"
+msgstr "リストなし"
+
+msgctxt "TaskList"
+msgid "Choose where new tasks go"
+msgstr "タスクの追加先を選ぶ"
+
+msgctxt "TaskList"
+msgid "New tasks go to {0} › {1}. Change"
+msgstr "追加先: {0} › {1}（変更）"
+
+msgctxt "TaskList"
+msgid "Filter lists"
+msgstr "リストを絞り込む"
+
+msgctxt "TaskList"
+msgid "{0} · recent"
+msgstr "{0} ・最近使用"

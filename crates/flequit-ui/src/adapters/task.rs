@@ -89,6 +89,7 @@ pub fn to_subtask_item(
         due_day: due_parts.day,
         due_hour: due_parts.hour,
         due_minute: due_parts.minute,
+        search_match: false,
     }
 }
 
@@ -179,6 +180,8 @@ pub fn to_task_item(
             .map_or(1, |rule| rule.interval.max(1)),
         reminders: ModelRc::new(VecModel::from(reminders)),
         expanded,
+        search_dimmed: false,
+        matched_subtask_count: 0,
     }
 }
 

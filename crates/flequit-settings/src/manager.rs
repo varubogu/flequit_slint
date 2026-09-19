@@ -224,5 +224,13 @@ impl SettingsManager {
         if let Some(view_items) = &partial.view_items {
             target.view_items = view_items.clone();
         }
+
+        // 検索
+        if let Some(search_query) = &partial.search_query {
+            target.search_query = search_query.clone();
+        }
+        if let Some(recent_task_destinations) = &partial.recent_task_destinations {
+            target.recent_task_destinations = recent_task_destinations.clone();
+        }
     }
 }

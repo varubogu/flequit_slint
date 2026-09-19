@@ -23,7 +23,7 @@ use chrono::{DateTime, Utc};
 use flequit_core::InfrastructureRepositoriesTrait;
 use flequit_core::facades::{
     initialization_facades, project_facades, recurrence_facades, subtask_facades,
-    tag_bookmark_facades, tag_facades, task_facades, task_list_facades,
+    tag_bookmark_facades, tag_facades, task_facades, task_list_facades, user_facades,
 };
 use flequit_model::models::task_projects::project::ProjectTree;
 use flequit_model::models::task_projects::recurrence_rule::RecurrenceRule;
@@ -51,25 +51,23 @@ use crate::adapters::datetime::{
     is_overdue, to_display_parts,
 };
 use crate::adapters::task::from_status;
-use crate::adapters::{
-    to_bookmarked_tag_item, to_project_item, to_recurrence_state, to_tag_item, to_task_item,
-};
+use crate::adapters::{to_bookmarked_tag_item, to_project_item, to_recurrence_state, to_tag_item};
 use crate::bindings::{
     Actions, AppState, AppWindow, Capabilities as UiCapabilities, ColorOption, I18n, Pane,
-    ProjectItem, SearchSuggestion, SearchSuggestionKind, SettingsState as UiSettingsState,
-    SubTaskItem, TaskItem, TaskPriority, TaskSort, TaskStatus, Theme,
+    ProjectItem, SettingsState as UiSettingsState, SubTaskItem, TaskItem, TaskPriority, TaskSort,
+    TaskStatus, Theme,
 };
 use crate::viewmodels::TaskListUiViewModel;
 use crate::viewmodels::ordering;
 use crate::viewmodels::project_editor;
 use crate::viewmodels::recurrence::{occurrence, preview_limit, rule_from_state};
 use crate::viewmodels::reload_gate::ReloadGate;
-use crate::viewmodels::search::{
-    DueKeyword, SearchQuery, SubTaskCandidate, SuggestionKind, SuggestionSources, TaskCandidate,
-    suggestions,
-};
-use crate::viewmodels::settings::{SettingsStore, SettingsViewModel, UserSettings};
+use crate::viewmodels::search::{NameIndex, QueryEdit as SearchEdit, SearchSession, UserEntry};
+use crate::viewmodels::settings::{SearchMemory, SettingsStore, SettingsViewModel, UserSettings};
+
+mod query;
 use crate::viewmodels::tag_editor;
+use query::{publish_search, refresh_tasks};
 
 const HELP_URL: &str = "https://github.com/varubogu/flequit_slint";
 const TEXT_SAVE_DEBOUNCE: Duration = Duration::from_millis(500);
@@ -145,10 +143,38 @@ struct SharedState {
     expanded_projects: HashSet<String>,
     /// Which task rows are expanded.
     task_ui: TaskListUiViewModel,
-    /// Currently selected project; empty means "all projects".
-    selected_project_id: String,
-    /// Currently selected list; empty means "no list selected".
-    selected_list_id: String,
+    /// The search box: its text and what each confirmed `@` token points at.
+    ///
+    /// The query is the only thing that decides which tasks are listed; the
+    /// sidebar holds no selection of its own.
+    search: SearchSession,
+    /// Every name the search box can resolve. Rebuilt on each reload.
+    search_index: NameIndex,
+    /// The stored query, restored once the first load has the names it needs.
+    pending_search: Option<String>,
+    /// Whether the disambiguation list was open at the last publish.
+    candidates_shown: bool,
+    /// Users an `@` token can name.
+    users: Vec<UserEntry>,
+    /// Saves the query and quick-add history. Set when the window is bound.
+    search_memory: Option<SearchMemory>,
+    /// What was last saved, so an unchanged state is not saved again.
+    remembered: (String, Vec<String>),
+    /// The project the tag manager and "new list" work on, derived from the
+    /// query, the selected task or the quick-add destination.
+    context_project_id: String,
+    /// Where the quick-add field puts new tasks.
+    add_target: Option<String>,
+    /// A destination picked by hand, and the default it replaced. Kept until
+    /// the query changes what the default would be.
+    add_target_override: Option<(String, Option<String>)>,
+    /// Task lists recently added to, newest first.
+    recent_add_targets: Vec<String>,
+    /// Narrows the destination picker.
+    add_target_filter: String,
+    /// A task just added from the quick-add field. Listed even when the query
+    /// excludes it, until the query changes, so the new task does not vanish.
+    just_added: Option<String>,
     /// Whether archived projects are listed in the sidebar.
     ///
     /// Archiving would otherwise be one-way: a hidden project has no row to
@@ -209,29 +235,23 @@ impl SharedState {
         })
     }
 
-    /// Every live task in the current project and list selection.
+    /// Every live task, with the project and list that own it.
     ///
-    /// Yields the owning project and list alongside the task: the search syntax
-    /// can filter on their names, and the caller would otherwise have to look
-    /// them up again.
-    fn tasks_in_scope(&self) -> impl Iterator<Item = (&ProjectTree, &TaskListTree, &TaskTree)> {
-        self.trees
-            .iter()
-            .filter(|tree| {
-                !tree.deleted
-                    && (self.show_archived_projects || !tree.is_archived)
-                    && (self.selected_project_id.is_empty()
-                        || tree.id.as_str() == self.selected_project_id)
-            })
-            .flat_map(|tree| tree.task_lists.iter().map(move |list| (tree, list)))
-            .filter(|(_, list)| {
-                !list.deleted
-                    && !list.is_archived
-                    && (self.selected_list_id.is_empty()
-                        || list.id.as_str() == self.selected_list_id)
-            })
+    /// The search query decides which of these are listed. Archived projects
+    /// take part only while they are shown in the sidebar.
+    fn live_tasks(&self) -> impl Iterator<Item = (&ProjectTree, &TaskListTree, &TaskTree)> {
+        self.live_lists()
             .flat_map(|(tree, list)| list.tasks.iter().map(move |task| (tree, list, task)))
             .filter(|(_, _, task)| !task.deleted && !task.is_archived)
+    }
+
+    /// Every live task list, with its project.
+    fn live_lists(&self) -> impl Iterator<Item = (&ProjectTree, &TaskListTree)> {
+        self.trees
+            .iter()
+            .filter(|tree| !tree.deleted && (self.show_archived_projects || !tree.is_archived))
+            .flat_map(|tree| tree.task_lists.iter().map(move |list| (tree, list)))
+            .filter(|(_, list)| !list.deleted && !list.is_archived)
     }
 
     /// Resolves a task's tag ids to names, dropping ids the cache does not know.
@@ -439,6 +459,15 @@ where
         settings_store: Arc<dyn SettingsStore>,
     ) -> Self {
         let timezone = DisplayTimezone::from_setting(&user_settings.timezone);
+        let state = SharedState {
+            pending_search: Some(user_settings.search_query.clone()),
+            recent_add_targets: user_settings.recent_add_targets.clone(),
+            remembered: (
+                user_settings.search_query.clone(),
+                user_settings.recent_add_targets.clone(),
+            ),
+            ..SharedState::default()
+        };
         let settings = Arc::new(SettingsViewModel::new(
             user_settings,
             settings_store,
@@ -448,7 +477,7 @@ where
             repositories,
             platform,
             runtime,
-            state: Arc::new(Mutex::new(SharedState::default())),
+            state: Arc::new(Mutex::new(state)),
             settings,
             timezone,
             theme_monitor: Mutex::new(None),
@@ -522,6 +551,10 @@ where
     /// Closures capture only `Weak<AppWindow>` and `Arc` state; capturing the
     /// window strongly would keep it alive forever.
     pub fn bind(&self, window: &AppWindow) {
+        self.state
+            .lock()
+            .expect("shared state poisoned")
+            .search_memory = Some(self.settings.search_memory(window));
         self.bind_system_theme(window);
         self.load_font_options(window);
         self.bind_navigation(window);
@@ -575,47 +608,6 @@ where
                 if let Some(window) = weak.upgrade() {
                     update_project_row(&window, &id, |item| item.expanded = expanded);
                 }
-            });
-        }
-
-        {
-            let weak = window.as_weak();
-            let state = Arc::clone(&self.state);
-            let timezone = self.timezone;
-            actions.on_select_project(move |project_id| {
-                {
-                    let mut state = state.lock().expect("shared state poisoned");
-                    state.selected_project_id = project_id.to_string();
-                    state.selected_list_id.clear();
-                }
-                let Some(window) = weak.upgrade() else { return };
-                let app_state = window.global::<AppState>();
-                app_state.set_selected_project_id(project_id);
-                app_state.set_selected_list_id(SharedString::default());
-                clear_selection(&window);
-                refresh_tasks(&window, &state, timezone);
-                refresh_tags(&window, &state);
-            });
-        }
-
-        {
-            let weak = window.as_weak();
-            let state = Arc::clone(&self.state);
-            let timezone = self.timezone;
-            actions.on_select_task_list(move |project_id, list_id| {
-                {
-                    let mut state = state.lock().expect("shared state poisoned");
-                    state.selected_project_id = project_id.to_string();
-                    state.selected_list_id = list_id.to_string();
-                }
-                let Some(window) = weak.upgrade() else { return };
-                let app_state = window.global::<AppState>();
-                app_state.set_selected_project_id(project_id);
-                app_state.set_selected_list_id(list_id);
-                app_state.set_sidebar_open(false);
-                clear_selection(&window);
-                refresh_tasks(&window, &state, timezone);
-                refresh_tags(&window, &state);
             });
         }
 
@@ -722,46 +714,7 @@ where
     // -- Search -------------------------------------------------------------
 
     fn bind_search(&self, window: &AppWindow) {
-        let actions = window.global::<Actions>();
-
-        {
-            let weak = window.as_weak();
-            let state = Arc::clone(&self.state);
-            let timezone = self.timezone;
-            actions.on_search_changed(move |query| {
-                let Some(window) = weak.upgrade() else { return };
-                refresh_search_suggestions(&window, &state, query.as_str());
-                window.global::<AppState>().set_search_query(query);
-                refresh_tasks(&window, &state, timezone);
-            });
-        }
-
-        {
-            let weak = window.as_weak();
-            let state = Arc::clone(&self.state);
-            let timezone = self.timezone;
-            actions.on_due_filter_clicked(move |key| {
-                let Some(window) = weak.upgrade() else { return };
-                let app_state = window.global::<AppState>();
-                let query = app_state
-                    .get_due_filters()
-                    .iter()
-                    .find(|f| f.key == key)
-                    .map(|f| f.query.clone())
-                    .unwrap_or_default();
-
-                // Pressing an active filter clears it, so the button doubles as a toggle.
-                let next = if app_state.get_search_query() == query {
-                    SharedString::default()
-                } else {
-                    query
-                };
-                app_state.set_search_query(next);
-                app_state.set_search_suggestions(ModelRc::default());
-                app_state.set_sidebar_open(false);
-                refresh_tasks(&window, &state, timezone);
-            });
-        }
+        query::bind(window, &self.state, self.timezone);
     }
 
     // -- Task mutations -----------------------------------------------------
@@ -808,6 +761,7 @@ where
                 };
 
                 let now = Utc::now();
+                let target_list = list_id.as_str();
                 let task = Task {
                     id: TaskId::new(),
                     project_id,
@@ -847,6 +801,7 @@ where
 
                     match result {
                         Ok(_) => {
+                            query::note_task_added(&state, &target_list, task.id.as_str());
                             reload_projects(&weak, &state, &repositories, timezone).await;
                         }
                         Err(error) => {
@@ -2621,16 +2576,14 @@ where
                 let showing = {
                     let mut guard = state.lock().expect("shared state poisoned");
                     guard.show_archived_projects = !guard.show_archived_projects;
-                    ensure_default_selection(&mut guard);
                     guard.show_archived_projects
                 };
                 let Some(window) = weak.upgrade() else { return };
                 window
                     .global::<AppState>()
                     .set_show_archived_projects(showing);
-                publish_selection(&window, &state);
                 refresh_projects(&window, &state);
-                refresh_tasks(&window, &state, timezone);
+                publish_search(&window, &state, timezone, false);
                 clear_selection(&window);
             });
         }
@@ -3037,43 +2990,6 @@ where
                 });
             });
         }
-
-        {
-            let weak = window.as_weak();
-            let state = Arc::clone(&self.state);
-            let timezone = self.timezone;
-            actions.on_select_tag_bookmark(move |project_id, tag_name| {
-                let Ok(project_id) = ProjectId::try_from_str(project_id.as_str()) else {
-                    report_error(&weak, "input.malformed-id");
-                    return;
-                };
-                {
-                    let mut state = state.lock().expect("shared state poisoned");
-                    if !state
-                        .trees
-                        .iter()
-                        .any(|tree| tree.id == project_id && !tree.deleted)
-                    {
-                        drop(state);
-                        report_error(&weak, "entity.not-found");
-                        return;
-                    }
-                    state.selected_project_id = project_id.to_string();
-                    state.selected_list_id.clear();
-                }
-
-                let Some(window) = weak.upgrade() else { return };
-                let app_state = window.global::<AppState>();
-                app_state.set_selected_project_id(project_id.to_string().into());
-                app_state.set_selected_list_id(SharedString::default());
-                app_state.set_search_query(format!("#{tag_name}").into());
-                app_state.set_search_suggestions(ModelRc::default());
-                app_state.set_sidebar_open(false);
-                clear_selection(&window);
-                refresh_tasks(&window, &state, timezone);
-                refresh_tags(&window, &state);
-            });
-        }
     }
 
     // -- Shell --------------------------------------------------------------
@@ -3306,6 +3222,25 @@ where
                     let ui_error = UiError::from(error);
                     tracing::error!(%ui_error, "failed to load the current account");
                     report_error(&weak, ui_error.code());
+                }
+            }
+
+            match user_facades::list_users(repositories.as_ref()).await {
+                Ok(users) => query::set_users(
+                    &state,
+                    users
+                        .into_iter()
+                        .filter(|user| !user.deleted)
+                        .map(|user| UserEntry {
+                            id: user.id.as_str(),
+                            display_name: user.display_name,
+                            handle: user.handle_id,
+                        })
+                        .collect(),
+                ),
+                Err(error) => {
+                    let ui_error = UiError::from(error);
+                    tracing::warn!(%ui_error, "failed to load users; @user search is unavailable");
                 }
             }
 
@@ -3548,11 +3483,10 @@ where
                     guard.tags_by_project = tags_by_project;
                     guard.tag_names = tag_names;
                     guard.tag_bookmarks = tag_bookmarks;
-                    ensure_default_selection(&mut guard);
                 }
-                publish_selection(&window, &state);
                 refresh_projects(&window, &state);
-                refresh_tasks(&window, &state, timezone);
+                let rewrote = query::follow_data(&window, &state);
+                publish_search(&window, &state, timezone, rewrote);
                 let selected_task_id = app_state.get_selected_task_id();
                 if !selected_task_id.is_empty() {
                     if task_row(&window, &selected_task_id).is_some() {
@@ -3572,8 +3506,6 @@ where
                     }
                 }
                 refresh_tags(&window, &state);
-                let query = app_state.get_search_query();
-                refresh_search_suggestions(&window, &state, query.as_str());
             }
             Err(code) => {
                 let message = window.global::<I18n>().invoke_error_message(code.into());
@@ -3623,69 +3555,15 @@ where
     tags_by_project
 }
 
-/// Selects the first project and list when nothing is selected yet.
-///
-/// Without this the app opens with an empty task pane and a disabled "add task"
-/// field, which reads as a broken screen rather than an empty one.
-fn ensure_default_selection(state: &mut SharedState) {
-    let current_project = state.trees.iter().find(|tree| {
-        tree.id.as_str() == state.selected_project_id
-            && !tree.deleted
-            && (state.show_archived_projects || !tree.is_archived)
-    });
-    if let Some(project) = current_project {
-        let list_is_valid = state.selected_list_id.is_empty()
-            || project.task_lists.iter().any(|list| {
-                list.id.as_str() == state.selected_list_id && !list.deleted && !list.is_archived
-            });
-        if !list_is_valid {
-            state.selected_list_id = project
-                .task_lists
-                .iter()
-                .find(|list| !list.deleted && !list.is_archived)
-                .map(|list| list.id.as_str())
-                .unwrap_or_default();
-        }
-        return;
-    }
-
-    let Some(first_project) = state
-        .trees
-        .iter()
-        .find(|tree| !tree.deleted && (state.show_archived_projects || !tree.is_archived))
-    else {
-        state.selected_project_id.clear();
-        state.selected_list_id.clear();
-        return;
-    };
-
-    state.selected_project_id = first_project.id.as_str();
-    state.expanded_projects.insert(first_project.id.as_str());
-    state.selected_list_id = first_project
-        .task_lists
-        .iter()
-        .find(|list| !list.deleted && !list.is_archived)
-        .map(|list| list.id.as_str())
-        .unwrap_or_default();
-}
-
 fn next_order_index(order_indexes: impl Iterator<Item = i32>) -> i32 {
     order_indexes
         .max()
         .map_or(0, |index| index.saturating_add(1))
 }
 
-/// Mirrors the selection held in shared state onto the UI globals.
-fn publish_selection(window: &AppWindow, state: &Arc<Mutex<SharedState>>) {
-    let state = state.lock().expect("shared state poisoned");
-    let app_state = window.global::<AppState>();
-    app_state.set_selected_project_id(SharedString::from(state.selected_project_id.as_str()));
-    app_state.set_selected_list_id(SharedString::from(state.selected_list_id.as_str()));
-}
-
 /// Rebuilds the sidebar project model from the cached tree snapshot.
-fn refresh_projects(window: &AppWindow, state: &Arc<Mutex<SharedState>>) {
-    let state = state.lock().expect("shared state poisoned");
+fn refresh_projects(window: &AppWindow, state_arc: &Arc<Mutex<SharedState>>) {
+    let state = state_arc.lock().expect("shared state poisoned");
     let items: Vec<ProjectItem> = state
         .trees
         .iter()
@@ -3701,11 +3579,13 @@ fn refresh_projects(window: &AppWindow, state: &Arc<Mutex<SharedState>>) {
     window
         .global::<AppState>()
         .set_projects(ModelRc::new(VecModel::from(items)));
+    drop(state);
+    query::highlight_sidebar(window, state_arc);
 }
 
 /// Publishes tags for the selected project and all sidebar bookmarks.
-fn refresh_tags(window: &AppWindow, state: &Arc<Mutex<SharedState>>) {
-    let state = state.lock().expect("shared state poisoned");
+fn refresh_tags(window: &AppWindow, state_arc: &Arc<Mutex<SharedState>>) {
+    let state = state_arc.lock().expect("shared state poisoned");
     let selected_task_id = window
         .global::<AppState>()
         .get_selected_task_id()
@@ -3714,7 +3594,7 @@ fn refresh_tags(window: &AppWindow, state: &Arc<Mutex<SharedState>>) {
         state
             .trees
             .iter()
-            .find(|tree| tree.id.as_str() == state.selected_project_id && !tree.deleted)
+            .find(|tree| tree.id.as_str() == state.context_project_id && !tree.deleted)
             .map(|tree| tree.id)
     });
     let assigned_tags: HashSet<TagId> = state
@@ -3761,6 +3641,7 @@ fn refresh_tags(window: &AppWindow, state: &Arc<Mutex<SharedState>>) {
     let app_state = window.global::<AppState>();
     app_state.set_tags(ModelRc::new(VecModel::from(tags)));
     app_state.set_bookmarked_tags(ModelRc::new(VecModel::from(bookmarks)));
+    query::highlight_sidebar(window, state_arc);
 }
 
 /// Parses a project id and resolves the author required for a write.
@@ -3996,175 +3877,6 @@ where
             .await?;
     }
     Ok(())
-}
-
-/// Rebuilds the task model for the current selection and search text.
-///
-/// This is a full replacement, which is correct here: the visible set changes
-/// wholesale when the selection or query changes. Single-row edits must use
-/// [`update_task_row`] instead.
-fn refresh_tasks(window: &AppWindow, state: &Arc<Mutex<SharedState>>, timezone: DisplayTimezone) {
-    let display = display_settings(window, timezone);
-    let timezone = display.timezone;
-    let now = Utc::now();
-    let query = SearchQuery::parse(&window.global::<AppState>().get_search_query());
-    let state = state.lock().expect("shared state poisoned");
-
-    let mut visible: Vec<(&ProjectTree, &TaskListTree, &TaskTree)> =
-        state.tasks_in_scope().collect();
-    // Stable, so the stored order stays the tiebreaker in every mode.
-    visible.sort_by(|(_, _, a), (_, _, b)| ordering::compare(a, b, state.task_sort));
-
-    let items: Vec<TaskItem> = visible
-        .into_iter()
-        .filter_map(|(project, list, task)| {
-            let subtasks = subtask_candidates(task);
-            let tags = state.tag_names_of(task);
-            let candidate = to_candidate(project, list, task, &subtasks, &tags);
-            if !query.matches(&candidate, &now, timezone) {
-                return None;
-            }
-            let expanded = state.task_ui.is_expanded(&task.id.as_str());
-            Some(to_task_item(task, expanded, &now, &display, &tags))
-        })
-        .collect();
-
-    tracing::debug!(
-        tasks = items.len(),
-        project = %state.selected_project_id,
-        list = %state.selected_list_id,
-        "publishing task list"
-    );
-    window
-        .global::<AppState>()
-        .set_tasks(ModelRc::new(VecModel::from(items)));
-    refresh_due_filter_counts(window, &state, &now, timezone);
-}
-
-/// Rebuilds the autocomplete model for the active `@` or `#` token.
-fn refresh_search_suggestions(window: &AppWindow, state: &Arc<Mutex<SharedState>>, query: &str) {
-    let account_name = window
-        .global::<UiSettingsState>()
-        .get_account_name()
-        .to_string();
-    let (projects, task_lists, tags) = {
-        let state = state.lock().expect("shared state poisoned");
-        let projects = state
-            .trees
-            .iter()
-            .filter(|tree| !tree.deleted && (state.show_archived_projects || !tree.is_archived))
-            .map(|tree| tree.name.clone())
-            .collect::<Vec<_>>();
-        let task_lists = state
-            .trees
-            .iter()
-            .filter(|tree| !tree.deleted && (state.show_archived_projects || !tree.is_archived))
-            .flat_map(|tree| tree.task_lists.iter())
-            .filter(|list| !list.deleted && !list.is_archived)
-            .map(|list| list.name.clone())
-            .collect::<Vec<_>>();
-        let tags = state
-            .tags_by_project
-            .values()
-            .flatten()
-            .filter(|tag| !tag.deleted)
-            .map(|tag| tag.name.clone())
-            .collect::<Vec<_>>();
-        (projects, task_lists, tags)
-    };
-
-    let sources = SuggestionSources {
-        projects: &projects,
-        task_lists: &task_lists,
-        tags: &tags,
-        account: (!account_name.is_empty()).then_some(account_name.as_str()),
-    };
-    let items = suggestions(query, &sources)
-        .into_iter()
-        .map(|suggestion| SearchSuggestion {
-            query: suggestion.query.into(),
-            replacement: suggestion.replacement.into(),
-            kind: match suggestion.kind {
-                SuggestionKind::Due => SearchSuggestionKind::Due,
-                SuggestionKind::Project => SearchSuggestionKind::Project,
-                SuggestionKind::TaskList => SearchSuggestionKind::TaskList,
-                SuggestionKind::Account => SearchSuggestionKind::Account,
-                SuggestionKind::Tag => SearchSuggestionKind::Tag,
-            },
-        })
-        .collect::<Vec<_>>();
-
-    window
-        .global::<AppState>()
-        .set_search_suggestions(ModelRc::new(VecModel::from(items)));
-}
-
-/// Re-counts how many tasks each sidebar filter would show.
-///
-/// The count is taken over the current project or list selection and ignores the
-/// text in the search box, because pressing the button replaces that text: the
-/// number has to promise what the user will see after the click.
-fn refresh_due_filter_counts(
-    window: &AppWindow,
-    state: &SharedState,
-    now: &DateTime<Utc>,
-    timezone: DisplayTimezone,
-) {
-    let filters = window.global::<AppState>().get_due_filters();
-
-    for index in 0..filters.row_count() {
-        let Some(mut filter) = filters.row_data(index) else {
-            continue;
-        };
-        // Counting from the button's own query keeps it in step with what
-        // pressing it puts in the search box.
-        let Some(keyword) = DueKeyword::parse(filter.query.trim_start_matches('@')) else {
-            tracing::warn!(query = %filter.query, "due filter button has no due keyword");
-            continue;
-        };
-
-        let count = state
-            .tasks_in_scope()
-            .filter(|(_, _, task)| {
-                let completed = matches!(task.status, DomainStatus::Completed);
-                keyword.matches(task.plan_end_date.as_ref(), completed, now, timezone)
-            })
-            .count();
-        filter.count = i32::try_from(count).unwrap_or(i32::MAX);
-        filters.set_row_data(index, filter);
-    }
-}
-
-/// Borrows a task and its context in the shape the matcher expects.
-fn to_candidate<'a>(
-    project: &'a ProjectTree,
-    list: &'a TaskListTree,
-    task: &'a TaskTree,
-    subtasks: &'a [SubTaskCandidate<'a>],
-    tags: &'a [&'a str],
-) -> TaskCandidate<'a> {
-    TaskCandidate {
-        project_name: &project.name,
-        list_name: &list.name,
-        title: &task.title,
-        notes: task.description.as_deref(),
-        due: task.plan_end_date.as_ref(),
-        completed: matches!(task.status, DomainStatus::Completed),
-        subtasks,
-        tags,
-    }
-}
-
-/// Borrows a task's subtasks in the shape the matcher expects.
-fn subtask_candidates(task: &TaskTree) -> Vec<SubTaskCandidate<'_>> {
-    task.sub_tasks
-        .iter()
-        .filter(|sub| !sub.deleted)
-        .map(|sub| SubTaskCandidate {
-            title: &sub.title,
-            notes: sub.description.as_deref(),
-        })
-        .collect()
 }
 
 fn new_subtask(task_id: TaskId, title: String, order_index: i32, user_id: UserId) -> SubTask {
@@ -4826,14 +4538,14 @@ mod tests {
         );
     }
 
-    fn task_named(title: &str) -> TaskTree {
+    pub(super) fn task_named(title: &str) -> TaskTree {
         TaskTree {
             title: title.to_string(),
             ..task_with_tags(Vec::new())
         }
     }
 
-    fn list_named(name: &str, tasks: Vec<TaskTree>) -> TaskListTree {
+    pub(super) fn list_named(name: &str, tasks: Vec<TaskTree>) -> TaskListTree {
         let now = Utc::now();
         TaskListTree {
             id: TaskListId::new(),
@@ -4851,7 +4563,7 @@ mod tests {
         }
     }
 
-    fn project_named(name: &str, task_lists: Vec<TaskListTree>) -> ProjectTree {
+    pub(super) fn project_named(name: &str, task_lists: Vec<TaskListTree>) -> ProjectTree {
         let now = Utc::now();
         ProjectTree {
             id: ProjectId::new(),
@@ -4871,96 +4583,7 @@ mod tests {
     }
 
     #[test]
-    fn an_empty_selection_falls_back_to_the_first_live_project_and_list() {
-        let archived = ProjectTree {
-            is_archived: true,
-            ..project_named("Archive", vec![list_named("Old", Vec::new())])
-        };
-        let live = project_named("Work", vec![list_named("Inbox", Vec::new())]);
-        let expected_project = live.id.as_str();
-        let expected_list = live.task_lists[0].id.as_str();
-        let mut state = SharedState {
-            trees: vec![archived, live],
-            ..SharedState::default()
-        };
-
-        ensure_default_selection(&mut state);
-
-        assert_eq!(state.selected_project_id, expected_project);
-        assert_eq!(state.selected_list_id, expected_list);
-        // The chosen project is opened as well, or its list would be selected
-        // without being visible in the sidebar.
-        assert!(state.expanded_projects.contains(&expected_project));
-    }
-
-    #[test]
-    fn a_selection_that_still_exists_is_left_alone() {
-        let first = project_named("Work", vec![list_named("Inbox", Vec::new())]);
-        let second = project_named("Home", vec![list_named("Errands", Vec::new())]);
-        let chosen_project = second.id.as_str();
-        let chosen_list = second.task_lists[0].id.as_str();
-        let mut state = SharedState {
-            trees: vec![first, second],
-            selected_project_id: chosen_project.clone(),
-            selected_list_id: chosen_list.clone(),
-            ..SharedState::default()
-        };
-
-        ensure_default_selection(&mut state);
-
-        assert_eq!(state.selected_project_id, chosen_project);
-        assert_eq!(state.selected_list_id, chosen_list);
-    }
-
-    #[test]
-    fn a_list_that_disappeared_falls_back_within_its_project() {
-        let project = project_named(
-            "Work",
-            vec![
-                TaskListTree {
-                    deleted: true,
-                    ..list_named("Gone", Vec::new())
-                },
-                list_named("Inbox", Vec::new()),
-            ],
-        );
-        let project_id = project.id.as_str();
-        let gone = project.task_lists[0].id.as_str();
-        let survivor = project.task_lists[1].id.as_str();
-        let mut state = SharedState {
-            trees: vec![project],
-            selected_project_id: project_id.clone(),
-            selected_list_id: gone,
-            ..SharedState::default()
-        };
-
-        ensure_default_selection(&mut state);
-
-        // The project the user was looking at is kept; only the list moves.
-        assert_eq!(state.selected_project_id, project_id);
-        assert_eq!(state.selected_list_id, survivor);
-    }
-
-    #[test]
-    fn nothing_is_selected_when_every_project_is_gone() {
-        let mut state = SharedState {
-            trees: vec![ProjectTree {
-                deleted: true,
-                ..project_named("Work", vec![list_named("Inbox", Vec::new())])
-            }],
-            selected_project_id: "stale".to_string(),
-            selected_list_id: "stale".to_string(),
-            ..SharedState::default()
-        };
-
-        ensure_default_selection(&mut state);
-
-        assert!(state.selected_project_id.is_empty());
-        assert!(state.selected_list_id.is_empty());
-    }
-
-    #[test]
-    fn the_visible_tasks_follow_the_selection_and_skip_what_is_hidden() {
+    fn every_live_task_is_a_candidate_and_hidden_ones_are_not() {
         let mut project = project_named(
             "Work",
             vec![
@@ -4982,32 +4605,35 @@ mod tests {
             ],
         );
         project.task_lists[1].is_archived = true;
+        let mut archived = project_named(
+            "Old",
+            vec![list_named("Errands", vec![task_named("Shelved")])],
+        );
+        archived.is_archived = true;
         let other = project_named(
             "Home",
             vec![list_named("Errands", vec![task_named("Milk")])],
         );
-        let project_id = project.id.as_str();
-        let list_id = project.task_lists[0].id.as_str();
 
         let mut state = SharedState {
-            trees: vec![project, other],
+            trees: vec![project, archived, other],
             ..SharedState::default()
         };
 
-        // No selection means every project, minus what is deleted or archived.
+        // The query decides what is listed; only deleted or archived rows are
+        // out of reach, and archived projects only while they are hidden.
         let titles: Vec<&str> = state
-            .tasks_in_scope()
+            .live_tasks()
             .map(|(_, _, task)| task.title.as_str())
             .collect();
         assert_eq!(titles, ["Buy milk", "Milk"]);
 
-        state.selected_project_id = project_id;
-        state.selected_list_id = list_id;
+        state.show_archived_projects = true;
         let titles: Vec<&str> = state
-            .tasks_in_scope()
+            .live_tasks()
             .map(|(_, _, task)| task.title.as_str())
             .collect();
-        assert_eq!(titles, ["Buy milk"]);
+        assert_eq!(titles, ["Buy milk", "Shelved", "Milk"]);
     }
 
     #[test]

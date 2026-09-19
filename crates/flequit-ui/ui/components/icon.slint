@@ -25,6 +25,9 @@ export enum IconName {
     edit,
     archive,
     grip,
+    warning,
+    check,
+    circle,
 }
 
 // A recoloured SVG glyph.
@@ -62,6 +65,9 @@ export component Icon inherits Image {
         : root.name == IconName.edit ? @image-url("../assets/icons/edit.svg")
         : root.name == IconName.archive ? @image-url("../assets/icons/archive.svg")
         : root.name == IconName.grip ? @image-url("../assets/icons/grip.svg")
+        : root.name == IconName.warning ? @image-url("../assets/icons/warning.svg")
+        : root.name == IconName.check ? @image-url("../assets/icons/check.svg")
+        : root.name == IconName.circle ? @image-url("../assets/icons/circle.svg")
         : @image-url("../assets/icons/plus.svg");
 
     visible: root.name != IconName.none;

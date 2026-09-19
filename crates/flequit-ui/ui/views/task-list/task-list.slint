@@ -9,6 +9,7 @@ import { DialogButton } from "../../components/dialog-button.slint";
 import { TaskRow } from "../../components/task-row.slint";
 import { Icon, IconName } from "../../components/icon.slint";
 import { TaskSortBar } from "task-sort-bar.slint";
+import { AddTargetPicker } from "add-target-picker.slint";
 
 // Task list pane.
 //
@@ -202,11 +203,9 @@ export component TaskListView inherits Rectangle {
                         ? @tr("TaskList" => "No tasks match your search.")
                         : AppState.projects.length == 0
                             ? @tr("TaskList" => "Create a project to get started.")
-                            : AppState.selected-project-id == ""
-                                ? @tr("TaskList" => "Select a project from the sidebar.")
-                                : AppState.selected-list-id == ""
-                                    ? @tr("TaskList" => "Select a task list, or create a new one.")
-                                    : @tr("TaskList" => "Add your first task to this list.");
+                            : AppState.add-target-list-id == ""
+                                ? @tr("TaskList" => "Create a task list to add tasks to.")
+                                : @tr("TaskList" => "Add your first task.");
                     color: Theme.text-muted;
                     font-size: Theme.font-size-base;
                     horizontal-alignment: center;
@@ -215,7 +214,10 @@ export component TaskListView inherits Rectangle {
 
                 if AppState.search-query != "": DialogButton {
                     label: @tr("TaskList" => "Clear search");
-                    clicked => { Actions.search-changed(""); }
+                    clicked => {
+                        AppState.search-query = "";
+                        Actions.search-changed("");
+                    }
                 }
 
                 if AppState.search-query == "" && AppState.projects.length == 0: DialogButton {
@@ -226,14 +228,13 @@ export component TaskListView inherits Rectangle {
 
                 if AppState.search-query == ""
                     && AppState.projects.length > 0
-                    && AppState.selected-project-id != ""
-                    && AppState.selected-list-id == "": DialogButton {
+                    && AppState.add-target-list-id == "": DialogButton {
                     label: @tr("TaskList" => "Create task list");
                     primary: true;
                     clicked => { root.create-task-list(); }
                 }
 
-                if AppState.search-query == "" && AppState.selected-list-id != "": DialogButton {
+                if AppState.search-query == "" && AppState.add-target-list-id != "": DialogButton {
                     label: @tr("TaskList" => "Add your first task");
                     primary: true;
                     clicked => { new-task.focus(); }
@@ -241,8 +242,8 @@ export component TaskListView inherits Rectangle {
             }
         }
 
-        // Quick add. Enabled only when a list is selected, since a task
-        // needs a parent list.
+        // Quick add. The list shows whatever the search finds, so the list a
+        // new task goes to is picked explicitly, beside the field.
         Rectangle {
             height: Layout.touch-target + 2 * Theme.space-sm;
             background: Theme.surface;
@@ -250,6 +251,10 @@ export component TaskListView inherits Rectangle {
             HorizontalLayout {
                 padding: Theme.space-sm;
                 spacing: Theme.space-sm;
+
+                AddTargetPicker {
+                    max-width: 240px;
+                }
 
                 new-task := LineEdit {
                     private property <int> focus-new-task-request: AppState.focus-new-task-request;
@@ -260,13 +265,13 @@ export component TaskListView inherits Rectangle {
                         if (self.enabled) { self.focus(); }
                     }
                     horizontal-stretch: 1;
-                    enabled: AppState.selected-list-id != "";
-                    placeholder-text: AppState.selected-list-id == ""
+                    enabled: AppState.add-target-list-id != "";
+                    placeholder-text: AppState.add-target-list-id == ""
                         ? @tr("TaskList" => "Select a list to add a task")
                         : @tr("TaskList" => "Add a task");
                     accepted(value) => {
                         if (value != "") {
-                            Actions.add-task(AppState.selected-list-id, value);
+                            Actions.add-task(AppState.add-target-list-id, value);
                             self.text = "";
                         }
                     }
@@ -276,7 +281,7 @@ export component TaskListView inherits Rectangle {
                     width: Layout.touch-target;
                     height: Layout.touch-target;
                     border-radius: Theme.radius-sm;
-                    background: AppState.selected-list-id == "" ? Theme.border : Theme.accent;
+                    background: AppState.add-target-list-id == "" ? Theme.border : Theme.accent;
 
                     Icon {
                         name: IconName.plus;
@@ -286,10 +291,10 @@ export component TaskListView inherits Rectangle {
                     }
 
                     TouchArea {
-                        enabled: AppState.selected-list-id != "";
+                        enabled: AppState.add-target-list-id != "";
                         clicked => {
                             if (new-task.text != "") {
-                                Actions.add-task(AppState.selected-list-id, new-task.text);
+                                Actions.add-task(AppState.add-target-list-id, new-task.text);
                                 new-task.text = "";
                             }
                         }
@@ -298,7 +303,7 @@ export component TaskListView inherits Rectangle {
                     accessible-label: @tr("TaskList" => "Add a task");
                     accessible-action-default => {
                         if (new-task.text != "") {
-                            Actions.add-task(AppState.selected-list-id, new-task.text);
+                            Actions.add-task(AppState.add-target-list-id, new-task.text);
                             new-task.text = "";
                         }
                     }

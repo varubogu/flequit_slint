@@ -3,14 +3,12 @@
 // Any interaction that persists data or runs domain logic goes through here.
 // Views must not mutate AppState for those cases.
 
-import { DueUnit, ParsedDateTime, RecurrenceState, RecurrenceUnit, ReminderUnit, SettingsCategory,
-         TaskPriority, TaskSort, TaskStatus } from "types.slint";
+import { DueUnit, FilterKind, ParsedDateTime, QueryEdit, RecurrenceState, RecurrenceUnit,
+         ReminderUnit, SettingsCategory, TaskPriority, TaskSort, TaskStatus } from "types.slint";
 import { ThemeMode } from "theme.slint";
 
 export global Actions {
     // --- Navigation ---
-    callback select-project(string /* project_id */);
-    callback select-task-list(string /* project_id */, string /* list_id */);
     callback select-task(string /* task_id */);
     callback move-task-selection(int /* delta */);
     callback select-task-boundary(bool /* first */);
@@ -20,12 +18,27 @@ export global Actions {
     callback toggle-task-expansion(string /* task_id */);
 
     // --- Search and filters ---
+    // The search box's text changed.
     callback search-changed(string /* query */);
-    callback due-filter-clicked(string /* filter_key */);
+    // Enter in the search box: confirm the word being typed.
+    callback search-committed();
+    callback search-suggestion-chosen(int /* index */);
+    callback search-candidate-chosen(int /* index */);
+    callback search-candidates-dismissed();
+    // Opens the candidates of a name that still fits several targets.
+    callback search-candidates-reopened();
+    // A sidebar item rewrote the query. `key` is a due or state key, a project
+    // or list id, or a tag name.
+    callback apply-filter(FilterKind /* kind */, string /* key */, QueryEdit /* edit */);
+    // The UI language changed; keywords in the search box follow it.
+    callback locale-changed();
     callback change-task-sort(TaskSort /* sort */);
 
     // --- Task mutations ---
     callback add-task(string /* list_id */, string /* title */);
+    // Quick-add destination picker.
+    callback choose-add-target(string /* list_id */);
+    callback filter-add-targets(string /* query */);
     callback toggle-task-completed(string /* task_id */);
     callback update-task-title(string /* task_id */, string /* title */);
     callback update-task-notes(string /* task_id */, string /* notes */);
@@ -93,7 +106,6 @@ export global Actions {
     callback add-task-tag(string /* task_id */, string /* name */);
     callback set-task-tag(string /* task_id */, string /* tag_id */, bool /* assigned */);
     callback set-tag-bookmarked(string /* project_id */, string /* tag_id */, bool /* bookmarked */);
-    callback select-tag-bookmark(string /* project_id */, string /* tag_name */);
 
     // --- Shell ---
     callback open-help();

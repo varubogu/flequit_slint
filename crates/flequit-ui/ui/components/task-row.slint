@@ -128,8 +128,17 @@ export component TaskRow inherits Rectangle {
 
                 Text {
                     text: root.task.title;
-                    color: root.task.completed ? Theme.text-muted : Theme.text;
+                    // Listed only because subtasks match: shown, but receded.
+                    color: root.task.completed || root.task.search-dimmed
+                        ? Theme.text-muted : Theme.text;
                     font-size: Theme.font-size-base;
+                    overflow: elide;
+                }
+
+                if root.task.search-dimmed: Text {
+                    text: @tr("TaskList" => "{0} matching subtasks", root.task.matched-subtask-count);
+                    color: Theme.text-muted;
+                    font-size: Theme.font-size-sm;
                     overflow: elide;
                 }
 

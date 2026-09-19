@@ -1,6 +1,6 @@
 import { TaskItem, SubTaskItem, ProjectItem, DueFilterItem, Pane, TaskSort, ColorOption,
          EditorState, TagItem, BookmarkedTagItem, RecurrenceState,
-         SearchSuggestion } from "types.slint";
+         SearchSuggestion, StatusFilterItem, AddTargetItem } from "types.slint";
 
 // Application state shared across views.
 //
@@ -13,6 +13,10 @@ export global AppState {
     in-out property <[ProjectItem]> projects;
     in-out property <[TaskItem]> tasks;
     in-out property <[DueFilterItem]> due-filters;
+    in-out property <[StatusFilterItem]> status-filters: [
+        { key: "open" },
+        { key: "completed" },
+    ];
     // The palette the project editor offers. Published once at startup.
     in-out property <[ColorOption]> project-colors;
     in-out property <[TagItem]> tags;
@@ -22,8 +26,10 @@ export global AppState {
     in-out property <bool> show-archived-projects: false;
 
     // --- Selection ---
+    // The project the tag manager and "new list" work on. Derived by the
+    // ViewModel from the search query, the selected task or the add target:
+    // the sidebar itself holds no selection.
     in-out property <string> selected-project-id;
-    in-out property <string> selected-list-id;
     in-out property <string> selected-task-id;
     in-out property <string> selected-subtask-id;
 
@@ -52,8 +58,33 @@ export global AppState {
     in-out property <int> focus-new-task-request: 0;
 
     // --- Search ---
+    // What the search box shows. Rust keeps the confirmed `@` tokens.
     in-out property <string> search-query;
+    // Candidates for the `@` / `#` word being typed.
     in-out property <[SearchSuggestion]> search-suggestions;
+    // Candidates for a name that fits several targets; non-empty while the
+    // disambiguation list is open.
+    in-out property <[SearchSuggestion]> search-candidates;
+    // `@` words that name nothing, and words still naming several targets,
+    // joined by spaces for the warning line. Empty when there are none.
+    in-out property <string> search-unresolved;
+    in-out property <string> search-ambiguous;
+    // A stray `)` or `|` was skipped.
+    in-out property <bool> search-syntax-issue: false;
+    // Incremented when the disambiguation list should open.
+    in-out property <int> search-candidates-request: 0;
+    // Incremented when Rust rewrites the query, so the caret moves to the end.
+    in-out property <int> search-caret-request: 0;
+
+    // --- Quick add ---
+    // Where the quick-add field puts a new task.
+    in-out property <string> add-target-list-id;
+    in-out property <string> add-target-project-name;
+    in-out property <string> add-target-list-name;
+    in-out property <brush> add-target-color;
+    in-out property <bool> add-target-has-color: false;
+    // The lists the destination picker offers, narrowed by its filter.
+    in-out property <[AddTargetItem]> add-targets;
 
     // --- Ordering ---
     // Applied by the ViewModel when it rebuilds `tasks`.

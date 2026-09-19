@@ -1016,21 +1016,6 @@ msgctxt "TaskList"
 msgid "Create a project to get started."
 msgstr "Create a project to get started."
 
-#: crates/flequit-ui/ui/views/task-list/task-list.slint:149
-msgctxt "TaskList"
-msgid "Select a project from the sidebar."
-msgstr "Select a project from the sidebar."
-
-#: crates/flequit-ui/ui/views/task-list/task-list.slint:151
-msgctxt "TaskList"
-msgid "Select a task list, or create a new one."
-msgstr "Select a task list, or create a new one."
-
-#: crates/flequit-ui/ui/views/task-list/task-list.slint:152
-msgctxt "TaskList"
-msgid "Add your first task to this list."
-msgstr "Add your first task to this list."
-
 #: crates/flequit-ui/ui/views/task-list/task-list.slint:160
 msgctxt "TaskList"
 msgid "Clear search"
@@ -1862,11 +1847,6 @@ msgctxt "SearchSuggestion"
 msgid "Task list"
 msgstr "Task list"
 
-#: crates/flequit-ui/ui/views/sidebar/search-box.slint:29
-msgctxt "SearchSuggestion"
-msgid "Account"
-msgstr "Account"
-
 #: crates/flequit-ui/ui/views/sidebar/search-box.slint:31
 msgctxt "SearchSuggestion"
 msgid "Tag"
@@ -2026,3 +2006,107 @@ msgstr "Cancel"
 msgctxt "Calendar"
 msgid "OK"
 msgstr "OK"
+
+msgctxt "FilterMenu"
+msgid "Show only this"
+msgstr "Show only this"
+
+msgctxt "FilterMenu"
+msgid "Add with AND (Ctrl/⌘ + click)"
+msgstr "Add with AND (Ctrl/⌘ + click)"
+
+msgctxt "FilterMenu"
+msgid "Add with OR (Alt/⌥ + click)"
+msgstr "Add with OR (Alt/⌥ + click)"
+
+msgctxt "FilterMenu"
+msgid "Exclude"
+msgstr "Exclude"
+
+msgctxt "FilterMenu"
+msgid "Remove from the search"
+msgstr "Remove from the search"
+
+msgctxt "StatusFilter"
+msgid "Completed"
+msgstr "Completed"
+
+msgctxt "StatusFilter"
+msgid "Open"
+msgstr "Open"
+
+msgctxt "SearchSuggestion"
+msgid "State"
+msgstr "State"
+
+msgctxt "SearchSuggestion"
+msgid "User"
+msgstr "User"
+
+msgctxt "SearchSuggestion"
+msgid "{0} lists, archived"
+msgstr "{0} lists, archived"
+
+msgctxt "SearchSuggestion"
+msgid "{0} lists"
+msgstr "{0} lists"
+
+msgctxt "SearchSuggestion"
+msgid "{0} matches several items"
+msgstr "{0} matches several items"
+
+msgctxt "Sidebar"
+msgid "Choose what {0} means"
+msgstr "Choose what {0} means"
+
+msgctxt "Sidebar"
+msgid "Part of the search was ignored"
+msgstr "Part of the search was ignored"
+
+msgctxt "Sidebar"
+msgid "Several matches for {0}. Choose one from the list."
+msgstr "Several matches for {0}. Choose one from the list."
+
+msgctxt "Sidebar"
+msgid "Not found, ignored: {0}"
+msgstr "Not found, ignored: {0}"
+
+msgctxt "Sidebar"
+msgid "An unmatched ) or | was ignored."
+msgstr "An unmatched ) or | was ignored."
+
+msgctxt "TaskList"
+msgid "{0} matching subtasks"
+msgstr "{0} matching subtasks"
+
+msgctxt "TaskList"
+msgid "Open subtask {0}, matches the search"
+msgstr "Open subtask {0}, matches the search"
+
+msgctxt "TaskList"
+msgid "Create a task list to add tasks to."
+msgstr "Create a task list to add tasks to."
+
+msgctxt "TaskList"
+msgid "Add your first task."
+msgstr "Add your first task."
+
+msgctxt "TaskList"
+msgid "No list"
+msgstr "No list"
+
+msgctxt "TaskList"
+msgid "Choose where new tasks go"
+msgstr "Choose where new tasks go"
+
+msgctxt "TaskList"
+msgid "New tasks go to {0} › {1}. Change"
+msgstr "New tasks go to {0} › {1}. Change"
+
+msgctxt "TaskList"
+msgid "Filter lists"
+msgstr "Filter lists"
+
+msgctxt "TaskList"
+msgid "{0} · recent"
+msgstr "{0} · recent"

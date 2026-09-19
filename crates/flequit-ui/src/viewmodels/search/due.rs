@@ -1,15 +1,16 @@
 //! Due-date keywords accepted by the search box.
 //!
-//! The vocabulary is defined in `docs/ja/develop/design/ui/page/main/main.md`;
-//! both the Japanese and the English spellings are accepted, and the sidebar
-//! filter buttons write the same keywords into the search box, so the buttons
-//! and typed queries cannot drift apart.
+//! The vocabulary is defined in `docs/ja/develop/design/ui/page/main/search.md`.
+//! Every language's spelling is accepted regardless of the UI language, and a
+//! keyword is written back in the UI language's own spelling ([`DueSpec::spell`]).
+//! The internal query stores the language-neutral [`DueSpec::key`] instead.
 
 use chrono::{DateTime, TimeDelta, Utc};
 
+use super::vocabulary::Lang;
 use crate::adapters::datetime::{DisplayTimezone, end_of_day_after};
 
-/// A due-date condition parsed from an `@keyword` token.
+/// A due-date condition as matched against a task.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DueKeyword {
     /// Past its due date and not finished yet.
@@ -26,41 +27,52 @@ pub enum DueKeyword {
     WithinMinutes { minutes: u64 },
 }
 
-/// Words that map to a fixed horizon. Compared after lowercasing.
+/// The named horizons, each with a word of its own in every language.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DueName {
+    Overdue,
+    Today,
+    Tomorrow,
+    Week,
+    Month,
+    Quarter,
+    Year,
+    FiscalYear,
+}
+
+/// A due-date keyword as the user wrote it: a named horizon or a count.
 ///
-/// Numeric forms (`@10日`, `@3days`, `@2period`) are handled by [`parse_counted`]
-/// instead, which is why `3days` and friends are absent here.
-const KEYWORDS: &[(&str, DueKeyword)] = &[
-    ("overdue", DueKeyword::Overdue),
-    ("deadline", DueKeyword::Overdue),
-    ("期限切れ", DueKeyword::Overdue),
-    ("today", DueKeyword::Within { days: 1 }),
-    ("今日", DueKeyword::Within { days: 1 }),
-    ("本日", DueKeyword::Within { days: 1 }),
-    ("tomorrow", DueKeyword::Within { days: 2 }),
-    ("明日", DueKeyword::Within { days: 2 }),
-    ("翌日", DueKeyword::Within { days: 2 }),
-    ("明後日", DueKeyword::Within { days: 3 }),
-    ("week", DueKeyword::Within { days: 7 }),
-    ("weeks", DueKeyword::Within { days: 7 }),
-    ("今週", DueKeyword::Within { days: 7 }),
-    ("週", DueKeyword::Within { days: 7 }),
-    ("month", DueKeyword::Within { days: 30 }),
-    ("months", DueKeyword::Within { days: 30 }),
-    ("今月", DueKeyword::Within { days: 30 }),
-    ("月", DueKeyword::Within { days: 30 }),
-    ("quarter", DueKeyword::Within { days: 90 }),
-    ("period", DueKeyword::Within { days: 90 }),
-    ("今期", DueKeyword::Within { days: 90 }),
-    ("期", DueKeyword::Within { days: 90 }),
-    ("year", DueKeyword::Within { days: 365 }),
-    ("years", DueKeyword::Within { days: 365 }),
-    ("今年", DueKeyword::Within { days: 365 }),
-    ("fiscalyear", DueKeyword::Within { days: 365 }),
-    ("fiscal-year", DueKeyword::Within { days: 365 }),
-    ("今年度", DueKeyword::Within { days: 365 }),
-    ("年度", DueKeyword::Within { days: 365 }),
+/// Kept apart from [`DueKeyword`] so that `@今年度` is written back as
+/// `@今年度` rather than as the 365 days it currently means.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DueSpec {
+    Named(DueName),
+    /// `@3日`: the next `n` calendar days, today included.
+    Days(u32),
+    /// `@10分`: the next `n` minutes from now.
+    Minutes(u32),
+}
+
+/// Words that map to a named horizon, compared after folding.
+///
+/// The first spelling per language is the one written back ([`DueSpec::spell`]).
+const NAMES: &[(DueName, &[&str], &[&str])] = &[
+    (DueName::Overdue, &["overdue", "deadline"], &["期限切れ"]),
+    (DueName::Today, &["today"], &["今日", "本日"]),
+    (DueName::Tomorrow, &["tomorrow"], &["明日", "翌日"]),
+    (DueName::Week, &["week", "weeks"], &["今週", "週"]),
+    (DueName::Month, &["month", "months"], &["今月", "月"]),
+    (DueName::Quarter, &["quarter", "period"], &["今期", "期"]),
+    (DueName::Year, &["year", "years"], &["今年"]),
+    (
+        DueName::FiscalYear,
+        &["fiscalyear", "fiscal-year"],
+        &["今年度", "年度"],
+    ),
 ];
+
+/// Words for a fixed count of days that have no [`DueName`] of their own.
+const DAY_WORDS: &[(&str, u32)] = &[("明後日", 3)];
 
 /// Sub-day units accepted after a number, and how many minutes one unit covers.
 ///
@@ -68,7 +80,7 @@ const KEYWORDS: &[(&str, DueKeyword)] = &[
 /// rather than rounded up to the end of a calendar day.
 ///
 /// Longer spellings come first so that `時間` is not read as `時`.
-const MINUTE_UNITS: &[(&str, u64)] = &[
+const MINUTE_UNITS: &[(&str, u32)] = &[
     ("分", 1),
     ("minute", 1),
     ("minutes", 1),
@@ -83,12 +95,13 @@ const MINUTE_UNITS: &[(&str, u64)] = &[
 /// Units accepted after a number, and how many days one unit covers.
 ///
 /// Longer spellings come first so that `年度` is not read as `年`.
-const UNITS: &[(&str, u64)] = &[
+const UNITS: &[(&str, u32)] = &[
     ("年度", 365),
     ("fiscalyear", 365),
     ("日", 1),
     ("day", 1),
     ("days", 1),
+    ("d", 1),
     ("週間", 7),
     ("週", 7),
     ("week", 7),
@@ -108,18 +121,134 @@ const UNITS: &[(&str, u64)] = &[
     ("years", 365),
 ];
 
+impl DueName {
+    /// Every named horizon, in the order the sidebar and suggestions list them.
+    pub const ALL: [Self; 8] = [
+        Self::Overdue,
+        Self::Today,
+        Self::Tomorrow,
+        Self::Week,
+        Self::Month,
+        Self::Quarter,
+        Self::Year,
+        Self::FiscalYear,
+    ];
+
+    fn keyword(self) -> DueKeyword {
+        match self {
+            Self::Overdue => DueKeyword::Overdue,
+            Self::Today => DueKeyword::Within { days: 1 },
+            Self::Tomorrow => DueKeyword::Within { days: 2 },
+            Self::Week => DueKeyword::Within { days: 7 },
+            Self::Month => DueKeyword::Within { days: 30 },
+            // `@今期` / `@今年度` are approximated from today until a period
+            // start and a fiscal-year start can be configured.
+            Self::Quarter => DueKeyword::Within { days: 90 },
+            Self::Year | Self::FiscalYear => DueKeyword::Within { days: 365 },
+        }
+    }
+
+    fn spellings(self) -> (&'static [&'static str], &'static [&'static str]) {
+        NAMES
+            .iter()
+            .find(|(name, _, _)| *name == self)
+            .map(|(_, en, ja)| (*en, *ja))
+            .expect("every due name has spellings")
+    }
+
+    fn key(self) -> &'static str {
+        self.spellings().0[0]
+    }
+}
+
+impl DueSpec {
+    /// Parses the text after the `@`, e.g. `today`, `今日` or `10日`.
+    ///
+    /// The input is expected to be folded already (see `normalize::fold`), but
+    /// ASCII case is folded here too so direct callers stay simple.
+    pub fn parse(word: &str) -> Option<Self> {
+        let word = word.to_lowercase();
+        NAMES
+            .iter()
+            .find(|(_, en, ja)| en.contains(&word.as_str()) || ja.contains(&word.as_str()))
+            .map(|(name, _, _)| Self::Named(*name))
+            .or_else(|| {
+                DAY_WORDS
+                    .iter()
+                    .find(|(spelling, _)| *spelling == word)
+                    .map(|(_, days)| Self::Days(*days))
+            })
+            .or_else(|| parse_counted(&word))
+    }
+
+    /// Every spelling of this keyword in every language, for matching what is
+    /// being typed against it.
+    pub fn spellings(self) -> Vec<String> {
+        match self {
+            Self::Named(name) => {
+                let (en, ja) = name.spellings();
+                en.iter()
+                    .chain(ja)
+                    .map(|word| (*word).to_string())
+                    .collect()
+            }
+            _ => vec![self.spell(Lang::En), self.spell(Lang::Ja)],
+        }
+    }
+
+    /// The condition this keyword stands for.
+    pub fn keyword(self) -> DueKeyword {
+        match self {
+            Self::Named(name) => name.keyword(),
+            Self::Days(days) => DueKeyword::Within {
+                days: u64::from(days.max(1)),
+            },
+            Self::Minutes(minutes) => DueKeyword::WithinMinutes {
+                minutes: u64::from(minutes.max(1)),
+            },
+        }
+    }
+
+    /// The language-neutral spelling kept in the internal query.
+    pub fn key(self) -> String {
+        match self {
+            Self::Named(name) => name.key().to_string(),
+            Self::Days(days) => format!("{days}d"),
+            Self::Minutes(minutes) => format!("{minutes}min"),
+        }
+    }
+
+    /// Reads back what [`Self::key`] wrote.
+    pub fn from_key(key: &str) -> Option<Self> {
+        Self::parse(key)
+    }
+
+    /// The spelling written into the search box for `lang`.
+    pub fn spell(self, lang: Lang) -> String {
+        match (self, lang) {
+            (Self::Named(name), Lang::En) => name.spellings().0[0].to_string(),
+            (Self::Named(name), Lang::Ja) => name.spellings().1[0].to_string(),
+            (Self::Days(days), Lang::En) => format!("{days}days"),
+            (Self::Days(days), Lang::Ja) => format!("{days}日"),
+            (Self::Minutes(minutes), Lang::En) if minutes % 60 == 0 => {
+                format!("{}hours", minutes / 60)
+            }
+            (Self::Minutes(minutes), Lang::Ja) if minutes % 60 == 0 => {
+                format!("{}時間", minutes / 60)
+            }
+            (Self::Minutes(minutes), Lang::En) => format!("{minutes}min"),
+            (Self::Minutes(minutes), Lang::Ja) => format!("{minutes}分"),
+        }
+    }
+}
+
 impl DueKeyword {
     /// Parses the text after the `@`, e.g. `today` or `10日`.
     ///
     /// Returns `None` for anything that is not a due keyword; the caller decides
     /// what an unrecognised keyword means.
     pub fn parse(keyword: &str) -> Option<Self> {
-        let keyword = keyword.to_lowercase();
-        KEYWORDS
-            .iter()
-            .find(|(word, _)| *word == keyword)
-            .map(|(_, value)| *value)
-            .or_else(|| parse_counted(&keyword))
+        DueSpec::parse(keyword).map(DueSpec::keyword)
     }
 
     /// Whether a task with this due date satisfies the keyword.
@@ -156,18 +285,17 @@ impl DueKeyword {
 ///
 /// The count includes today, matching the fixed keywords: `@3days` covers today,
 /// tomorrow and the day after, exactly like the "3 days" filter button.
-fn parse_counted(keyword: &str) -> Option<DueKeyword> {
+fn parse_counted(keyword: &str) -> Option<DueSpec> {
     let digits: String = keyword.chars().take_while(char::is_ascii_digit).collect();
     if digits.is_empty() {
         return None;
     }
     let unit = &keyword[digits.len()..];
-    let count = digits.parse::<u64>().ok()?;
+    let count = digits.parse::<u32>().ok()?;
 
     if let Some((_, per_unit)) = MINUTE_UNITS.iter().find(|(name, _)| *name == unit) {
         // A zero horizon would match nothing at all; read it as one minute.
-        let minutes = count.max(1).checked_mul(*per_unit)?;
-        return Some(DueKeyword::WithinMinutes { minutes });
+        return count.max(1).checked_mul(*per_unit).map(DueSpec::Minutes);
     }
 
     let per_unit = UNITS
@@ -176,8 +304,7 @@ fn parse_counted(keyword: &str) -> Option<DueKeyword> {
         .map(|(_, days)| *days)?;
 
     // A count of zero is meaningless as a horizon; read it as "today".
-    let days = count.max(1).checked_mul(per_unit)?;
-    Some(DueKeyword::Within { days })
+    count.max(1).checked_mul(per_unit).map(DueSpec::Days)
 }
 
 #[cfg(test)]
@@ -187,6 +314,48 @@ mod tests {
 
     fn utc(year: i32, month: u32, day: u32, hour: u32) -> DateTime<Utc> {
         Utc.with_ymd_and_hms(year, month, day, hour, 0, 0).unwrap()
+    }
+
+    #[test]
+    fn a_spec_round_trips_through_its_key_and_every_spelling() {
+        let specs = DueName::ALL
+            .iter()
+            .map(|name| DueSpec::Named(*name))
+            .chain([
+                DueSpec::Days(3),
+                DueSpec::Minutes(10),
+                DueSpec::Minutes(120),
+            ]);
+        for spec in specs {
+            assert_eq!(
+                DueSpec::from_key(&spec.key()),
+                Some(spec),
+                "key of {spec:?}"
+            );
+            for lang in [Lang::En, Lang::Ja] {
+                assert_eq!(
+                    DueSpec::parse(&spec.spell(lang)),
+                    Some(spec),
+                    "{lang:?} {spec:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_named_keyword_keeps_its_name_when_written_back() {
+        assert_eq!(
+            DueSpec::parse("今年度").map(|spec| spec.spell(Lang::En)),
+            Some("fiscalyear".into())
+        );
+        assert_eq!(
+            DueSpec::parse("today").map(|spec| spec.spell(Lang::Ja)),
+            Some("今日".into())
+        );
+        assert_eq!(
+            DueSpec::parse("10minutes").map(|spec| spec.spell(Lang::Ja)),
+            Some("10分".into())
+        );
     }
 
     #[test]

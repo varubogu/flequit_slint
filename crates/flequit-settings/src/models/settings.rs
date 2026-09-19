@@ -80,6 +80,14 @@ pub struct Settings {
     /// ビューアイテム設定
     #[serde(alias = "view_items")]
     pub view_items: Vec<ViewItem>,
+
+    // 検索
+    /// 検索ボックスの内部クエリ（起動時に復元する。言語に依存しない形式）
+    #[serde(default, alias = "search_query")]
+    pub search_query: String,
+    /// 最近タスクを追加したタスクリストの ID（新しい順）
+    #[serde(default, alias = "recent_task_destinations")]
+    pub recent_task_destinations: Vec<String>,
 }
 
 // `partially` forwards serde attributes to Option-wrapped fields. A missing
@@ -139,6 +147,8 @@ impl Default for Settings {
                 ),
             ],
             view_items: vec![],
+            search_query: String::new(),
+            recent_task_destinations: vec![],
         }
     }
 }

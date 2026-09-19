@@ -5,7 +5,7 @@ use flequit_model::models::user_preferences::tag_bookmark::TagBookmark;
 use slint::SharedString;
 
 use super::color::parse_hex;
-use crate::bindings::{BookmarkedTagItem, TagItem};
+use crate::bindings::{BookmarkedTagItem, FilterHighlight, TagItem};
 
 /// Converts a tag into the row shown by the tag manager and the detail pane.
 ///
@@ -51,6 +51,7 @@ pub fn to_bookmarked_tag_item(tag: &Tag, bookmark: &TagBookmark) -> BookmarkedTa
         name: SharedString::from(tag.name.as_str()),
         color_brush: parsed.unwrap_or_default().into(),
         has_color: parsed.is_some(),
+        highlight: FilterHighlight::None,
     }
 }
 

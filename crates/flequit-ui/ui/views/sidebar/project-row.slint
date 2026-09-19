@@ -1,20 +1,20 @@
 import { Theme } from "../../globals/theme.slint";
 import { Layout } from "../../globals/layout.slint";
-import { ProjectItem } from "../../globals/types.slint";
+import { FilterHighlight, ProjectItem, QueryEdit } from "../../globals/types.slint";
 import { RowButton } from "../../components/row-button.slint";
 import { Icon, IconName } from "../../components/icon.slint";
+import { FilterStyle, FilterTarget } from "../../components/filter-target.slint";
 
 // The header row of a project in the sidebar.
 //
-// Expanding and selecting are separate targets: a single click on the chevron
-// opens the list of task lists, a click on the name selects the project.
+// Expanding and filtering are separate targets: a single click on the chevron
+// opens the list of task lists, a click on the name filters by the project.
 export component ProjectRow inherits Rectangle {
     in property <ProjectItem> project;
     in property <bool> collapsed: false;
-    in property <bool> selected: false;
 
     callback toggle-expansion();
-    callback chosen();
+    callback filter(QueryEdit);
     callback edit();
     callback add-list();
 
@@ -25,7 +25,7 @@ export component ProjectRow inherits Rectangle {
     opacity: root.project.is-archived ? 0.5 : 1.0;
     // Hover is rendered by the inner targets: an id declared inside an `if` is
     // not visible here.
-    background: root.selected ? Theme.surface-selected : transparent;
+    background: FilterStyle.background(root.project.highlight, false);
 
     HorizontalLayout {
         padding-right: Theme.space-sm;
@@ -79,7 +79,12 @@ export component ProjectRow inherits Rectangle {
         if !root.collapsed: Rectangle {
             horizontal-stretch: 1;
             border-radius: Theme.radius-sm;
-            background: name-touch.has-hover ? Theme.surface-hover : transparent;
+            background: name-target.has-hover ? Theme.surface-hover : transparent;
+
+            name-target := FilterTarget {
+                highlight: root.project.highlight;
+                activated(edit) => { root.filter(edit); }
+            }
 
             folder := Icon {
                 name: IconName.folder;
@@ -93,17 +98,15 @@ export component ProjectRow inherits Rectangle {
                 text: root.project.name;
                 color: Theme.text;
                 font-size: Theme.font-size-base;
+                font-italic: root.project.highlight == FilterHighlight.excluded;
                 vertical-alignment: center;
                 height: 100%;
                 overflow: elide;
             }
 
-            name-touch := TouchArea {
-                clicked => { root.chosen(); }
-            }
             accessible-role: button;
             accessible-label: root.project.name;
-            accessible-action-default => { root.chosen(); }
+            accessible-action-default => { root.filter(QueryEdit.click); }
         }
 
         if !root.collapsed: RowButton {

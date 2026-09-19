@@ -1038,21 +1038,6 @@ msgctxt "TaskList"
 msgid "Create a project to get started."
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-list/task-list.slint:150
-msgctxt "TaskList"
-msgid "Select a project from the sidebar."
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-list/task-list.slint:152
-msgctxt "TaskList"
-msgid "Select a task list, or create a new one."
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-list/task-list.slint:153
-msgctxt "TaskList"
-msgid "Add your first task to this list."
-msgstr ""
-
 #: crates/flequit-ui/ui/views/task-list/task-list.slint:161
 msgctxt "TaskList"
 msgid "Clear search"
@@ -1883,11 +1868,6 @@ msgctxt "SearchSuggestion"
 msgid "Task list"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/sidebar/search-box.slint:30
-msgctxt "SearchSuggestion"
-msgid "Account"
-msgstr ""
-
 #: crates/flequit-ui/ui/views/sidebar/search-box.slint:32
 msgctxt "SearchSuggestion"
 msgid "Tag"
@@ -2046,4 +2026,108 @@ msgstr ""
 #: crates/flequit-ui/ui/components/calendar-popup.slint:288
 msgctxt "Calendar"
 msgid "OK"
+msgstr ""
+
+msgctxt "FilterMenu"
+msgid "Show only this"
+msgstr ""
+
+msgctxt "FilterMenu"
+msgid "Add with AND (Ctrl/⌘ + click)"
+msgstr ""
+
+msgctxt "FilterMenu"
+msgid "Add with OR (Alt/⌥ + click)"
+msgstr ""
+
+msgctxt "FilterMenu"
+msgid "Exclude"
+msgstr ""
+
+msgctxt "FilterMenu"
+msgid "Remove from the search"
+msgstr ""
+
+msgctxt "StatusFilter"
+msgid "Completed"
+msgstr ""
+
+msgctxt "StatusFilter"
+msgid "Open"
+msgstr ""
+
+msgctxt "SearchSuggestion"
+msgid "State"
+msgstr ""
+
+msgctxt "SearchSuggestion"
+msgid "User"
+msgstr ""
+
+msgctxt "SearchSuggestion"
+msgid "{0} lists, archived"
+msgstr ""
+
+msgctxt "SearchSuggestion"
+msgid "{0} lists"
+msgstr ""
+
+msgctxt "SearchSuggestion"
+msgid "{0} matches several items"
+msgstr ""
+
+msgctxt "Sidebar"
+msgid "Choose what {0} means"
+msgstr ""
+
+msgctxt "Sidebar"
+msgid "Part of the search was ignored"
+msgstr ""
+
+msgctxt "Sidebar"
+msgid "Several matches for {0}. Choose one from the list."
+msgstr ""
+
+msgctxt "Sidebar"
+msgid "Not found, ignored: {0}"
+msgstr ""
+
+msgctxt "Sidebar"
+msgid "An unmatched ) or | was ignored."
+msgstr ""
+
+msgctxt "TaskList"
+msgid "{0} matching subtasks"
+msgstr ""
+
+msgctxt "TaskList"
+msgid "Open subtask {0}, matches the search"
+msgstr ""
+
+msgctxt "TaskList"
+msgid "Create a task list to add tasks to."
+msgstr ""
+
+msgctxt "TaskList"
+msgid "Add your first task."
+msgstr ""
+
+msgctxt "TaskList"
+msgid "No list"
+msgstr ""
+
+msgctxt "TaskList"
+msgid "Choose where new tasks go"
+msgstr ""
+
+msgctxt "TaskList"
+msgid "New tasks go to {0} › {1}. Change"
+msgstr ""
+
+msgctxt "TaskList"
+msgid "Filter lists"
+msgstr ""
+
+msgctxt "TaskList"
+msgid "{0} · recent"
 msgstr ""

@@ -125,6 +125,37 @@ export struct ParsedDateTime {
     has-time: bool,
 }
 
+// How strongly the search query uses a sidebar item. Derived from the query:
+// the sidebar holds no selection of its own.
+export enum FilterHighlight {
+    none,
+    // One of the top-level OR terms.
+    weak,
+    // One of the top-level AND terms, or the whole query.
+    strong,
+    // Negated at the top level.
+    excluded,
+}
+
+// What a sidebar item does to the search query.
+export enum QueryEdit {
+    // Plain click: show only this item, or clear when it is all there is.
+    click,
+    // Command / Ctrl + click: AND it in, or take it back out.
+    toggle-and,
+    // Option / Alt + click: OR it in, or take it back out.
+    toggle-or,
+    // Context menu entries.
+    replace,
+    and,
+    or,
+    exclude,
+    remove,
+}
+
+// The kind of sidebar item a query edit comes from.
+export enum FilterKind { due, status, project, task-list, tag }
+
 export struct SubTaskItem {
     id: string,
     task-id: string,
@@ -143,6 +174,8 @@ export struct SubTaskItem {
     due-day: int,
     due-hour: int,
     due-minute: int,
+    // The search matched this subtask while its parent task did not.
+    search-match: bool,
 }
 
 export struct TaskItem {
@@ -183,8 +216,12 @@ export struct TaskItem {
     recurrence-unit: RecurrenceUnit,
     recurrence-interval: int,
     reminders: [ReminderItem],
-    // Accordion state, owned by TaskListUiViewModel and mirrored here.
+    // Accordion state, owned by TaskListUiViewModel and mirrored here. Also
+    // true while the search shows the row only for its matching subtasks.
     expanded: bool,
+    // The task itself does not match the search; only its subtasks do.
+    search-dimmed: bool,
+    matched-subtask-count: int,
 }
 
 // Which kind of item the sidebar editor is working on.
@@ -220,6 +257,7 @@ export struct TaskListItem {
     project-id: string,
     name: string,
     task-count: int,
+    highlight: FilterHighlight,
 }
 
 export struct ProjectItem {
@@ -235,6 +273,7 @@ export struct ProjectItem {
     is-archived: bool,
     task-lists: [TaskListItem],
     expanded: bool,
+    highlight: FilterHighlight,
 }
 
 export struct TagItem {
@@ -254,6 +293,7 @@ export struct BookmarkedTagItem {
     name: string,
     color-brush: brush,
     has-color: bool,
+    highlight: FilterHighlight,
 }
 
 export struct DueFilterItem {
@@ -268,16 +308,42 @@ export struct DueFilterItem {
     // `custom-unit` says what the value counts.
     custom-value: int,
     custom-unit: DueUnit,
+    highlight: FilterHighlight,
 }
 
-export enum SearchSuggestionKind { due, project, task-list, account, tag }
+// A sidebar button filtering by task state. `key` is "open" or "completed".
+export struct StatusFilterItem {
+    key: string,
+    count: int,
+    highlight: FilterHighlight,
+}
 
+// A task list the quick-add field can add to.
+export struct AddTargetItem {
+    list-id: string,
+    project-name: string,
+    list-name: string,
+    color-brush: brush,
+    has-color: bool,
+    // Used recently; listed first.
+    recent: bool,
+}
+
+export enum SearchSuggestionKind { due, status, project, task-list, user, tag }
+
+// A candidate for the word being typed, or for a name that fits several
+// targets. Picked by position; Rust keeps what each one stands for.
 export struct SearchSuggestion {
-    // The complete search text after this suggestion is selected.
-    query: string,
-    // The token shown in the candidate list, e.g. "@today" or "#work".
-    replacement: string,
+    // The token as it would appear in the search box, e.g. "@仕事.今週やる".
+    label: string,
     kind: SearchSuggestionKind,
+    // Due and state keys ("today", "open"), a list's project, a user's handle.
+    detail: string,
+    color-brush: brush,
+    has-color: bool,
+    // A project's number of lists.
+    count: int,
+    archived: bool,
 }
 
 export struct LocaleItem {
