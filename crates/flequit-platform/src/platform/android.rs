@@ -13,8 +13,8 @@
 //! - lifecycle transitions, which arrive in `onPause` / `onResume` /
 //!   `onTrimMemory`.
 //!
-//! Both are bridged by `mobile/android/app/src/main/java/com/flequit/app/FlequitActivity.java`,
-//! which calls the `Java_com_flequit_app_FlequitActivity_*` functions at the
+//! Both are bridged by `mobile/android/app/src/main/java/com/varubogu/flequit/FlequitActivity.java`,
+//! which calls the `Java_com_varubogu_flequit_FlequitActivity_*` functions at the
 //! bottom of this file. An APK built against a plain `NativeActivity` has no
 //! such methods, so those calls fail and are reported as
 //! [`PlatformError::Unsupported`].
@@ -735,7 +735,7 @@ impl Platform for AndroidPlatform {
 /// Called by the JVM with a valid `JNIEnv` for the calling thread and with
 /// arguments matching `FlequitActivity`'s `native` declaration.
 #[unsafe(no_mangle)]
-pub unsafe extern "system" fn Java_com_flequit_app_FlequitActivity_nativeOnActivityResult(
+pub unsafe extern "system" fn Java_com_varubogu_flequit_FlequitActivity_nativeOnActivityResult(
     mut env: JNIEnv<'_>,
     _class: JClass<'_>,
     request_code: i32,
@@ -783,7 +783,7 @@ pub unsafe extern "system" fn Java_com_flequit_app_FlequitActivity_nativeOnActiv
 /// Called by the JVM with arguments matching `FlequitActivity`'s `native`
 /// declaration; `event` is one of the codes [`LifecycleEvent::from_code`] knows.
 #[unsafe(no_mangle)]
-pub unsafe extern "system" fn Java_com_flequit_app_FlequitActivity_nativeOnLifecycleEvent(
+pub unsafe extern "system" fn Java_com_varubogu_flequit_FlequitActivity_nativeOnLifecycleEvent(
     _env: JNIEnv<'_>,
     _class: JClass<'_>,
     event: i32,

@@ -1,4 +1,4 @@
-package com.flequit.app;
+package com.varubogu.flequit;
 
 import android.app.Activity;
 import android.content.ComponentCallbacks2;

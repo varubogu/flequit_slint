@@ -9,11 +9,11 @@ plugins {
 val abis = listOf("arm64-v8a" to "aarch64-linux-android", "x86_64" to "x86_64-linux-android")
 
 android {
-    namespace = "com.flequit.app"
+    namespace = "com.varubogu.flequit"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.flequit.app"
+        applicationId = "com.varubogu.flequit"
         // 26: `NotificationChannel` and `Notification.Builder(Context, String)`,
         // both of which the platform layer uses unconditionally.
         minSdk = 26

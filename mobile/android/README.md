@@ -1,6 +1,6 @@
 # Android build
 
-Produces `com.flequit.app` from the same Rust sources as the desktop app.
+Produces `com.varubogu.flequit` from the same Rust sources as the desktop app.
 Gradle is only here to compile `FlequitActivity.java` and package the APK; all
 of the application code is the `flequit-app` cdylib.
 
@@ -25,7 +25,7 @@ cd mobile/android
 
 ```sh
 ./gradlew installDebug
-adb shell am start -n com.flequit.app/.FlequitActivity
+adb shell am start -n com.varubogu.flequit/.FlequitActivity
 adb logcat -s flequit          # the tag the platform log sink writes under
 ```
 
@@ -35,12 +35,12 @@ adb logcat -s flequit          # the tag the platform log sink writes under
 | --- | --- |
 | Entry point (`android_main`) | `crates/flequit-app/src/entry_android.rs` |
 | Paths, notifications, intents | `crates/flequit-platform/src/platform/android.rs` |
-| SAF picker + lifecycle glue | `app/src/main/java/com/flequit/app/FlequitActivity.java` |
+| SAF picker + lifecycle glue | `app/src/main/java/com/varubogu/flequit/FlequitActivity.java` |
 
 `FlequitActivity` is the only Java in the project, and it exists because the
 Storage Access Framework and the activity lifecycle report their results to the
 `Activity` rather than to the caller. It forwards both across JNI to the
-`Java_com_flequit_app_FlequitActivity_*` functions in `android.rs`.
+`Java_com_varubogu_flequit_FlequitActivity_*` functions in `android.rs`.
 
 ## Known gaps
 

@@ -1,6 +1,6 @@
 # iOS build
 
-Produces `com.flequit.app` from the same Rust sources as the desktop app.
+Produces `com.varubogu.flequit` from the same Rust sources as the desktop app.
 Xcode is here to compile the Swift bridge, sign, and package; all of the
 application code is the `flequit-app` static library.
 

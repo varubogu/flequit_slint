@@ -39,24 +39,32 @@ Flequit における包括的なデータセキュリティ設計。データ盗
 
 ### ローカル保管先
 
+`flequit-platform::paths::data_dir()` が返すディレクトリを使う。
+デスクトップはアプリ識別子 `com.varubogu.flequit` を `directories` クレートに渡して決定する
+(Android の `applicationId`、iOS の Bundle ID と同じ識別子)。
+
 | OS | パス |
 | --- | --- |
-| Windows | `C:\Users\<username>\AppData\Local\Flequit` |
-| macOS | `~/Library/Application Support/Flequit` |
-| Linux | `$XDG_DATA_HOME/flequit` → `~/.local/share/flequit` → `~/.flequit` (フォールバック順) |
+| Windows | `%LOCALAPPDATA%\varubogu\flequit\data` |
+| macOS | `~/Library/Application Support/com.varubogu.flequit` |
+| Linux | `$XDG_DATA_HOME/flequit` (未設定時 `~/.local/share/flequit`) |
+| Android | アプリ内部ストレージ (`getFilesDir()`) 配下 `data/` |
+| iOS | アプリコンテナの `Library/Application Support/Flequit/data` |
 
 ### フォルダ構造 (例)
 
 ```
-Flequit/
-├── account/
-│   ├── local-account.am     # ローカルアカウント (常に 1 つ)
-│   ├── <account-id1>.am     # ログインアカウント
-│   └── <account-id2>.am
-└── projects/
-    ├── <project-id1>.am
-    └── <project-id2>.am
+<data_dir>/
+├── flequit.db                       # SQLite (検索用)
+├── logs/
+└── automerge/
+    ├── account.automerge
+    ├── user.automerge
+    ├── project_<project-id1>.automerge
+    └── project_<project-id2>.automerge
 ```
+
+ファイル命名規則の詳細は `automerge-repo-dataflow.md` を参照。
 
 ### クラウドストレージ・Web サーバー
 

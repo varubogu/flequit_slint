@@ -174,7 +174,7 @@ Android の SAF とライフサイクル、iOS の UIKit 全般は、結果が�
 
 | OS | グル― | 役割 |
 | --- | --- | --- |
-| Android | `mobile/android/app/src/main/java/com/flequit/app/FlequitActivity.java` | `onActivityResult` と `onPause`/`onResume`/`onTrimMemory` を JNI で Rust へ転送 |
+| Android | `mobile/android/app/src/main/java/com/varubogu/flequit/FlequitActivity.java` | `onActivityResult` と `onPause`/`onResume`/`onTrimMemory` を JNI で Rust へ転送 |
 | iOS | `mobile/ios/Sources/FlequitBridge.swift` | 通知・ドキュメントピッカー・URL 起動・ライフサイクルを `@_cdecl` の C 関数として公開 |
 
 - Android は `ndk-context` から `JavaVM` と `Activity` を取得するので、

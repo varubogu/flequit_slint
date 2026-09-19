@@ -95,10 +95,10 @@ Slint UI → ViewModel → Facade → Service → Repository
 | プラットフォーム | 実際の配置例 |
 | --- | --- |
 | Linux | `~/.local/share/flequit/automerge/` |
-| Windows | `%LOCALAPPDATA%\flequit\automerge\` |
-| macOS | `~/Library/Application Support/flequit/automerge/` |
-| Android | アプリ内部ストレージ配下 `automerge/` |
-| iOS | `Application Support/flequit/automerge/` |
+| Windows | `%LOCALAPPDATA%\varubogu\flequit\data\automerge\` |
+| macOS | `~/Library/Application Support/com.varubogu.flequit/automerge/` |
+| Android | アプリ内部ストレージ (`getFilesDir()`) 配下 `data/automerge/` |
+| iOS | アプリコンテナの `Library/Application Support/Flequit/data/automerge/` |
 
 配下には説明的な名前で保存する:
 

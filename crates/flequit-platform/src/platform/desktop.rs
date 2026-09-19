@@ -48,7 +48,8 @@ pub struct DesktopPlatform {
 
 impl DesktopPlatform {
     pub fn new() -> PlatformResult<Self> {
-        let dirs = directories::ProjectDirs::from("com", "flequit", "flequit").ok_or(
+        // Matches the Android/iOS application id `com.varubogu.flequit`.
+        let dirs = directories::ProjectDirs::from("com", "varubogu", "flequit").ok_or(
             PlatformError::DirectoryUnavailable {
                 kind: "application",
             },
