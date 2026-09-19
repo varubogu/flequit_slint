@@ -60,7 +60,7 @@ use crate::bindings::{
 use crate::viewmodels::TaskListUiViewModel;
 use crate::viewmodels::ordering;
 use crate::viewmodels::project_editor;
-use crate::viewmodels::recurrence::{occurrence, preview_limit, rule_from_state};
+use crate::viewmodels::recurrence::{self, occurrence, preview_limit, rule_from_state};
 use crate::viewmodels::reload_gate::ReloadGate;
 use crate::viewmodels::search::{NameIndex, QueryEdit as SearchEdit, SearchSession, UserEntry};
 use crate::viewmodels::settings::{SearchMemory, SettingsStore, SettingsViewModel, UserSettings};
@@ -198,6 +198,28 @@ struct SharedState {
     current_user: Option<UserId>,
     /// Keeps a burst of edits from running one full reload each.
     reload: ReloadGate,
+    /// Tasks created by completing a repeating task, keyed by the completed
+    /// task. Undoing that completion withdraws the successor again while it is
+    /// still untouched. Session state: after a restart the pair is just two
+    /// ordinary tasks.
+    successors: HashMap<TaskId, Successor>,
+}
+
+/// The task a completed repeating task handed its series on to.
+#[derive(Debug, Clone)]
+struct Successor {
+    /// The task as it was created, carrying the handed-over rule.
+    task: Task,
+    /// The rule as the completed task had it, restored on withdrawal.
+    rule_before: RecurrenceRule,
+}
+
+/// What a status change does to a repeating task's series.
+enum SeriesStep {
+    /// Completing the task creates the next one.
+    HandOver(Successor),
+    /// Undoing the completion takes the untouched next one back.
+    Withdraw(Successor),
 }
 
 impl SharedState {
@@ -892,7 +914,9 @@ where
             let weak = window.as_weak();
             let state = Arc::clone(&self.state);
             let repositories = Arc::clone(&self.repositories);
+            let platform = Arc::clone(&self.platform);
             let runtime = self.runtime.clone();
+            let timezone = self.timezone;
             actions.on_toggle_task_completed(move |task_id| {
                 let Some(window) = weak.upgrade() else { return };
                 let Some(before) = task_row(&window, &task_id) else {
@@ -921,14 +945,23 @@ where
                     ..Default::default()
                 };
 
-                spawn_task_patch(
+                let step = if completed {
+                    plan_next_occurrence(&window, &state, &task_id, timezone)
+                        .map(SeriesStep::HandOver)
+                } else {
+                    take_untouched_successor(&state, &task_id).map(SeriesStep::Withdraw)
+                };
+                spawn_completion_patch(
                     &weak,
                     &state,
                     &repositories,
+                    &platform,
                     &runtime,
+                    timezone,
                     task_id.to_string(),
                     patch,
                     snapshot,
+                    step,
                 );
             });
         }
@@ -1236,7 +1269,9 @@ where
             let weak = window.as_weak();
             let state = Arc::clone(&self.state);
             let repositories = Arc::clone(&self.repositories);
+            let platform = Arc::clone(&self.platform);
             let runtime = self.runtime.clone();
+            let startup_timezone = self.timezone;
             actions.on_update_task_status(move |task_id, status| {
                 let Some(window) = weak.upgrade() else { return };
                 let Some(before) = task_row(&window, &task_id) else {
@@ -1277,14 +1312,29 @@ where
                     status: Some(from_status(status)),
                     ..Default::default()
                 };
-                spawn_task_patch(
+                // Only stepping into "completed" hands the series on, and only
+                // stepping out of it takes the successor back; moving between
+                // the other states leaves the series alone.
+                let was_completed = before.status == TaskStatus::Completed;
+                let step = if completed && !was_completed {
+                    plan_next_occurrence(&window, &state, &task_id, startup_timezone)
+                        .map(SeriesStep::HandOver)
+                } else if !completed && was_completed {
+                    take_untouched_successor(&state, &task_id).map(SeriesStep::Withdraw)
+                } else {
+                    None
+                };
+                spawn_completion_patch(
                     &weak,
                     &state,
                     &repositories,
+                    &platform,
                     &runtime,
+                    startup_timezone,
                     task_id.to_string(),
                     patch,
                     snapshot,
+                    step,
                 );
             });
         }
@@ -4009,6 +4059,234 @@ fn spawn_task_patch<R>(
             report_error(&weak, ui_error.code());
         }
     });
+}
+
+/// The task a repeating task hands its series on to when it is completed.
+///
+/// Read from the cached tree on the UI thread, since the display timezone
+/// decides which calendar day "next" falls on. `None` for a task that does not
+/// repeat or whose series has run out.
+fn plan_next_occurrence(
+    window: &AppWindow,
+    state: &Arc<Mutex<SharedState>>,
+    task_id: &SharedString,
+    fallback: DisplayTimezone,
+) -> Option<Successor> {
+    let display = display_settings(window, fallback);
+    let state = state.lock().expect("shared state poisoned");
+    let user_id = state.current_user?;
+    let (project, task) = state.task_with_project(task_id.as_str())?;
+    let order_index = project
+        .task_lists
+        .iter()
+        .find(|list| list.id == task.list_id)
+        .map_or(0, |list| list.tasks.len() as i32);
+    let (next, _) =
+        recurrence::next_task(task, Utc::now(), display.timezone, order_index, user_id)?;
+    Some(Successor {
+        task: next,
+        rule_before: task.recurrence_rule.clone()?,
+    })
+}
+
+/// The successor to withdraw when a completion is undone, if it is still
+/// exactly as it was created.
+///
+/// The record is dropped either way: a successor the user has made their own
+/// stays for good, even if the completion is later redone and undone again.
+fn take_untouched_successor(
+    state: &Arc<Mutex<SharedState>>,
+    task_id: &SharedString,
+) -> Option<Successor> {
+    let mut state = state.lock().expect("shared state poisoned");
+    let completed_id = TaskId::try_from_str(task_id.as_str()).ok()?;
+    let successor = state.successors.remove(&completed_id)?;
+    let (_, current) = state.task_with_project(&successor.task.id.to_string())?;
+    recurrence::is_untouched(&successor.task, current).then_some(successor)
+}
+
+/// Persists a status change together with what it does to a repeating task's
+/// series.
+///
+/// The steps run in order on one background task: the series only moves once
+/// the status itself was saved, and the reload that shows the result must not
+/// race the status write.
+#[allow(clippy::too_many_arguments)]
+fn spawn_completion_patch<R>(
+    weak: &Weak<AppWindow>,
+    state: &Arc<Mutex<SharedState>>,
+    repositories: &Arc<R>,
+    platform: &Arc<dyn Platform>,
+    runtime: &Handle,
+    timezone: DisplayTimezone,
+    task_id: String,
+    patch: PartialTask,
+    snapshot: TaskRowSnapshot,
+    step: Option<SeriesStep>,
+) where
+    R: InfrastructureRepositoriesTrait + Send + Sync + 'static,
+{
+    let Some(step) = step else {
+        spawn_task_patch(weak, state, repositories, runtime, task_id, patch, snapshot);
+        return;
+    };
+
+    let (project_id, user_id) = {
+        let state = state.lock().expect("shared state poisoned");
+        (state.project_of_task(&task_id), state.current_user)
+    };
+    let (Some(project_id), Some(user_id)) = (project_id, user_id) else {
+        tracing::error!(%task_id, "cannot update a task: unknown project or user");
+        rollback_task_row(weak, snapshot);
+        report_error(weak, "task.save-failed");
+        return;
+    };
+    let Ok(parsed_id) = TaskId::try_from_str(&task_id) else {
+        rollback_task_row(weak, snapshot);
+        report_error(weak, "input.malformed-id");
+        return;
+    };
+
+    let weak = weak.clone();
+    let state = Arc::clone(state);
+    let repositories = Arc::clone(repositories);
+    let platform = Arc::clone(platform);
+    runtime.spawn(async move {
+        let result = task_facades::update_task(
+            repositories.as_ref(),
+            &project_id,
+            &parsed_id,
+            &patch,
+            &user_id,
+        )
+        .await;
+        if let Err(error) = result {
+            let ui_error = UiError::from(error);
+            tracing::error!(%ui_error, %task_id, "failed to update task");
+            rollback_task_row(&weak, snapshot);
+            report_error(&weak, ui_error.code());
+            return;
+        }
+
+        match step {
+            SeriesStep::HandOver(successor) => {
+                let result =
+                    hand_over_recurrence(repositories.as_ref(), &project_id, &parsed_id, &successor, &user_id)
+                        .await;
+                match result {
+                    Ok(()) => {
+                        let next = &successor.task;
+                        let reminders = next
+                            .reminders
+                            .iter()
+                            .map(|at| (next.id.to_string(), next.title.clone(), *at))
+                            .collect();
+                        schedule_reminders(platform.as_ref(), reminders).await;
+                        state
+                            .lock()
+                            .expect("shared state poisoned")
+                            .successors
+                            .insert(parsed_id, successor);
+                    }
+                    Err(error) => {
+                        let ui_error = UiError::from(error);
+                        tracing::error!(%ui_error, %task_id, "failed to create the next recurring task");
+                        report_error(&weak, ui_error.code());
+                    }
+                }
+            }
+            SeriesStep::Withdraw(successor) => {
+                let result = withdraw_successor(
+                    repositories.as_ref(),
+                    &project_id,
+                    &parsed_id,
+                    &successor,
+                    &user_id,
+                )
+                .await;
+                match result {
+                    Ok(()) => {
+                        let next_id = successor.task.id.to_string();
+                        for reminder in &successor.task.reminders {
+                            let id = NotificationId::scheduled(&next_id, reminder);
+                            if let Err(error) = platform.cancel_notification(&id).await {
+                                tracing::warn!(%error, %next_id, "failed to cancel withdrawn task reminder");
+                            }
+                        }
+                        if let Err(error) = weak.upgrade_in_event_loop(move |window| {
+                            if window.global::<AppState>().get_selected_task_id() == next_id {
+                                clear_selection(&window);
+                            }
+                        }) {
+                            tracing::error!(%error, "could not clear the withdrawn task selection");
+                        }
+                    }
+                    Err(error) => {
+                        let ui_error = UiError::from(error);
+                        tracing::error!(%ui_error, %task_id, "failed to withdraw the next recurring task");
+                        report_error(&weak, ui_error.code());
+                    }
+                }
+            }
+        }
+        reload_projects(&weak, &state, &repositories, timezone).await;
+    });
+}
+
+/// Creates the next task in a series and moves the rule over to it.
+///
+/// The completed task gives up its link, so the rule is never shared: editing
+/// or clearing the schedule on one task cannot reach the other.
+async fn hand_over_recurrence<R>(
+    repositories: &R,
+    project_id: &ProjectId,
+    completed_id: &TaskId,
+    successor: &Successor,
+    user_id: &UserId,
+) -> Result<(), ServiceError>
+where
+    R: InfrastructureRepositoriesTrait + Send + Sync,
+{
+    let next = &successor.task;
+    let Some(rule) = next.recurrence_rule.clone() else {
+        return Ok(());
+    };
+    task_facades::create_task(repositories, project_id, next, user_id).await?;
+    for tag_id in &next.tag_ids {
+        task_facades::add_task_tag_relation(repositories, project_id, &next.id, tag_id, user_id)
+            .await?;
+    }
+    recurrence_facades::delete_task_recurrence(repositories, project_id, completed_id).await?;
+    write_recurrence(repositories, project_id, &next.id, rule, true, user_id).await
+}
+
+/// Reverses `hand_over_recurrence`: deletes the successor and gives the rule
+/// back to the task it came from, as that task had it.
+///
+/// The successor's link goes first, so a failure part way leaves at worst a
+/// task without a schedule, never two tasks sharing one rule.
+async fn withdraw_successor<R>(
+    repositories: &R,
+    project_id: &ProjectId,
+    completed_id: &TaskId,
+    successor: &Successor,
+    user_id: &UserId,
+) -> Result<(), ServiceError>
+where
+    R: InfrastructureRepositoriesTrait + Send + Sync,
+{
+    let next_id = &successor.task.id;
+    recurrence_facades::delete_task_recurrence(repositories, project_id, next_id).await?;
+    task_facades::delete_task(repositories, project_id, next_id, user_id, &Utc::now()).await?;
+    write_recurrence(
+        repositories,
+        project_id,
+        completed_id,
+        successor.rule_before.clone(),
+        true,
+        user_id,
+    )
+    .await
 }
 
 /// Persists a batch of `order_index` (and list) changes.
