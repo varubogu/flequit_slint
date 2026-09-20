@@ -12,6 +12,8 @@ use flequit_repository::repositories::project_relation_repository_trait::Project
 use flequit_repository::repositories::task_projects::subtask_recurrence_repository_trait::SubtaskRecurrenceRepositoryTrait;
 use flequit_types::errors::repository_error::RepositoryError;
 
+use crate::automerge_sync::{AutomergeChange, QueuedSqlite, RelationChange};
+
 #[derive(Debug)]
 pub enum SubTaskRecurrenceRepositoryVariant {
     LocalSqlite(SubtaskRecurrenceLocalSqliteRepository),
@@ -203,6 +205,8 @@ impl ProjectRelationRepository<SubTaskRecurrence, SubTaskId, RecurrenceRuleId>
 pub struct SubTaskRecurrenceUnifiedRepository {
     save_repositories: Vec<SubTaskRecurrenceRepositoryVariant>,
     search_repositories: Vec<SubTaskRecurrenceRepositoryVariant>,
+    /// SQLite への書き込み先と Automerge 同期キュー。SQLite ストレージが有効なときにある
+    queued_sqlite: Option<QueuedSqlite<SubtaskRecurrenceLocalSqliteRepository>>,
 }
 
 impl Default for SubTaskRecurrenceUnifiedRepository {
@@ -219,12 +223,22 @@ impl SubTaskRecurrenceUnifiedRepository {
         Self {
             save_repositories,
             search_repositories,
+            queued_sqlite: None,
         }
     }
 
     pub fn add_sqlite_for_save(&mut self, sqlite_repo: SubtaskRecurrenceLocalSqliteRepository) {
         self.save_repositories
             .push(SubTaskRecurrenceRepositoryVariant::LocalSqlite(sqlite_repo));
+    }
+
+    /// 書き込みを「Automerge 同期キューへの登録 + SQLite への書き込み」の
+    /// 1 トランザクションにする。Automerge へはワーカーが後から反映する
+    pub fn set_queued_sqlite(
+        &mut self,
+        queued: QueuedSqlite<SubtaskRecurrenceLocalSqliteRepository>,
+    ) {
+        self.queued_sqlite = Some(queued);
     }
 
     pub fn add_automerge_for_save(
@@ -253,7 +267,7 @@ impl SubTaskRecurrenceUnifiedRepository {
     }
 
     pub fn save_repositories_count(&self) -> usize {
-        self.save_repositories.len()
+        self.save_repositories.len() + usize::from(self.queued_sqlite.is_some())
     }
 
     pub fn search_repositories_count(&self) -> usize {
@@ -295,7 +309,12 @@ impl SubtaskRecurrenceRepositoryTrait for SubTaskRecurrenceUnifiedRepository {
         }
     }
 
+    // この 3 つは Automerge 側に対応する操作が無い（プロジェクト ID を持たないため）。
+    // SQLite だけに書き込み、同期キューには入れない。
     async fn save(&self, recurrence: &SubTaskRecurrence) -> Result<(), RepositoryError> {
+        if let Some(queued) = &self.queued_sqlite {
+            return queued.sqlite.save(recurrence).await;
+        }
         for repository in &self.save_repositories {
             repository.save(recurrence).await?;
         }
@@ -303,6 +322,9 @@ impl SubtaskRecurrenceRepositoryTrait for SubTaskRecurrenceUnifiedRepository {
     }
 
     async fn delete_by_subtask_id(&self, subtask_id: &SubTaskId) -> Result<(), RepositoryError> {
+        if let Some(queued) = &self.queued_sqlite {
+            return queued.sqlite.delete_by_subtask_id(subtask_id).await;
+        }
         for repository in &self.save_repositories {
             repository.delete_by_subtask_id(subtask_id).await?;
         }
@@ -313,6 +335,12 @@ impl SubtaskRecurrenceRepositoryTrait for SubTaskRecurrenceUnifiedRepository {
         &self,
         recurrence_rule_id: &RecurrenceRuleId,
     ) -> Result<(), RepositoryError> {
+        if let Some(queued) = &self.queued_sqlite {
+            return queued
+                .sqlite
+                .delete_by_recurrence_rule_id(recurrence_rule_id)
+                .await;
+        }
         for repository in &self.save_repositories {
             repository
                 .delete_by_recurrence_rule_id(recurrence_rule_id)
@@ -347,6 +375,32 @@ impl ProjectRelationRepository<SubTaskRecurrence, SubTaskId, RecurrenceRuleId>
             "Adding subtask recurrence relation - project: {}, subtask: {}, rule: {}",
             project_id, parent_id, child_id
         );
+        if let Some(queued) = &self.queued_sqlite {
+            let txn = queued
+                .queue
+                .begin(vec![AutomergeChange::SubTaskRecurrence(
+                    RelationChange::Add {
+                        project_id: *project_id,
+                        parent_id: *parent_id,
+                        child_id: *child_id,
+                        user_id: *user_id,
+                        timestamp: *timestamp,
+                    },
+                )])
+                .await?;
+            let result = queued
+                .sqlite
+                .add_with_txn(
+                    txn.txn(),
+                    project_id,
+                    parent_id,
+                    child_id,
+                    user_id,
+                    timestamp,
+                )
+                .await;
+            return txn.finish(result).await;
+        }
 
         info!(
             "SubTaskRecurrenceUnifiedRepository::add - save_repositories count: {}",
@@ -381,6 +435,23 @@ impl ProjectRelationRepository<SubTaskRecurrence, SubTaskId, RecurrenceRuleId>
             "Removing subtask recurrence relation - project: {}, subtask: {}, rule: {}",
             project_id, parent_id, child_id
         );
+        if let Some(queued) = &self.queued_sqlite {
+            let txn = queued
+                .queue
+                .begin(vec![AutomergeChange::SubTaskRecurrence(
+                    RelationChange::Remove {
+                        project_id: *project_id,
+                        parent_id: *parent_id,
+                        child_id: *child_id,
+                    },
+                )])
+                .await?;
+            let result = queued
+                .sqlite
+                .remove_with_txn(txn.txn(), project_id, parent_id, child_id)
+                .await;
+            return txn.finish(result).await;
+        }
 
         for repository in &self.save_repositories {
             repository.remove(project_id, parent_id, child_id).await?;
@@ -398,6 +469,22 @@ impl ProjectRelationRepository<SubTaskRecurrence, SubTaskId, RecurrenceRuleId>
             "Removing all recurrence relations for subtask - project: {}, subtask: {}",
             project_id, parent_id
         );
+        if let Some(queued) = &self.queued_sqlite {
+            let txn = queued
+                .queue
+                .begin(vec![AutomergeChange::SubTaskRecurrence(
+                    RelationChange::RemoveAll {
+                        project_id: *project_id,
+                        parent_id: *parent_id,
+                    },
+                )])
+                .await?;
+            let result = queued
+                .sqlite
+                .remove_all_with_txn(txn.txn(), project_id, parent_id)
+                .await;
+            return txn.finish(result).await;
+        }
 
         for repository in &self.save_repositories {
             repository.remove_all(project_id, parent_id).await?;

@@ -9,6 +9,7 @@ use crate::models::{DomainToSqliteConverterWithProjectId, SqliteModelConverter};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use flequit_model::models::task_projects::task::Task;
+use flequit_model::traits::TransactionManager;
 use flequit_model::types::id_types::{ProjectId, TaskId, UserId};
 use flequit_repository::repositories::project_patchable_trait::ProjectPatchable;
 use flequit_repository::repositories::project_repository_trait::ProjectRepository;
@@ -16,7 +17,6 @@ use flequit_repository::repositories::task_projects::task_repository_trait::Task
 use flequit_types::errors::repository_error::RepositoryError;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    TransactionTrait,
 };
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -191,6 +191,65 @@ impl TaskLocalSqliteRepository {
     }
 }
 
+/// トランザクション内で実行する書き込み
+///
+/// 呼び出し側（統合リポジトリ）が Automerge 同期キューへの登録と同じ
+/// トランザクションで実行するために使う。コミット・ロールバックは呼び出し側が行う。
+impl TaskLocalSqliteRepository {
+    pub async fn save_with_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        project_id: &ProjectId,
+        task: &Task,
+        _user_id: &UserId,
+        _timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError> {
+        let active_model = task
+            .to_sqlite_model_with_project_id(project_id)
+            .await
+            .map_err(|e: String| RepositoryError::from(SQLiteError::ConversionError(e)))?;
+
+        // 既存レコードを確認
+        let existing = TaskEntity::find_by_id((project_id.to_string(), task.id.to_string()))
+            .one(txn)
+            .await
+            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
+
+        if existing.is_some() {
+            // 既存レコードがある場合は更新
+            active_model
+                .update(txn)
+                .await
+                .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
+        } else {
+            // 既存レコードがない場合は挿入
+            active_model
+                .insert(txn)
+                .await
+                .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
+        }
+
+        // タグIDの存在確認と絞り込み
+        let mut valid_tag_ids = Vec::new();
+        for tag_id in &task.tag_ids {
+            // タグが存在するかチェック（同じトランザクションで作ったタグも含める）
+            let tag_repo = TagLocalSqliteRepository::new(self.db_manager.clone());
+            if let Ok(true) = tag_repo.exists_with_txn(txn, project_id, tag_id).await {
+                valid_tag_ids.push(*tag_id);
+            } else {
+                tracing::warn!("タスク保存時に存在しないタグID {}をスキップ", tag_id);
+            }
+        }
+
+        // 有効なタグIDのみで紐づけを更新
+        self.task_tag_repository
+            .update_task_tag_relations(txn, project_id, &task.id, &valid_tag_ids)
+            .await?;
+
+        Ok(())
+    }
+}
+
 #[async_trait]
 impl ProjectRepository<Task, TaskId> for TaskLocalSqliteRepository {
     async fn save(
@@ -201,63 +260,10 @@ impl ProjectRepository<Task, TaskId> for TaskLocalSqliteRepository {
         _timestamp: &DateTime<Utc>,
     ) -> Result<(), RepositoryError> {
         let db_manager = self.db_manager.read().await;
-        let db = db_manager
-            .get_connection()
-            .await
-            .map_err(RepositoryError::from)?;
-
-        // トランザクション開始
-        let txn = db
-            .begin()
-            .await
-            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-
-        let active_model = task
-            .to_sqlite_model_with_project_id(project_id)
-            .await
-            .map_err(|e: String| RepositoryError::from(SQLiteError::ConversionError(e)))?;
-
-        // 既存レコードを確認
-        let existing = TaskEntity::find_by_id((project_id.to_string(), task.id.to_string()))
-            .one(&txn)
-            .await
-            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-
-        if existing.is_some() {
-            // 既存レコードがある場合は更新
-            active_model
-                .update(&txn)
-                .await
-                .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-        } else {
-            // 既存レコードがない場合は挿入
-            active_model
-                .insert(&txn)
-                .await
-                .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-        }
-
-        // タグIDの存在確認と絞り込み
-        let mut valid_tag_ids = Vec::new();
-        for tag_id in &task.tag_ids {
-            // タグが存在するかチェック
-            let tag_repo = TagLocalSqliteRepository::new(self.db_manager.clone());
-            if let Ok(Some(_)) = tag_repo.find_by_id(project_id, tag_id).await {
-                valid_tag_ids.push(*tag_id);
-            } else {
-                tracing::warn!("タスク保存時に存在しないタグID {}をスキップ", tag_id);
-            }
-        }
-
-        // 有効なタグIDのみで紐づけを更新
-        self.task_tag_repository
-            .update_task_tag_relations(&txn, project_id, &task.id, &valid_tag_ids)
+        let txn = db_manager.begin().await?;
+        self.save_with_txn(&txn, project_id, task, _user_id, _timestamp)
             .await?;
-
-        txn.commit()
-            .await
-            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-        Ok(())
+        db_manager.commit(txn).await
     }
 
     async fn find_by_id(

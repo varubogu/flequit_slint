@@ -4,6 +4,7 @@
 //! 高速なクエリとリレーショナルなデータアクセスを提供
 
 pub mod accounts;
+pub mod automerge_sync_queue;
 pub mod database_manager;
 pub mod local_sqlite_repositories;
 pub mod task_projects;

@@ -3,6 +3,7 @@
 //! TaskAssignment、SubTaskAssignment エンティティのUnifiedRepositoryを構築するメソッドを提供する
 
 use super::{UnifiedManager, get_default_automerge_path};
+use crate::automerge_sync::QueuedSqlite;
 use crate::unified::{SubTaskAssignmentUnifiedRepository, TaskAssignmentUnifiedRepository};
 use flequit_infrastructure_automerge::infrastructure::task_projects::{
     subtask_assignments::SubtaskAssignmentLocalAutomergeRepository,
@@ -32,13 +33,14 @@ impl UnifiedManager {
 
             if self.config.sqlite_storage_enabled {
                 let sqlite_repo = TaskAssignmentLocalSqliteRepository::new(db_manager.clone());
-                repo.add_sqlite_for_save(sqlite_repo);
+                repo.set_queued_sqlite(QueuedSqlite::new(sqlite_repo, self.sync_queue()?));
                 tracing::info!("SQLiteリポジトリを保存用に追加しました（TaskAssignment）");
             }
         }
 
         // Automergeリポジトリの設定
-        if self.config.automerge_storage_enabled {
+        // SQLite があるときは同期キュー経由で反映するため、Automerge へ直接は書かない
+        if self.config.automerge_storage_enabled && !self.config.sqlite_storage_enabled {
             let automerge_repo = if let Some(doc_manager) = &self.shared_document_manager {
                 TaskAssignmentLocalAutomergeRepository::new_with_manager(doc_manager.clone())
                     .await?
@@ -79,13 +81,14 @@ impl UnifiedManager {
 
             if self.config.sqlite_storage_enabled {
                 let sqlite_repo = SubtaskAssignmentLocalSqliteRepository::new(db_manager.clone());
-                repo.add_sqlite_for_save(sqlite_repo);
+                repo.set_queued_sqlite(QueuedSqlite::new(sqlite_repo, self.sync_queue()?));
                 tracing::info!("SQLiteリポジトリを保存用に追加しました（SubTaskAssignment）");
             }
         }
 
         // Automergeリポジトリの設定
-        if self.config.automerge_storage_enabled {
+        // SQLite があるときは同期キュー経由で反映するため、Automerge へ直接は書かない
+        if self.config.automerge_storage_enabled && !self.config.sqlite_storage_enabled {
             let automerge_repo = if let Some(doc_manager) = &self.shared_document_manager {
                 SubtaskAssignmentLocalAutomergeRepository::new_with_manager(doc_manager.clone())
                     .await?

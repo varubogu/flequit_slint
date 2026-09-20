@@ -82,6 +82,8 @@ flequit-infrastructure  ← 統合層。ローカル（SQLite + Automerge）
 
 現在の実装のまま。SQLite が検索、Automerge が永続化を担う
 （[`automerge-repo-dataflow.md`](./automerge-repo-dataflow.md)）。
+書き込みは SQLite で確定し、Automerge へは同期キュー経由で反映する
+（[`automerge-sync-queue.md`](./automerge-sync-queue.md)）。
 
 ### クラウドストレージ
 
@@ -113,5 +115,6 @@ Flequit が用意するサーバ。Web の唯一の保存先であり、デス�
 
 - [`automerge-structure.md`](./automerge-structure.md): Automerge のドキュメント構造
 - [`automerge-repo-dataflow.md`](./automerge-repo-dataflow.md): 保存と同期のデータフロー
+- [`automerge-sync-queue.md`](./automerge-sync-queue.md): SQLite から Automerge への反映キュー
 - [`data-security.md`](./data-security.md): 暗号化とアカウント情報の扱い
 - [`../architecture.md`](../architecture.md): クレート構成と依存方向

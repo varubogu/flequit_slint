@@ -99,7 +99,8 @@ facade に渡している。編集前後の UI 型を突き合わせて差分を
 ### Automerge 統合
 
 - 部分更新は SQLite 側で効率実行
-- Automerge 側は従来の `save()` で全体保存
+- Automerge 側は従来の `save()` で全体保存。同期キュー経由でバックグラウンドに反映し、
+  保存の応答には含めない（[`automerge-sync-queue.md`](./automerge-sync-queue.md)）
 - 同期時の自動整合性確保
 
 ## 6. 段階的導入計画

@@ -17,6 +17,10 @@ use flequit_infrastructure_automerge::infrastructure::document_manager::Document
 use flequit_infrastructure_sqlite::infrastructure::database_manager::DatabaseManager;
 use flequit_infrastructure_sqlite::infrastructure::local_sqlite_repositories::LocalSqliteRepositories;
 
+use crate::automerge_sync::{
+    AutomergeSyncHandle, AutomergeSyncProcessor, AutomergeSyncQueue, AutomergeSyncTargets,
+    spawn_worker,
+};
 use crate::unified::UnifiedConfig;
 
 /// Unified層のマネージャー
@@ -30,6 +34,10 @@ pub struct UnifiedManager {
     pub(super) automerge_repositories: Option<Arc<RwLock<LocalAutomergeRepositories>>>,
     /// 共有DocumentManager - Automerge Repoの重複を避けるため
     pub(super) shared_document_manager: Option<Arc<Mutex<DocumentManager>>>,
+    /// Automerge 同期キュー（SQLite ストレージが有効なとき）
+    pub(super) sync_queue: Option<AutomergeSyncQueue>,
+    /// キューを Automerge へ反映する処理（SQLite と Automerge の両方が有効なとき）
+    pub(super) automerge_sync: Option<Arc<AutomergeSyncProcessor>>,
 }
 
 impl UnifiedManager {
@@ -41,6 +49,8 @@ impl UnifiedManager {
             shared_database_manager: None,
             automerge_repositories: None,
             shared_document_manager: None,
+            sync_queue: None,
+            automerge_sync: None,
         }
     }
 
@@ -54,6 +64,8 @@ impl UnifiedManager {
             shared_database_manager: None,
             automerge_repositories: None,
             shared_document_manager: None,
+            sync_queue: None,
+            automerge_sync: None,
         };
 
         manager.initialize_backends().await?;
@@ -128,6 +140,22 @@ impl UnifiedManager {
             tracing::info!("Automergeリポジトリを無効にしました");
         }
 
+        // Automerge 同期キュー: SQLite への書き込みと同じトランザクションで
+        // Automerge へ反映する変更を記録し、ワーカーが後から反映する
+        self.sync_queue = self.shared_database_manager.as_ref().map(|db_manager| {
+            AutomergeSyncQueue::new(db_manager.clone(), self.config.automerge_storage_enabled)
+        });
+        self.automerge_sync = match (&self.sync_queue, &self.shared_document_manager) {
+            (Some(queue), Some(document_manager)) if queue.is_enabled() => {
+                let targets = AutomergeSyncTargets::new(document_manager.clone()).await?;
+                Some(Arc::new(AutomergeSyncProcessor::new(
+                    queue.clone(),
+                    targets,
+                )))
+            }
+            _ => None,
+        };
+
         Ok(())
     }
 
@@ -144,6 +172,33 @@ impl UnifiedManager {
     /// Automergeリポジトリへのアクセス
     pub fn automerge_repositories(&self) -> Option<&Arc<RwLock<LocalAutomergeRepositories>>> {
         self.automerge_repositories.as_ref()
+    }
+
+    /// Automerge 同期キュー。SQLite ストレージが無効なら `None`
+    pub(crate) fn sync_queue_ref(&self) -> Option<&AutomergeSyncQueue> {
+        self.sync_queue.as_ref()
+    }
+
+    /// Automerge 同期キュー（統合リポジトリの書き込みで使う）
+    pub(crate) fn sync_queue(&self) -> Result<AutomergeSyncQueue, Box<dyn std::error::Error>> {
+        self.sync_queue
+            .clone()
+            .ok_or_else(|| "Automerge sync queue is not initialized".into())
+    }
+
+    /// キューを Automerge へ反映する処理。SQLite と Automerge の両方が有効なときだけある
+    pub fn automerge_sync(&self) -> Option<&Arc<AutomergeSyncProcessor>> {
+        self.automerge_sync.as_ref()
+    }
+
+    /// キューを反映するワーカーを起動する。反映先が無ければ `None`
+    pub fn start_automerge_sync(
+        &self,
+        runtime: &tokio::runtime::Handle,
+    ) -> Option<AutomergeSyncHandle> {
+        self.automerge_sync
+            .as_ref()
+            .map(|processor| spawn_worker(Arc::clone(processor), runtime))
     }
 
     pub(super) fn database_manager(

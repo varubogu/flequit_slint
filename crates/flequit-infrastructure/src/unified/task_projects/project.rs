@@ -13,6 +13,8 @@ use flequit_repository::repositories::base_repository_trait::Repository;
 use flequit_repository::repositories::task_projects::project_repository_trait::ProjectRepositoryTrait;
 use flequit_types::errors::repository_error::RepositoryError;
 
+use crate::automerge_sync::{AutomergeChange, QueuedSqlite, RootChange};
+
 #[derive(Debug)]
 pub enum ProjectRepositoryVariant {
     LocalSqlite(ProjectLocalSqliteRepository),
@@ -75,6 +77,8 @@ impl Repository<Project, ProjectId> for ProjectRepositoryVariant {
 pub struct ProjectUnifiedRepository {
     save_repositories: Vec<ProjectRepositoryVariant>,
     search_repositories: Vec<ProjectRepositoryVariant>,
+    /// SQLite への書き込み先と Automerge 同期キュー。SQLite ストレージが有効なときにある
+    queued_sqlite: Option<QueuedSqlite<ProjectLocalSqliteRepository>>,
 }
 
 impl Default for ProjectUnifiedRepository {
@@ -91,12 +95,19 @@ impl ProjectUnifiedRepository {
         Self {
             save_repositories,
             search_repositories,
+            queued_sqlite: None,
         }
     }
 
     pub fn add_sqlite_for_save(&mut self, sqlite_repo: ProjectLocalSqliteRepository) {
         self.save_repositories
             .push(ProjectRepositoryVariant::LocalSqlite(sqlite_repo));
+    }
+
+    /// 書き込みを「Automerge 同期キューへの登録 + SQLite への書き込み」の
+    /// 1 トランザクションにする。Automerge へはワーカーが後から反映する
+    pub fn set_queued_sqlite(&mut self, queued: QueuedSqlite<ProjectLocalSqliteRepository>) {
+        self.queued_sqlite = Some(queued);
     }
 
     pub fn add_sqlite_for_search(&mut self, sqlite_repo: ProjectLocalSqliteRepository) {
@@ -126,7 +137,7 @@ impl ProjectUnifiedRepository {
 
     /// 保存用リポジトリの数を取得
     pub fn save_repositories_count(&self) -> usize {
-        self.save_repositories.len()
+        self.save_repositories.len() + usize::from(self.queued_sqlite.is_some())
     }
 
     /// 検索用リポジトリの数を取得
@@ -147,6 +158,21 @@ impl Repository<Project, ProjectId> for ProjectUnifiedRepository {
             "ProjectUnifiedRepository::save - 保存用リポジトリ {} 箇所に保存",
             self.save_repositories.len()
         );
+        if let Some(queued) = &self.queued_sqlite {
+            let txn = queued
+                .queue
+                .begin(vec![AutomergeChange::Project(RootChange::Save {
+                    entity: entity.clone(),
+                    user_id: *user_id,
+                    timestamp: *timestamp,
+                })])
+                .await?;
+            let result = queued
+                .sqlite
+                .save_with_txn(txn.txn(), entity, user_id, timestamp)
+                .await;
+            return txn.finish(result).await;
+        }
 
         for repo in &self.save_repositories {
             repo.save(entity, user_id, timestamp).await?;
@@ -180,6 +206,16 @@ impl Repository<Project, ProjectId> for ProjectUnifiedRepository {
             "ProjectUnifiedRepository::delete - 保存用リポジトリ {} 箇所から削除",
             self.save_repositories.len()
         );
+        if let Some(queued) = &self.queued_sqlite {
+            let txn = queued
+                .queue
+                .begin(vec![AutomergeChange::Project(RootChange::Delete {
+                    id: *id,
+                })])
+                .await?;
+            let result = queued.sqlite.delete_with_txn(txn.txn(), id).await;
+            return txn.finish(result).await;
+        }
 
         for repo in &self.save_repositories {
             repo.delete(id).await?;

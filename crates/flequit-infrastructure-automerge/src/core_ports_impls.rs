@@ -1,13 +1,12 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use flequit_core::ports::infrastructure_repositories::{
-    AutomergeProjectRepositoryPort, AutomergeRepositoriesPort, TagBookmarkAutomergeRepositoryPort,
+    AutomergeProjectRepositoryPort, AutomergeRepositoriesPort,
 };
 use flequit_model::models::task_projects::project::Project;
 use flequit_model::models::task_projects::tag::Tag;
 use flequit_model::models::task_projects::task::Task;
 use flequit_model::models::task_projects::task_list::TaskList;
-use flequit_model::models::user_preferences::tag_bookmark::TagBookmark;
 use flequit_model::types::id_types::{ProjectId, TagId, TaskId, TaskListId, UserId};
 use flequit_types::errors::repository_error::RepositoryError;
 
@@ -15,27 +14,6 @@ use crate::infrastructure::local_automerge_repositories::LocalAutomergeRepositor
 use crate::infrastructure::task_projects::project::{
     ProjectDocument, ProjectLocalAutomergeRepository,
 };
-use crate::infrastructure::user_preferences::tag_bookmark::TagBookmarkLocalAutomergeRepository;
-
-#[async_trait]
-impl TagBookmarkAutomergeRepositoryPort for TagBookmarkLocalAutomergeRepository {
-    async fn create(&self, bookmark: &TagBookmark) -> Result<(), RepositoryError> {
-        self.create(bookmark).await
-    }
-
-    async fn update(&self, bookmark: &TagBookmark) -> Result<(), RepositoryError> {
-        self.update(bookmark).await
-    }
-
-    async fn delete(
-        &self,
-        user_id: &UserId,
-        project_id: &ProjectId,
-        tag_id: &TagId,
-    ) -> Result<(), RepositoryError> {
-        self.delete(user_id, project_id, tag_id).await
-    }
-}
 
 #[async_trait]
 impl AutomergeProjectRepositoryPort for ProjectLocalAutomergeRepository {

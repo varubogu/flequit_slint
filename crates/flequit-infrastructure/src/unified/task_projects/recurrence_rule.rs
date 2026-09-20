@@ -16,6 +16,8 @@ use flequit_repository::repositories::project_patchable_trait::ProjectPatchable;
 use flequit_repository::repositories::task_projects::recurrence_rule_repository_trait::RecurrenceRuleRepositoryTrait;
 use flequit_types::errors::repository_error::RepositoryError;
 
+use crate::automerge_sync::{AutomergeChange, ProjectChange, QueuedSqlite};
+
 #[derive(Debug)]
 pub enum RecurrenceRuleRepositoryVariant {
     LocalSqlite(RecurrenceRuleLocalSqliteRepository),
@@ -99,6 +101,8 @@ impl ProjectRepository<RecurrenceRule, RecurrenceRuleId> for RecurrenceRuleRepos
 pub struct RecurrenceRuleUnifiedRepository {
     save_repositories: Vec<RecurrenceRuleRepositoryVariant>,
     search_repositories: Vec<RecurrenceRuleRepositoryVariant>,
+    /// SQLite への書き込み先と Automerge 同期キュー。SQLite ストレージが有効なときにある
+    queued_sqlite: Option<QueuedSqlite<RecurrenceRuleLocalSqliteRepository>>,
 }
 
 impl Default for RecurrenceRuleUnifiedRepository {
@@ -113,6 +117,7 @@ impl RecurrenceRuleUnifiedRepository {
         Self {
             save_repositories: Vec::new(),
             search_repositories: Vec::new(),
+            queued_sqlite: None,
         }
     }
 
@@ -128,6 +133,7 @@ impl RecurrenceRuleUnifiedRepository {
         Self {
             save_repositories,
             search_repositories,
+            queued_sqlite: None,
         }
     }
 
@@ -135,6 +141,12 @@ impl RecurrenceRuleUnifiedRepository {
     pub fn add_sqlite_for_save(&mut self, sqlite_repo: RecurrenceRuleLocalSqliteRepository) {
         self.save_repositories
             .push(RecurrenceRuleRepositoryVariant::LocalSqlite(sqlite_repo));
+    }
+
+    /// 書き込みを「Automerge 同期キューへの登録 + SQLite への書き込み」の
+    /// 1 トランザクションにする。Automerge へはワーカーが後から反映する
+    pub fn set_queued_sqlite(&mut self, queued: QueuedSqlite<RecurrenceRuleLocalSqliteRepository>) {
+        self.queued_sqlite = Some(queued);
     }
 
     /// AutoMergeリポジトリを保存用として追加
@@ -167,7 +179,7 @@ impl RecurrenceRuleUnifiedRepository {
 
     /// 保存用リポジトリの数を取得
     pub fn save_repositories_count(&self) -> usize {
-        self.save_repositories.len()
+        self.save_repositories.len() + usize::from(self.queued_sqlite.is_some())
     }
 
     /// 検索用リポジトリの数を取得
@@ -193,6 +205,22 @@ impl ProjectRepository<RecurrenceRule, RecurrenceRuleId> for RecurrenceRuleUnifi
             "Saving recurrence rule entity with ID: {} in project: {}",
             entity.id, project_id
         );
+        if let Some(queued) = &self.queued_sqlite {
+            let txn = queued
+                .queue
+                .begin(vec![AutomergeChange::RecurrenceRule(ProjectChange::Save {
+                    project_id: *project_id,
+                    entity: entity.clone(),
+                    user_id: *user_id,
+                    timestamp: *timestamp,
+                })])
+                .await?;
+            let result = queued
+                .sqlite
+                .save_with_txn(txn.txn(), project_id, entity, user_id, timestamp)
+                .await;
+            return txn.finish(result).await;
+        }
 
         for repository in &self.save_repositories {
             repository
@@ -244,6 +272,22 @@ impl ProjectRepository<RecurrenceRule, RecurrenceRuleId> for RecurrenceRuleUnifi
             "Deleting recurrence rule with ID: {} in project: {}",
             id, project_id
         );
+        if let Some(queued) = &self.queued_sqlite {
+            let txn = queued
+                .queue
+                .begin(vec![AutomergeChange::RecurrenceRule(
+                    ProjectChange::Delete {
+                        project_id: *project_id,
+                        id: *id,
+                    },
+                )])
+                .await?;
+            let result = queued
+                .sqlite
+                .delete_with_txn(txn.txn(), project_id, id)
+                .await;
+            return txn.finish(result).await;
+        }
 
         for repository in &self.save_repositories {
             repository.delete(project_id, id).await?;

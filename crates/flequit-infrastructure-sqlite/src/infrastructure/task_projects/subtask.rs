@@ -9,12 +9,13 @@ use crate::models::{DomainToSqliteConverterWithProjectId, SqliteModelConverter};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use flequit_model::models::task_projects::subtask::SubTask;
+use flequit_model::traits::TransactionManager;
 use flequit_model::types::id_types::{ProjectId, SubTaskId, UserId};
 use flequit_repository::repositories::project_repository_trait::ProjectRepository;
 use flequit_types::errors::repository_error::RepositoryError;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Statement, TransactionTrait,
+    QueryOrder, Statement,
 };
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -142,6 +143,91 @@ impl SubTaskLocalSqliteRepository {
     }
 }
 
+/// トランザクション内で実行する書き込み
+///
+/// 呼び出し側（統合リポジトリ）が Automerge 同期キューへの登録と同じ
+/// トランザクションで実行するために使う。コミット・ロールバックは呼び出し側が行う。
+impl SubTaskLocalSqliteRepository {
+    pub async fn save_with_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        project_id: &ProjectId,
+        subtask: &SubTask,
+        _user_id: &UserId,
+        _timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError> {
+        let active_model = subtask
+            .to_sqlite_model_with_project_id(project_id)
+            .await
+            .map_err(|e: String| RepositoryError::from(SQLiteError::ConversionError(e)))?;
+
+        // 既存レコードを確認
+        let existing = SubtaskEntity::find_by_id((project_id.to_string(), subtask.id.to_string()))
+            .one(txn)
+            .await
+            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
+
+        if existing.is_some() {
+            // 既存レコードがある場合は更新
+            active_model
+                .update(txn)
+                .await
+                .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
+        } else {
+            // 既存レコードがない場合は挿入
+            active_model
+                .insert(txn)
+                .await
+                .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
+        }
+
+        // タグIDの存在確認と絞り込み
+        let mut valid_tag_ids = Vec::new();
+        for tag_id in &subtask.tag_ids {
+            // タグが存在するかチェック（同じトランザクションで作ったタグも含める）
+            let tag_repo = TagLocalSqliteRepository::new(self.db_manager.clone());
+            if let Ok(true) = tag_repo.exists_with_txn(txn, project_id, tag_id).await {
+                valid_tag_ids.push(*tag_id);
+            } else {
+                tracing::warn!("サブタスク保存時に存在しないタグID {}をスキップ", tag_id);
+            }
+        }
+
+        // 有効なタグIDのみで紐づけを更新
+        self.subtask_tag_repository
+            .update_subtask_tag_relations(txn, project_id, &subtask.id, &valid_tag_ids)
+            .await
+            .map_err(RepositoryError::from)?;
+
+        Ok(())
+    }
+
+    pub async fn delete_with_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        project_id: &ProjectId,
+        id: &SubTaskId,
+    ) -> Result<(), RepositoryError> {
+        // 紐づけテーブルから削除（CASCADE制約があるが明示的に削除）
+        let delete_tags_sql = "DELETE FROM subtask_tags WHERE subtask_id = ?".to_string();
+        txn.execute(Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Sqlite,
+            &delete_tags_sql,
+            vec![id.to_string().into()],
+        ))
+        .await
+        .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
+
+        // サブタスク本体を削除
+        SubtaskEntity::delete_by_id((project_id.to_string(), id.to_string()))
+            .exec(txn)
+            .await
+            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
+
+        Ok(())
+    }
+}
+
 #[async_trait]
 impl ProjectRepository<SubTask, SubTaskId> for SubTaskLocalSqliteRepository {
     async fn save(
@@ -152,64 +238,10 @@ impl ProjectRepository<SubTask, SubTaskId> for SubTaskLocalSqliteRepository {
         _timestamp: &DateTime<Utc>,
     ) -> Result<(), RepositoryError> {
         let db_manager = self.db_manager.read().await;
-        let db = db_manager
-            .get_connection()
-            .await
-            .map_err(RepositoryError::from)?;
-
-        // トランザクション開始
-        let txn = db
-            .begin()
-            .await
-            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-
-        let active_model = subtask
-            .to_sqlite_model_with_project_id(project_id)
-            .await
-            .map_err(|e: String| RepositoryError::from(SQLiteError::ConversionError(e)))?;
-
-        // 既存レコードを確認
-        let existing = SubtaskEntity::find_by_id((project_id.to_string(), subtask.id.to_string()))
-            .one(&txn)
-            .await
-            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-
-        if existing.is_some() {
-            // 既存レコードがある場合は更新
-            active_model
-                .update(&txn)
-                .await
-                .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-        } else {
-            // 既存レコードがない場合は挿入
-            active_model
-                .insert(&txn)
-                .await
-                .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-        }
-
-        // タグIDの存在確認と絞り込み
-        let mut valid_tag_ids = Vec::new();
-        for tag_id in &subtask.tag_ids {
-            // タグが存在するかチェック
-            let tag_repo = TagLocalSqliteRepository::new(self.db_manager.clone());
-            if let Ok(Some(_)) = tag_repo.find_by_id(project_id, tag_id).await {
-                valid_tag_ids.push(*tag_id);
-            } else {
-                tracing::warn!("サブタスク保存時に存在しないタグID {}をスキップ", tag_id);
-            }
-        }
-
-        // 有効なタグIDのみで紐づけを更新
-        self.subtask_tag_repository
-            .update_subtask_tag_relations(&txn, project_id, &subtask.id, &valid_tag_ids)
-            .await
-            .map_err(RepositoryError::from)?;
-
-        txn.commit()
-            .await
-            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-        Ok(())
+        let txn = db_manager.begin().await?;
+        self.save_with_txn(&txn, project_id, subtask, _user_id, _timestamp)
+            .await?;
+        db_manager.commit(txn).await
     }
 
     async fn find_by_id(
@@ -280,37 +312,9 @@ impl ProjectRepository<SubTask, SubTaskId> for SubTaskLocalSqliteRepository {
 
     async fn delete(&self, project_id: &ProjectId, id: &SubTaskId) -> Result<(), RepositoryError> {
         let db_manager = self.db_manager.read().await;
-        let db = db_manager
-            .get_connection()
-            .await
-            .map_err(RepositoryError::from)?;
-
-        // トランザクション開始
-        let txn = db
-            .begin()
-            .await
-            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-
-        // 紐づけテーブルから削除（CASCADE制約があるが明示的に削除）
-        let delete_tags_sql = "DELETE FROM subtask_tags WHERE subtask_id = ?".to_string();
-        txn.execute(Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Sqlite,
-            &delete_tags_sql,
-            vec![id.to_string().into()],
-        ))
-        .await
-        .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-
-        // サブタスク本体を削除
-        SubtaskEntity::delete_by_id((project_id.to_string(), id.to_string()))
-            .exec(&txn)
-            .await
-            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-
-        txn.commit()
-            .await
-            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-        Ok(())
+        let txn = db_manager.begin().await?;
+        self.delete_with_txn(&txn, project_id, id).await?;
+        db_manager.commit(txn).await
     }
 
     async fn exists(

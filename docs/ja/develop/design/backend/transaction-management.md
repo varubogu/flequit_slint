@@ -13,6 +13,7 @@ Flequit のデータベーストランザクション管理の設計を定義す
 | **Facade** | トランザクション境界の制御 (`begin` / `commit` / `rollback`)、ビジネスフロー全体の調整 |
 | **Service** | ビジネスロジックの実装。トランザクションオブジェクトを引数で受け取り、Repository へ渡す |
 | **Repository** | データアクセスの実装。受け取ったトランザクションオブジェクトで操作する。**自分で commit / rollback はしない** |
+| **統合リポジトリ・`Transactional*Port` 実装**（`flequit-infrastructure`） | 書き込みを Automerge 同期キューへの登録と同じトランザクションにするため、自分で `begin` / `commit` / `rollback` する。`flequit-core` にはトランザクション型を見せない |
 
 ### データ整合性
 
@@ -37,13 +38,21 @@ ViewModel → Facade ──┐
 
 ### 削除処理のシーケンス例
 
-1. ViewModel が Facade を呼ぶ (`delete_tag(repositories, tx_manager, ...)`)
-2. Facade が `tx_manager.begin()` でトランザクション開始
-3. Service が複数 Repository (tag, task_tag, subtask_tag, tag_bookmark) を同一トランザクションで操作
-4. 全成功 → Facade が `commit`
-5. 失敗 → Facade が `rollback`
+1. ViewModel が Facade を呼ぶ (`delete_tag(repositories, ...)`)
+2. Facade が `TransactionalDeletionPort::delete_tag_transactionally` に委譲する
+3. インフラ層がトランザクションを開始し、最初の文で Automerge 同期キューへ
+   「タグの論理削除」を登録する
+4. 同じトランザクションで SQLite の関連 (tag_bookmark, task_tag, subtask_tag) とタグ本体を削除する
+5. 全成功 → `commit`（コミット後にワーカーへ通知）／ 失敗 → `rollback`（キューの行も消える）
 
-実装参照: `crates/flequit-core/src/facades/tag_facades.rs` の `delete_tag`
+実装参照: `crates/flequit-core/src/facades/tag_facades.rs` の `delete_tag`、
+`crates/flequit-infrastructure/src/infrastructure_repositories/transaction/tag.rs`
+
+### 統合リポジトリの書き込み
+
+保存・更新・関連の追加解除も、統合リポジトリ（`flequit-infrastructure/src/unified/`）の中で
+「キュー登録 + SQLite の `*_with_txn`」を 1 トランザクションにまとめる。
+Automerge へは直接書き込まない（[`../data/automerge-sync-queue.md`](../data/automerge-sync-queue.md)）。
 
 ## 3. 主要コントラクト
 
@@ -77,10 +86,13 @@ ViewModel → Facade ──┐
 
 | DB | トランザクション | 特徴 |
 | --- | --- | --- |
-| **SQLite** | 必須 (`TransactionManager` で管理) | ACID 厳密 |
-| **Automerge** | 不要 (個別操作) | CRDT による結果整合性 |
+| **SQLite** | 必須 | ACID 厳密。エンティティと Automerge 同期キューを同じトランザクションで確定 |
+| **Automerge** | 不要 (ワーカーが 1 件ずつ適用) | CRDT による結果整合性。SQLite より遅れて追いつく |
 
-`UnifiedRepository` は内部で SQLite/Automerge の振り分けを行い、SQLite には接続トランザクションを渡し、Automerge は通常通り個別操作する。
+`UnifiedRepository` は SQLite ストレージが有効なら、書き込みを
+`AutomergeSyncQueue::begin`（キュー登録を最初の文にしたトランザクション）→ SQLite の `*_with_txn`
+→ `QueuedTransaction::finish`（成功ならコミット、失敗ならロールバック）で行う。
+Automerge 側のロールバック（以前のスナップショット復元）は不要になった。
 
 ## 5. エラーハンドリング
 
@@ -123,14 +135,16 @@ ViewModel → Facade ──┐
 
 ### トランザクション制御
 
-1. **Facade 層でのみ** トランザクション開始 (Service 以下では禁止 → ネストトランザクションを防ぐ)
+1. **Facade 層でのみ** トランザクション開始 (Service 以下では禁止 → ネストトランザクションを防ぐ)。
+   例外は §1 の統合リポジトリ・`Transactional*Port` 実装（Automerge 同期キューと同じトランザクションにするため）
 2. 明示的な commit / rollback (自動 commit に依存しない)
 3. トランザクション期間を最小化
 4. 読み取り専用操作にトランザクションを使わない
 
 ### コードレビューチェックリスト
 
-- [ ] トランザクション開始は Facade 層のみか?
+- [ ] トランザクション開始は Facade 層のみか?（統合リポジトリ・`Transactional*Port` 実装を除く）
+- [ ] Automerge へ直接書き込まず、同じトランザクションで同期キューへ登録しているか?
 - [ ] 成功時にコミット、失敗時にロールバックしているか?
 - [ ] トランザクション期間は最小化されているか?
 - [ ] 読み取り専用操作に不要なトランザクションを使っていないか?
@@ -145,7 +159,8 @@ ViewModel → Facade ──┐
 | 2 | パイロット実装: タグ削除 (Repository + Facade) | ✅ |
 | 3 | 削除処理拡張: タスク削除 (cascade)、プロジェクト削除 (包括的 cascade) | ✅ |
 | 4 | Repository 層クリーンアップ (旧 `delete_with_relations()` 廃止、内部トランザクション処理を Repository から除去) | ✅ |
-| - | 作成・更新系のトランザクション化 (タスク・サブタスク・プロジェクト・タスクリスト・繰り返しルール) | 予定 |
+| 5 | Automerge 同期キュー: 削除・復元・保存・更新・関連操作を「SQLite + キュー登録」の 1 トランザクションに統一し、Automerge への反映をバックグラウンド化 | ✅ |
+| - | 複数エンティティにまたがる作成・更新（例: タスクとタグ付けの同時作成）を 1 トランザクションにまとめる | 予定 |
 
 実装ファイル参照:
 
@@ -157,9 +172,11 @@ ViewModel → Facade ──┐
 
 ## 11. 新エンティティへの実装ガイドライン
 
-1. Repository 層に `_with_txn` メソッドを追加 (引数に `&sea_orm::DatabaseTransaction` を受け取る)
-2. Facade 層で `begin → service 呼び出し → 成功時 commit / 失敗時 rollback` のパターンを実装
-3. 既存メソッドは非推奨マーク付与のうえ段階的に移行 (後方互換性を維持)
+1. SQLite Repository に `_with_txn` メソッドを追加 (引数に `&sea_orm::DatabaseTransaction` を受け取る)。
+   同じトランザクションで作った行を読む必要があるときは、プールではなくそのトランザクションで読む
+2. 統合リポジトリの書き込みで `AutomergeSyncQueue::begin(変更) → *_with_txn → finish` を使う
+3. Automerge へ反映する操作を `AutomergeChange` に足し、`AutomergeSyncTargets::apply` で適用する
+   （適用は冪等にする。[`../data/automerge-sync-queue.md`](../data/automerge-sync-queue.md) §5）
 
 ## 12. 参考
 

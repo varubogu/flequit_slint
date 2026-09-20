@@ -8,6 +8,7 @@ use crate::models::user::{ActiveModel as UserActiveModel, Column, Entity as User
 use crate::models::{DomainToSqliteConverter, SqliteModelConverter};
 use chrono::{DateTime, Utc};
 use flequit_model::models::users::user::User;
+use flequit_model::traits::TransactionManager;
 use flequit_model::types::id_types::UserId;
 use flequit_repository::repositories::base_repository_trait::Repository;
 use flequit_repository::users::UserRepositoryTrait;
@@ -170,19 +171,19 @@ impl UserLocalSqliteRepository {
 
 impl UserRepositoryTrait for UserLocalSqliteRepository {}
 
-#[async_trait::async_trait]
-impl Repository<User, UserId> for UserLocalSqliteRepository {
-    async fn save(
+/// トランザクション内で実行する書き込み
+///
+/// 呼び出し側（統合リポジトリ）が Automerge 同期キューへの登録と同じ
+/// トランザクションで実行するために使う。コミット・ロールバックは呼び出し側が行う。
+impl UserLocalSqliteRepository {
+    pub async fn save_with_txn(
         &self,
+        txn: &sea_orm::DatabaseTransaction,
         user: &User,
         _user_id: &UserId,
         _timestamp: &DateTime<Utc>,
     ) -> Result<(), RepositoryError> {
-        let db_manager = self.db_manager.read().await;
-        let db = db_manager
-            .get_connection()
-            .await
-            .map_err(RepositoryError::from)?;
+        let db = txn;
 
         // 既存のユーザーをチェック（IDで）
         let existing = UserEntity::find_by_id(user.id.to_string())
@@ -226,6 +227,35 @@ impl Repository<User, UserId> for UserLocalSqliteRepository {
         }
     }
 
+    pub async fn delete_with_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        id: &UserId,
+    ) -> Result<(), RepositoryError> {
+        let db = txn;
+
+        UserEntity::delete_by_id(id.to_string())
+            .exec(db)
+            .await
+            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl Repository<User, UserId> for UserLocalSqliteRepository {
+    async fn save(
+        &self,
+        user: &User,
+        _user_id: &UserId,
+        _timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError> {
+        let db_manager = self.db_manager.read().await;
+        let txn = db_manager.begin().await?;
+        self.save_with_txn(&txn, user, _user_id, _timestamp).await?;
+        db_manager.commit(txn).await
+    }
+
     async fn find_by_id(&self, id: &UserId) -> Result<Option<User>, RepositoryError> {
         let db_manager = self.db_manager.read().await;
         let db = db_manager
@@ -250,16 +280,9 @@ impl Repository<User, UserId> for UserLocalSqliteRepository {
 
     async fn delete(&self, id: &UserId) -> Result<(), RepositoryError> {
         let db_manager = self.db_manager.read().await;
-        let db = db_manager
-            .get_connection()
-            .await
-            .map_err(RepositoryError::from)?;
-
-        UserEntity::delete_by_id(id.to_string())
-            .exec(db)
-            .await
-            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-        Ok(())
+        let txn = db_manager.begin().await?;
+        self.delete_with_txn(&txn, id).await?;
+        db_manager.commit(txn).await
     }
 
     async fn find_all(&self) -> Result<Vec<User>, RepositoryError> {

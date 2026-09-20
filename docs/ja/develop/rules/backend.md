@@ -64,6 +64,12 @@ UI レイヤー（Slint + ViewModel）
 
 - **facade 層でのみ** トランザクションを開始する（ネスト防止）
 - service / repository は受け取ったトランザクションで操作し、自分で commit / rollback しない
+- 例外: 統合リポジトリと `Transactional*Port` の実装（`flequit-infrastructure`）は、
+  書き込みを Automerge 同期キューへの登録と同じトランザクションにするため、自分でトランザクションを持つ。
+  `flequit-core` は DB のトランザクション型を扱わない
+- **Automerge へ直接書き込まない**。書き込みは SQLite と同じトランザクションで
+  `AutomergeSyncQueue` に登録し、反映はワーカーに任せる
+  （`docs/ja/develop/design/data/automerge-sync-queue.md`）
 - 読み取り専用操作にトランザクションを使わない
 
 詳細は `docs/ja/develop/design/backend/transaction-management.md` を参照。

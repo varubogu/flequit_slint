@@ -4,13 +4,15 @@
 
 mod transaction;
 
+use crate::automerge_sync::{
+    AutomergeSyncHandle, AutomergeSyncProcessor, AutomergeSyncQueue, QueuedSqlite,
+};
 use crate::unified::*;
 use async_trait::async_trait;
 use flequit_core::ports::infrastructure_repositories::{
     InfrastructureRepositoriesTrait, TagRepositoryExt,
 };
 use flequit_infrastructure_automerge::infrastructure::local_automerge_repositories::LocalAutomergeRepositories;
-use flequit_infrastructure_automerge::infrastructure::user_preferences::tag_bookmark::TagBookmarkLocalAutomergeRepository;
 use flequit_infrastructure_sqlite::infrastructure::local_sqlite_repositories::LocalSqliteRepositories;
 use flequit_infrastructure_sqlite::infrastructure::user_preferences::tag_bookmark::TagBookmarkLocalSqliteRepository;
 use flequit_model::types::id_types::{ProjectId, TagId};
@@ -51,8 +53,7 @@ pub struct InfrastructureRepositories {
     pub subtask_recurrences: SubTaskRecurrenceUnifiedRepository,
 
     // User Preferences
-    pub tag_bookmarks_sqlite: flequit_infrastructure_sqlite::infrastructure::user_preferences::tag_bookmark::TagBookmarkLocalSqliteRepository,
-    pub tag_bookmarks_automerge: flequit_infrastructure_automerge::infrastructure::user_preferences::tag_bookmark::TagBookmarkLocalAutomergeRepository,
+    pub tag_bookmarks: TagBookmarkUnifiedRepository,
 
     // Unified層の設定・管理
     pub(crate) unified_manager: UnifiedManager,
@@ -80,16 +81,18 @@ impl InfrastructureRepositories {
             subtask_recurrences: SubTaskRecurrenceUnifiedRepository::default(),
             // User Preferences - テスト用のダミーインスタンス
             // 実際の使用時はsetup_with_sqlite_and_automerge()を使用すること
-            tag_bookmarks_sqlite: {
+            tag_bookmarks: {
                 use flequit_infrastructure_sqlite::infrastructure::database_manager::DatabaseManager;
 
                 // 同期コンテキストでも安全に構築できるテスト用DatabaseManagerを使用
                 let dummy_db = Arc::new(RwLock::new(DatabaseManager::new_for_test(
                     "/tmp/flequit-placeholder.sqlite",
                 )));
-                TagBookmarkLocalSqliteRepository::new(dummy_db)
+                TagBookmarkUnifiedRepository::new(QueuedSqlite::new(
+                    TagBookmarkLocalSqliteRepository::new(dummy_db.clone()),
+                    AutomergeSyncQueue::new(dummy_db, false),
+                ))
             },
-            tag_bookmarks_automerge: TagBookmarkLocalAutomergeRepository::default(),
             unified_manager: UnifiedManager::default(),
         }
     }
@@ -132,7 +135,7 @@ impl InfrastructureRepositories {
             .await?;
 
         // User Preferences - LocalRepositoriesから取得
-        // SQLiteまたはAutomergeが無効な場合、TagBookmarkリポジトリは使用不可
+        // SQLiteが無効な場合、TagBookmarkリポジトリは使用不可
         let tag_bookmarks_sqlite = unified_manager
             .sqlite_repositories()
             .ok_or("SQLite repositories not initialized")?
@@ -140,14 +143,10 @@ impl InfrastructureRepositories {
             .await
             .tag_bookmarks()
             .clone();
-
-        let tag_bookmarks_automerge = unified_manager
-            .automerge_repositories()
-            .ok_or("Automerge repositories not initialized")?
-            .read()
-            .await
-            .tag_bookmarks()
-            .clone();
+        let tag_bookmarks = TagBookmarkUnifiedRepository::new(QueuedSqlite::new(
+            tag_bookmarks_sqlite,
+            unified_manager.sync_queue()?,
+        ));
 
         tracing::info!("全UnifiedRepositoryの構築完了");
 
@@ -166,8 +165,7 @@ impl InfrastructureRepositories {
             subtask_tags,
             task_recurrences,
             subtask_recurrences,
-            tag_bookmarks_sqlite,
-            tag_bookmarks_automerge,
+            tag_bookmarks,
             unified_manager,
         })
     }
@@ -199,6 +197,22 @@ impl InfrastructureRepositories {
     pub fn config(&self) -> &UnifiedConfig {
         self.unified_manager.config()
     }
+
+    /// Automerge 同期キューを反映するワーカーを `runtime` 上で起動する。
+    ///
+    /// SQLite と Automerge の両方が有効なときだけ起動し、ハンドルを返す。
+    /// アプリ終了時に [`AutomergeSyncHandle::shutdown`] を呼ぶこと。
+    pub fn start_automerge_sync(
+        &self,
+        runtime: &tokio::runtime::Handle,
+    ) -> Option<AutomergeSyncHandle> {
+        self.unified_manager.start_automerge_sync(runtime)
+    }
+
+    /// Automerge 同期キューを反映する処理（テスト・診断用）
+    pub fn automerge_sync(&self) -> Option<&Arc<AutomergeSyncProcessor>> {
+        self.unified_manager.automerge_sync()
+    }
 }
 
 impl Default for InfrastructureRepositories {
@@ -223,8 +237,7 @@ impl InfrastructureRepositoriesTrait for InfrastructureRepositories {
     type SubtaskTagsRepository = SubTaskTagUnifiedRepository;
     type TaskRecurrencesRepository = TaskRecurrenceUnifiedRepository;
     type SubtaskRecurrencesRepository = SubTaskRecurrenceUnifiedRepository;
-    type TagBookmarksSqliteRepository = TagBookmarkLocalSqliteRepository;
-    type TagBookmarksAutomergeRepository = TagBookmarkLocalAutomergeRepository;
+    type TagBookmarksRepository = TagBookmarkUnifiedRepository;
     type SqliteRepositories = LocalSqliteRepositories;
     type AutomergeRepositories = LocalAutomergeRepositories;
 
@@ -284,12 +297,8 @@ impl InfrastructureRepositoriesTrait for InfrastructureRepositories {
         &self.subtask_recurrences
     }
 
-    fn tag_bookmarks_sqlite(&self) -> &Self::TagBookmarksSqliteRepository {
-        &self.tag_bookmarks_sqlite
-    }
-
-    fn tag_bookmarks_automerge(&self) -> &Self::TagBookmarksAutomergeRepository {
-        &self.tag_bookmarks_automerge
+    fn tag_bookmarks(&self) -> &Self::TagBookmarksRepository {
+        &self.tag_bookmarks
     }
 
     async fn initialize(&mut self) -> Result<(), Box<dyn std::error::Error>> {

@@ -8,6 +8,7 @@
 //! - 保存系操作: Automerge（永続化） → SQLite（同期）
 //! - 統一インターフェース: 全エンティティで一貫したアクセス方法
 
+pub mod automerge_sync;
 pub mod config;
 pub mod infrastructure_repositories;
 pub mod unified;

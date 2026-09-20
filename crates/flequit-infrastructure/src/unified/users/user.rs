@@ -13,6 +13,8 @@ use flequit_repository::repositories::base_repository_trait::Repository;
 use flequit_repository::repositories::users::user_repository_trait::UserRepositoryTrait;
 use flequit_types::errors::repository_error::RepositoryError;
 
+use crate::automerge_sync::{AutomergeChange, QueuedSqlite, RootChange};
+
 /// UserRepositoryTrait実装の静的ディスパッチ対応enum
 #[derive(Debug)]
 pub enum UserRepositoryVariant {
@@ -82,6 +84,8 @@ pub struct UserUnifiedRepository {
     save_repositories: Vec<UserRepositoryVariant>,
     /// 検索用リポジトリ（通常はSQLiteを優先）
     search_repositories: Vec<UserRepositoryVariant>,
+    /// SQLite への書き込み先と Automerge 同期キュー。SQLite ストレージが有効なときにある
+    queued_sqlite: Option<QueuedSqlite<UserLocalSqliteRepository>>,
 }
 
 impl Default for UserUnifiedRepository {
@@ -99,6 +103,7 @@ impl UserUnifiedRepository {
         Self {
             save_repositories,
             search_repositories,
+            queued_sqlite: None,
         }
     }
 
@@ -116,6 +121,12 @@ impl UserUnifiedRepository {
     pub fn add_sqlite_for_save(&mut self, sqlite_repo: UserLocalSqliteRepository) {
         self.save_repositories
             .push(UserRepositoryVariant::LocalSqlite(sqlite_repo));
+    }
+
+    /// 書き込みを「Automerge 同期キューへの登録 + SQLite への書き込み」の
+    /// 1 トランザクションにする。Automerge へはワーカーが後から反映する
+    pub fn set_queued_sqlite(&mut self, queued: QueuedSqlite<UserLocalSqliteRepository>) {
+        self.queued_sqlite = Some(queued);
     }
 
     /// SQLiteリポジトリを検索用に追加
@@ -157,6 +168,21 @@ impl Repository<User, UserId> for UserUnifiedRepository {
             self.save_repositories.len()
         );
         info!("{:?}", entity);
+        if let Some(queued) = &self.queued_sqlite {
+            let txn = queued
+                .queue
+                .begin(vec![AutomergeChange::User(RootChange::Save {
+                    entity: entity.clone(),
+                    user_id: *user_id,
+                    timestamp: *timestamp,
+                })])
+                .await?;
+            let result = queued
+                .sqlite
+                .save_with_txn(txn.txn(), entity, user_id, timestamp)
+                .await;
+            return txn.finish(result).await;
+        }
 
         for repo in &self.save_repositories {
             repo.save(entity, user_id, timestamp).await?;
@@ -197,6 +223,14 @@ impl Repository<User, UserId> for UserUnifiedRepository {
             self.save_repositories.len()
         );
         info!("{:?}", id);
+        if let Some(queued) = &self.queued_sqlite {
+            let txn = queued
+                .queue
+                .begin(vec![AutomergeChange::User(RootChange::Delete { id: *id })])
+                .await?;
+            let result = queued.sqlite.delete_with_txn(txn.txn(), id).await;
+            return txn.finish(result).await;
+        }
 
         for repo in &self.save_repositories {
             repo.delete(id).await?;

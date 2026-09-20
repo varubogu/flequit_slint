@@ -12,6 +12,8 @@ use flequit_repository::repositories::project_relation_repository_trait::Project
 use flequit_repository::repositories::task_projects::subtask_assignment_repository_trait::SubTaskAssignmentRepositoryTrait;
 use flequit_types::errors::repository_error::RepositoryError;
 
+use crate::automerge_sync::{AutomergeChange, QueuedSqlite, RelationChange};
+
 #[derive(Debug)]
 pub enum SubTaskAssignmentRepositoryVariant {
     LocalSqlite(SubtaskAssignmentLocalSqliteRepository),
@@ -127,6 +129,8 @@ impl ProjectRelationRepository<SubTaskAssignment, SubTaskId, UserId>
 pub struct SubTaskAssignmentUnifiedRepository {
     save_repositories: Vec<SubTaskAssignmentRepositoryVariant>,
     search_repositories: Vec<SubTaskAssignmentRepositoryVariant>,
+    /// SQLite への書き込み先と Automerge 同期キュー。SQLite ストレージが有効なときにある
+    queued_sqlite: Option<QueuedSqlite<SubtaskAssignmentLocalSqliteRepository>>,
 }
 
 impl Default for SubTaskAssignmentUnifiedRepository {
@@ -143,12 +147,22 @@ impl SubTaskAssignmentUnifiedRepository {
         Self {
             save_repositories,
             search_repositories,
+            queued_sqlite: None,
         }
     }
 
     pub fn add_sqlite_for_save(&mut self, sqlite_repo: SubtaskAssignmentLocalSqliteRepository) {
         self.save_repositories
             .push(SubTaskAssignmentRepositoryVariant::LocalSqlite(sqlite_repo));
+    }
+
+    /// 書き込みを「Automerge 同期キューへの登録 + SQLite への書き込み」の
+    /// 1 トランザクションにする。Automerge へはワーカーが後から反映する
+    pub fn set_queued_sqlite(
+        &mut self,
+        queued: QueuedSqlite<SubtaskAssignmentLocalSqliteRepository>,
+    ) {
+        self.queued_sqlite = Some(queued);
     }
 
     pub fn add_automerge_for_save(
@@ -188,7 +202,7 @@ impl SubTaskAssignmentUnifiedRepository {
 
     /// 保存用リポジトリの数を取得
     pub fn save_repositories_count(&self) -> usize {
-        self.save_repositories.len()
+        self.save_repositories.len() + usize::from(self.queued_sqlite.is_some())
     }
 
     /// 検索用リポジトリの数を取得
@@ -215,6 +229,25 @@ impl ProjectRelationRepository<SubTaskAssignment, SubTaskId, UserId>
             "Adding subtask assignment - project: {}, subtask: {}, user: {}",
             project_id, parent_id, child_id
         );
+        if let Some(queued) = &self.queued_sqlite {
+            let txn = queued
+                .queue
+                .begin(vec![AutomergeChange::SubTaskAssignment(
+                    RelationChange::Add {
+                        project_id: *project_id,
+                        parent_id: *parent_id,
+                        child_id: *child_id,
+                        user_id: *user_id,
+                        timestamp: *timestamp,
+                    },
+                )])
+                .await?;
+            let result = queued
+                .sqlite
+                .add_assignment_with_txn(txn.txn(), project_id, parent_id, child_id)
+                .await;
+            return txn.finish(result).await;
+        }
 
         for repository in &self.save_repositories {
             repository
@@ -235,6 +268,23 @@ impl ProjectRelationRepository<SubTaskAssignment, SubTaskId, UserId>
             "Removing subtask assignment - project: {}, subtask: {}, user: {}",
             project_id, parent_id, child_id
         );
+        if let Some(queued) = &self.queued_sqlite {
+            let txn = queued
+                .queue
+                .begin(vec![AutomergeChange::SubTaskAssignment(
+                    RelationChange::Remove {
+                        project_id: *project_id,
+                        parent_id: *parent_id,
+                        child_id: *child_id,
+                    },
+                )])
+                .await?;
+            let result = queued
+                .sqlite
+                .remove_assignment_with_txn(txn.txn(), parent_id, child_id)
+                .await;
+            return txn.finish(result).await;
+        }
 
         for repository in &self.save_repositories {
             repository.remove(project_id, parent_id, child_id).await?;
@@ -252,6 +302,22 @@ impl ProjectRelationRepository<SubTaskAssignment, SubTaskId, UserId>
             "Removing all subtask assignments for subtask - project: {}, subtask: {}",
             project_id, parent_id
         );
+        if let Some(queued) = &self.queued_sqlite {
+            let txn = queued
+                .queue
+                .begin(vec![AutomergeChange::SubTaskAssignment(
+                    RelationChange::RemoveAll {
+                        project_id: *project_id,
+                        parent_id: *parent_id,
+                    },
+                )])
+                .await?;
+            let result = queued
+                .sqlite
+                .remove_all_assignments_by_subtask_id_with_txn(txn.txn(), parent_id)
+                .await;
+            return txn.finish(result).await;
+        }
 
         for repository in &self.save_repositories {
             repository.remove_all(project_id, parent_id).await?;

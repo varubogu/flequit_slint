@@ -1,6 +1,6 @@
 # Flequit (Slint) 作業計画
 
-- 最終更新: 2026-09-19
+- 最終更新: 2026-09-20
 - 正本: 本ファイル。完了した計画はクリアし、判断の詳細は各仕様書と `docs/ja/` に残す
 
 ## 1. 検索ボックスを中心にしたタスク一覧
@@ -65,3 +65,45 @@
 - この Mac では Xcode のライセンスが未同意のため、`cc` によるリンクが失敗する。
   `DEVELOPER_DIR=/Library/Developer/CommandLineTools` を付けると Command Line Tools でビルドできる。
   恒久的には `sudo xcodebuild -license` で同意する
+
+## 2. Automerge 同期キュー（書き込みの応答速度改善）
+
+- 設計（正本）: `docs/ja/develop/design/data/automerge-sync-queue.md`
+- 目的: Automerge の保存（ドキュメント全体の読み書き）を書き込みの応答から外す
+
+### 2.1 手順
+
+- [x] 設計書を新設し、関連文書（トランザクション管理・データフロー・ルール・要件）を更新
+- [x] キューテーブル `automerge_sync_queue`（マイグレーション・エンティティ・SQLite リポジトリ）
+- [x] SQLite リポジトリの書き込みに `*_with_txn` を追加（統合リポジトリが同じトランザクションで使う）
+- [x] 統合リポジトリの書き込みを「キュー登録 + SQLite」の 1 トランザクションへ切り替え
+- [x] 削除（`TransactionalDeletionPort`）をスナップショット復元方式からキュー方式へ
+- [x] 復元を `TransactionalRestorePort` へ移し、Automerge を読む前に未反映分を反映（読み取りバリア）
+- [x] タグブックマークを `TagBookmarkRepositoryPort` 1 つに統合（Automerge はキュー経由）
+- [x] ワーカー（id 順・ドキュメント単位の順序保証・指数バックオフ・10 回で failed・30 日で processed を削除）
+- [x] `flequit-app` で起動、終了時に最大 3 秒まで反映
+- [x] テスト（`crates/flequit-infrastructure/tests/automerge_sync_queue.rs`）
+- [ ] 実機での動作確認（応答速度の体感、終了・再起動をまたいだ反映）
+
+### 2.2 残作業
+
+- [ ] `failed` の行を調べて再投入する手段（診断画面またはログ出力）
+- [ ] アプリ終了時に Automerge-Repo を停止（`RepoHandle::stop`）し、ファイル保存の完了を待つ
+- [ ] モバイルでバックグラウンドへ移るときにキューを反映する（ライフサイクル通知から起こす）
+- [ ] 使われなくなったスナップショット系の port（`AutomergeProjectRepositoryPort` の
+      `create_snapshot` / `restore_from_snapshot`、`AutomergeRepositoriesPort::projects_repo`）の整理
+- [ ] 将来の端末間同期では、送信前に対象ドキュメントのキューを `flush_document` で反映する
+
+### 2.3 実装時の判断
+
+- 読み取りは SQLite だけなので、Automerge が遅れても画面には影響しない。Automerge を読むのは
+  ゴミ箱からの復元だけで、そこには読み取りバリアを置いた
+- キューの INSERT をトランザクションの最初の文にする。SQLite の読み取り→書き込みの昇格が
+  ワーカーの更新と重なると、待たずに `SQLITE_BUSY` になるため
+- 「反映成功」は Automerge ドキュメントへの適用成功とした。Automerge-Repo 0.3 は
+  ファイル保存の完了を通知しない（失敗もログのみ）ため、それ以上は確認できない
+- 入力が原因のエラー（ペイロードを読めない等）は再試行せずすぐ `failed` にする。
+  再試行待ちで同じドキュメントを 10 分以上止めないため
+- `SubtaskRecurrenceRepositoryTrait` の `save` / `delete_by_*` は Automerge 側が未対応
+  （以前は Automerge 側のエラーで操作全体が失敗していた）。SQLite だけに書き、キューには入れない
+

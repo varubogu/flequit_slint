@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 
 pub mod accounts;
+pub mod automerge_sync_queue;
 pub mod initialized_data;
 pub mod search;
 pub mod task_projects;

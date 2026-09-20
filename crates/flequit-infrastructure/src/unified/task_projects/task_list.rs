@@ -13,6 +13,8 @@ use flequit_repository::repositories::project_repository_trait::ProjectRepositor
 use flequit_repository::repositories::task_projects::task_list_repository_trait::TaskListRepositoryTrait;
 use flequit_types::errors::repository_error::RepositoryError;
 
+use crate::automerge_sync::{AutomergeChange, ProjectChange, QueuedSqlite};
+
 #[derive(Debug)]
 pub enum TaskListRepositoryVariant {
     LocalSqlite(TaskListLocalSqliteRepository),
@@ -86,6 +88,8 @@ impl ProjectRepository<TaskList, TaskListId> for TaskListRepositoryVariant {
 pub struct TaskListUnifiedRepository {
     save_repositories: Vec<TaskListRepositoryVariant>,
     search_repositories: Vec<TaskListRepositoryVariant>,
+    /// SQLite への書き込み先と Automerge 同期キュー。SQLite ストレージが有効なときにある
+    queued_sqlite: Option<QueuedSqlite<TaskListLocalSqliteRepository>>,
 }
 
 impl Default for TaskListUnifiedRepository {
@@ -102,12 +106,19 @@ impl TaskListUnifiedRepository {
         Self {
             save_repositories,
             search_repositories,
+            queued_sqlite: None,
         }
     }
 
     pub fn add_sqlite_for_save(&mut self, sqlite_repo: TaskListLocalSqliteRepository) {
         self.save_repositories
             .push(TaskListRepositoryVariant::LocalSqlite(sqlite_repo));
+    }
+
+    /// 書き込みを「Automerge 同期キューへの登録 + SQLite への書き込み」の
+    /// 1 トランザクションにする。Automerge へはワーカーが後から反映する
+    pub fn set_queued_sqlite(&mut self, queued: QueuedSqlite<TaskListLocalSqliteRepository>) {
+        self.queued_sqlite = Some(queued);
     }
 
     pub fn add_automerge_for_save(&mut self, automerge_repo: TaskListLocalAutomergeRepository) {
@@ -137,7 +148,7 @@ impl TaskListUnifiedRepository {
 
     /// 保存用リポジトリの数を取得
     pub fn save_repositories_count(&self) -> usize {
-        self.save_repositories.len()
+        self.save_repositories.len() + usize::from(self.queued_sqlite.is_some())
     }
 
     /// 検索用リポジトリの数を取得
@@ -163,6 +174,22 @@ impl ProjectRepository<TaskList, TaskListId> for TaskListUnifiedRepository {
             "Saving task list entity with ID: {} in project: {}",
             entity.id, project_id
         );
+        if let Some(queued) = &self.queued_sqlite {
+            let txn = queued
+                .queue
+                .begin(vec![AutomergeChange::TaskList(ProjectChange::Save {
+                    project_id: *project_id,
+                    entity: entity.clone(),
+                    user_id: *user_id,
+                    timestamp: *timestamp,
+                })])
+                .await?;
+            let result = queued
+                .sqlite
+                .save_with_txn(txn.txn(), project_id, entity, user_id, timestamp)
+                .await;
+            return txn.finish(result).await;
+        }
 
         for repository in &self.save_repositories {
             repository
@@ -204,6 +231,20 @@ impl ProjectRepository<TaskList, TaskListId> for TaskListUnifiedRepository {
             "Deleting task list with ID: {} in project: {}",
             id, project_id
         );
+        if let Some(queued) = &self.queued_sqlite {
+            let txn = queued
+                .queue
+                .begin(vec![AutomergeChange::TaskList(ProjectChange::Delete {
+                    project_id: *project_id,
+                    id: *id,
+                })])
+                .await?;
+            let result = queued
+                .sqlite
+                .delete_with_txn(txn.txn(), project_id, id)
+                .await;
+            return txn.finish(result).await;
+        }
 
         for repository in &self.save_repositories {
             repository.delete(project_id, id).await?;

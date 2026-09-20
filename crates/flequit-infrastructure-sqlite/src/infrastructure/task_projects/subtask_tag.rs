@@ -7,6 +7,7 @@ use crate::models::subtask_tag::{Column, Entity as SubtaskTagEntity};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use flequit_model::models::task_projects::subtask_tag::SubTaskTag;
+use flequit_model::traits::TransactionManager;
 use flequit_model::types::id_types::{ProjectId, SubTaskId, TagId, UserId};
 use flequit_repository::repositories::project_relation_repository_trait::ProjectRelationRepository;
 use flequit_types::errors::repository_error::RepositoryError;
@@ -20,6 +21,77 @@ use tokio::sync::RwLock;
 #[derive(Debug)]
 pub struct SubtaskTagLocalSqliteRepository {
     db_manager: Arc<RwLock<DatabaseManager>>,
+}
+
+/// トランザクション内で実行する書き込み
+///
+/// 呼び出し側（統合リポジトリ）が Automerge 同期キューへの登録と同じ
+/// トランザクションで実行するために使う。コミット・ロールバックは呼び出し側が行う。
+impl SubtaskTagLocalSqliteRepository {
+    pub async fn add_relation_with_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        project_id: &ProjectId,
+        subtask_id: &SubTaskId,
+        tag_id: &TagId,
+    ) -> Result<(), RepositoryError> {
+        let db = txn;
+
+        // 既存の関連が存在するかチェック
+        let existing = SubtaskTagEntity::find()
+            .filter(Column::ProjectId.eq(project_id.to_string()))
+            .filter(Column::SubtaskId.eq(subtask_id.to_string()))
+            .filter(Column::TagId.eq(tag_id.to_string()))
+            .one(db)
+            .await
+            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
+
+        if existing.is_none() {
+            // 関連が存在しない場合のみ追加
+            let now = Utc::now();
+            let active_model = crate::models::subtask_tag::ActiveModel {
+                subtask_id: Set(subtask_id.to_string()),
+                project_id: Set(project_id.to_string()),
+                tag_id: Set(tag_id.to_string()),
+                created_at: Set(now),
+                updated_at: Set(now),
+                deleted: Set(false),
+                updated_by: Set(project_id.to_string()),
+            };
+
+            tracing::info!(
+                "SQLite SubtaskTag INSERT - project: {}, subtask: {}, tag: {}",
+                project_id,
+                subtask_id,
+                tag_id
+            );
+
+            active_model
+                .insert(db)
+                .await
+                .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn remove_relation_with_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        subtask_id: &SubTaskId,
+        tag_id: &TagId,
+    ) -> Result<(), RepositoryError> {
+        let db = txn;
+
+        SubtaskTagEntity::delete_many()
+            .filter(Column::SubtaskId.eq(subtask_id.to_string()))
+            .filter(Column::TagId.eq(tag_id.to_string()))
+            .exec(db)
+            .await
+            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
+
+        Ok(())
+    }
 }
 
 impl SubtaskTagLocalSqliteRepository {
@@ -85,47 +157,10 @@ impl SubtaskTagLocalSqliteRepository {
         tag_id: &TagId,
     ) -> Result<(), RepositoryError> {
         let db_manager = self.db_manager.read().await;
-        let db = db_manager
-            .get_connection()
-            .await
-            .map_err(RepositoryError::from)?;
-
-        // 既存の関連が存在するかチェック
-        let existing = SubtaskTagEntity::find()
-            .filter(Column::ProjectId.eq(project_id.to_string()))
-            .filter(Column::SubtaskId.eq(subtask_id.to_string()))
-            .filter(Column::TagId.eq(tag_id.to_string()))
-            .one(db)
-            .await
-            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-
-        if existing.is_none() {
-            // 関連が存在しない場合のみ追加
-            let now = Utc::now();
-            let active_model = crate::models::subtask_tag::ActiveModel {
-                subtask_id: Set(subtask_id.to_string()),
-                project_id: Set(project_id.to_string()),
-                tag_id: Set(tag_id.to_string()),
-                created_at: Set(now),
-                updated_at: Set(now),
-                deleted: Set(false),
-                updated_by: Set(project_id.to_string()),
-            };
-
-            tracing::info!(
-                "SQLite SubtaskTag INSERT - project: {}, subtask: {}, tag: {}",
-                project_id,
-                subtask_id,
-                tag_id
-            );
-
-            active_model
-                .insert(db)
-                .await
-                .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-        }
-
-        Ok(())
+        let txn = db_manager.begin().await?;
+        self.add_relation_with_txn(&txn, project_id, subtask_id, tag_id)
+            .await?;
+        db_manager.commit(txn).await
     }
 
     /// サブタスクとタグの関連付けを削除
@@ -135,19 +170,10 @@ impl SubtaskTagLocalSqliteRepository {
         tag_id: &TagId,
     ) -> Result<(), RepositoryError> {
         let db_manager = self.db_manager.read().await;
-        let db = db_manager
-            .get_connection()
-            .await
-            .map_err(RepositoryError::from)?;
-
-        SubtaskTagEntity::delete_many()
-            .filter(Column::SubtaskId.eq(subtask_id.to_string()))
-            .filter(Column::TagId.eq(tag_id.to_string()))
-            .exec(db)
-            .await
-            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-
-        Ok(())
+        let txn = db_manager.begin().await?;
+        self.remove_relation_with_txn(&txn, subtask_id, tag_id)
+            .await?;
+        db_manager.commit(txn).await
     }
 
     /// 指定サブタスクの全ての関連付けをトランザクション内で削除

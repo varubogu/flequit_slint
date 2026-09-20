@@ -3,6 +3,7 @@ use flequit_model::types::id_types::{ProjectId, TaskId, UserId};
 use flequit_types::errors::repository_error::RepositoryError;
 
 use super::super::InfrastructureRepositories;
+use crate::automerge_sync::{AutomergeChange, TrashChange};
 
 pub(super) async fn delete(
     repositories: &InfrastructureRepositories,
@@ -11,92 +12,45 @@ pub(super) async fn delete(
     user_id: &UserId,
     timestamp: &DateTime<Utc>,
 ) -> Result<(), RepositoryError> {
-    let snapshot = if let Some(automerge) = repositories.unified_manager.automerge_repositories() {
-        let automerge_guard = automerge.read().await;
-        match automerge_guard.projects().create_snapshot(project_id).await {
-            Ok(snapshot) => Some(snapshot),
-            Err(error) => {
-                tracing::warn!(%error, "failed to create Automerge snapshot");
-                None
-            }
-        }
-    } else {
-        None
-    };
-
-    let transaction = repositories.begin_transaction().await?;
-    let sqlite_repositories = repositories
-        .unified_manager
-        .sqlite_repositories()
-        .expect("SQLite repositories exist after transaction start");
+    // SQLite の削除と Automerge への論理削除の登録を 1 トランザクションで確定する。
+    // Automerge への反映はワーカーが後から行う
+    let sqlite_repositories = repositories.sqlite()?;
     let sqlite_guard = sqlite_repositories.read().await;
+    let txn = repositories
+        .sync_queue()?
+        .begin(vec![AutomergeChange::Trash(TrashChange::DeleteTask {
+            project_id: *project_id,
+            task_id: *task_id,
+            user_id: *user_id,
+            timestamp: *timestamp,
+        })])
+        .await?;
 
     let sqlite_result: Result<(), RepositoryError> = async {
         sqlite_guard
             .sub_tasks()
-            .remove_all_by_task_id_with_txn(&transaction, project_id, &task_id.to_string())
+            .remove_all_by_task_id_with_txn(txn.txn(), project_id, &task_id.to_string())
             .await?;
         sqlite_guard
             .task_tags
-            .remove_all_by_task_id_with_txn(&transaction, project_id, task_id)
+            .remove_all_by_task_id_with_txn(txn.txn(), project_id, task_id)
             .await?;
         sqlite_guard
             .task_assignments()
-            .remove_all_by_task_id_with_txn(&transaction, task_id)
+            .remove_all_by_task_id_with_txn(txn.txn(), task_id)
             .await?;
         sqlite_guard
             .task_recurrences
-            .remove_all_with_txn(&transaction, project_id, task_id)
+            .remove_all_with_txn(txn.txn(), project_id, task_id)
             .await?;
         sqlite_guard
             .tasks()
-            .delete_with_txn(&transaction, project_id, task_id)
+            .delete_with_txn(txn.txn(), project_id, task_id)
             .await?;
         Ok(())
     }
     .await;
     drop(sqlite_guard);
 
-    if let Err(error) = sqlite_result {
-        return Err(repositories.rollback_with_error(transaction, error).await);
-    }
-
-    if let Some(automerge) = repositories.unified_manager.automerge_repositories() {
-        let automerge_guard = automerge.read().await;
-        if let Err(error) = automerge_guard
-            .projects()
-            .mark_task_deleted(project_id, task_id, user_id, timestamp)
-            .await
-        {
-            if let Some(snapshot) = snapshot.as_ref()
-                && let Err(restore_error) = automerge_guard
-                    .projects()
-                    .restore_from_snapshot(project_id, snapshot)
-                    .await
-            {
-                tracing::error!(%restore_error, "failed to restore Automerge snapshot");
-            }
-            drop(automerge_guard);
-            return Err(repositories.rollback_with_error(transaction, error).await);
-        }
-    }
-
-    if let Err(error) = repositories.commit_transaction(transaction).await {
-        if let (Some(snapshot), Some(automerge)) = (
-            snapshot.as_ref(),
-            repositories.unified_manager.automerge_repositories(),
-        ) {
-            let automerge_guard = automerge.read().await;
-            if let Err(restore_error) = automerge_guard
-                .projects()
-                .restore_from_snapshot(project_id, snapshot)
-                .await
-            {
-                tracing::error!(%restore_error, "failed to restore Automerge snapshot");
-            }
-        }
-        return Err(error);
-    }
-
-    Ok(())
+    txn.finish(sqlite_result).await
 }

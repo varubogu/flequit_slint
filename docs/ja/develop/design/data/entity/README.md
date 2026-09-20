@@ -11,6 +11,7 @@ Flequit アプリケーションのデータベーススキーマ定義とエン
 | [`projects.md`](./projects.md) | `projects`, `task_lists`, `tasks`, `subtasks`, `tags`, `tag_bookmarks`, `members`, `task_assignments`, `subtask_assignments`, `task_tags`, `subtask_tags`, `task_recurrences`, `subtask_recurrences`, `date_conditions`, `weekday_conditions` |
 | [`settings.md`](./settings.md) | `settings`, `datetime_formats`, `due_date_buttons`, `recurrence_rules`, `recurrence_details`, `time_labels`, `view_items` |
 | [`user-preferences.md`](./user-preferences.md) | `user_tag_bookmarks` (ユーザー個人設定) |
+| [`automerge-sync-queue.md`](./automerge-sync-queue.md) | `automerge_sync_queue` (Automerge 同期キュー。インフラ層の内部テーブル) |
 
 ## 主要スキーマカテゴリ
 

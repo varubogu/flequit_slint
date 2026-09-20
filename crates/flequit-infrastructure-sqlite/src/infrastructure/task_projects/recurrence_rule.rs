@@ -37,7 +37,6 @@ use flequit_repository::repositories::task_projects::recurrence_rule_repository_
 use flequit_types::errors::repository_error::RepositoryError;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
-    TransactionTrait,
 };
 use std::sync::Arc;
 use tokio::sync::RwLock;

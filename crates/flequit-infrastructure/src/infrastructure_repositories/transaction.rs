@@ -1,32 +1,53 @@
-//! Transactional deletion for the integrated infrastructure repositories.
+//! Transactional deletion and restore for the integrated infrastructure repositories.
+//!
+//! SQLite への書き込みと Automerge 同期キューへの登録を 1 トランザクションで行う。
+//! Automerge へはワーカーが後から反映するので、Automerge 側のロールバックは要らない。
 
 mod project;
+mod restore;
 mod tag;
 mod task;
 mod task_list;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use flequit_core::ports::infrastructure_repositories::TransactionalDeletionPort;
+use flequit_core::ports::infrastructure_repositories::{
+    TransactionalDeletionPort, TransactionalRestorePort,
+};
+use flequit_infrastructure_sqlite::infrastructure::local_sqlite_repositories::LocalSqliteRepositories;
 use flequit_model::traits::TransactionManager;
 use flequit_model::types::id_types::{ProjectId, TagId, TaskId, TaskListId, UserId};
 use flequit_types::errors::repository_error::RepositoryError;
 use sea_orm::DatabaseTransaction;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 use super::InfrastructureRepositories;
+use crate::automerge_sync::{AutomergeSyncProcessor, AutomergeSyncQueue};
 
 impl InfrastructureRepositories {
-    pub(super) async fn rollback_with_error(
+    pub(super) fn sqlite(&self) -> Result<&Arc<RwLock<LocalSqliteRepositories>>, RepositoryError> {
+        self.unified_manager.sqlite_repositories().ok_or_else(|| {
+            RepositoryError::ConfigurationError("SQLite repositories not initialized".to_string())
+        })
+    }
+
+    /// 書き込みトランザクションの入口。Automerge が無効ならキューへは入れない
+    pub(super) fn sync_queue(&self) -> Result<&AutomergeSyncQueue, RepositoryError> {
+        self.unified_manager.sync_queue_ref().ok_or_else(|| {
+            RepositoryError::ConfigurationError("SQLite repositories not initialized".to_string())
+        })
+    }
+
+    /// 復元は Automerge にしか残っていない削除済みデータを読むため、Automerge が必要
+    pub(super) fn automerge_sync_or_error(
         &self,
-        transaction: DatabaseTransaction,
-        operation_error: RepositoryError,
-    ) -> RepositoryError {
-        match self.rollback_transaction(transaction).await {
-            Ok(()) => operation_error,
-            Err(rollback_error) => RepositoryError::TransactionError(format!(
-                "{operation_error}; rollback failed: {rollback_error}"
-            )),
-        }
+    ) -> Result<&Arc<AutomergeSyncProcessor>, RepositoryError> {
+        self.unified_manager.automerge_sync().ok_or_else(|| {
+            RepositoryError::ConfigurationError(
+                "restoring deleted items requires both SQLite and Automerge storage".to_string(),
+            )
+        })
     }
 
     pub(super) async fn begin_transaction(&self) -> Result<DatabaseTransaction, RepositoryError> {
@@ -114,5 +135,47 @@ impl TransactionalDeletionPort for InfrastructureRepositories {
         timestamp: &DateTime<Utc>,
     ) -> Result<(), RepositoryError> {
         tag::delete(self, project_id, tag_id, user_id, timestamp).await
+    }
+}
+
+#[async_trait]
+impl TransactionalRestorePort for InfrastructureRepositories {
+    async fn restore_project_transactionally(
+        &self,
+        project_id: &ProjectId,
+        user_id: &UserId,
+        timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError> {
+        restore::restore_project(self, project_id, user_id, timestamp).await
+    }
+
+    async fn restore_task_transactionally(
+        &self,
+        project_id: &ProjectId,
+        task_id: &TaskId,
+        user_id: &UserId,
+        timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError> {
+        restore::restore_task(self, project_id, task_id, user_id, timestamp).await
+    }
+
+    async fn restore_task_list_transactionally(
+        &self,
+        project_id: &ProjectId,
+        task_list_id: &TaskListId,
+        user_id: &UserId,
+        timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError> {
+        restore::restore_task_list(self, project_id, task_list_id, user_id, timestamp).await
+    }
+
+    async fn restore_tag_transactionally(
+        &self,
+        project_id: &ProjectId,
+        tag_id: &TagId,
+        user_id: &UserId,
+        timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError> {
+        restore::restore_tag(self, project_id, tag_id, user_id, timestamp).await
     }
 }

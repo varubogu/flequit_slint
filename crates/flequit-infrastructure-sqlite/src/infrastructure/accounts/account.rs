@@ -8,6 +8,7 @@ use crate::models::account::{ActiveModel as AccountActiveModel, Column, Entity a
 use crate::models::{DomainToSqliteConverter, SqliteModelConverter};
 use chrono::{DateTime, Utc};
 use flequit_model::models::accounts::account::Account;
+use flequit_model::traits::TransactionManager;
 use flequit_model::types::id_types::{AccountId, UserId};
 use flequit_repository::repositories::accounts::account_repository_trait::AccountRepositoryTrait;
 use flequit_repository::repositories::base_repository_trait::Repository;
@@ -193,19 +194,19 @@ impl AccountLocalSqliteRepository {
 
 impl AccountRepositoryTrait for AccountLocalSqliteRepository {}
 
-#[async_trait::async_trait]
-impl Repository<Account, AccountId> for AccountLocalSqliteRepository {
-    async fn save(
+/// トランザクション内で実行する書き込み
+///
+/// 呼び出し側（統合リポジトリ）が Automerge 同期キューへの登録と同じ
+/// トランザクションで実行するために使う。コミット・ロールバックは呼び出し側が行う。
+impl AccountLocalSqliteRepository {
+    pub async fn save_with_txn(
         &self,
+        txn: &sea_orm::DatabaseTransaction,
         account: &Account,
         _user_id: &UserId,
         _timestamp: &DateTime<Utc>,
     ) -> Result<(), RepositoryError> {
-        let db_manager = self.db_manager.read().await;
-        let db = db_manager
-            .get_connection()
-            .await
-            .map_err(RepositoryError::from)?;
+        let db = txn;
 
         // 既存のアカウントをチェック（プロバイダーとプロバイダーIDで）
         let existing = if let Some(provider_id) = &account.provider_id {
@@ -250,6 +251,36 @@ impl Repository<Account, AccountId> for AccountLocalSqliteRepository {
         }
     }
 
+    pub async fn delete_with_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        id: &AccountId,
+    ) -> Result<(), RepositoryError> {
+        let db = txn;
+
+        AccountEntity::delete_by_id(id.to_string())
+            .exec(db)
+            .await
+            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl Repository<Account, AccountId> for AccountLocalSqliteRepository {
+    async fn save(
+        &self,
+        account: &Account,
+        _user_id: &UserId,
+        _timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError> {
+        let db_manager = self.db_manager.read().await;
+        let txn = db_manager.begin().await?;
+        self.save_with_txn(&txn, account, _user_id, _timestamp)
+            .await?;
+        db_manager.commit(txn).await
+    }
+
     async fn find_by_id(&self, id: &AccountId) -> Result<Option<Account>, RepositoryError> {
         let db_manager = self.db_manager.read().await;
         let db = db_manager
@@ -274,16 +305,9 @@ impl Repository<Account, AccountId> for AccountLocalSqliteRepository {
 
     async fn delete(&self, id: &AccountId) -> Result<(), RepositoryError> {
         let db_manager = self.db_manager.read().await;
-        let db = db_manager
-            .get_connection()
-            .await
-            .map_err(RepositoryError::from)?;
-
-        AccountEntity::delete_by_id(id.to_string())
-            .exec(db)
-            .await
-            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-        Ok(())
+        let txn = db_manager.begin().await?;
+        self.delete_with_txn(&txn, id).await?;
+        db_manager.commit(txn).await
     }
 
     async fn find_all(&self) -> Result<Vec<Account>, RepositoryError> {

@@ -3,6 +3,7 @@
 //! Tag、TaskTag、SubTaskTag エンティティのUnifiedRepositoryを構築するメソッドを提供する
 
 use super::{UnifiedManager, get_default_automerge_path};
+use crate::automerge_sync::QueuedSqlite;
 use crate::unified::{SubTaskTagUnifiedRepository, TagUnifiedRepository, TaskTagUnifiedRepository};
 use flequit_infrastructure_automerge::infrastructure::task_projects::{
     subtask_tag::SubtaskTagLocalAutomergeRepository, tag::TagLocalAutomergeRepository,
@@ -32,13 +33,14 @@ impl UnifiedManager {
 
             if self.config.sqlite_storage_enabled {
                 let sqlite_repo = TagLocalSqliteRepository::new(db_manager.clone());
-                repo.add_sqlite_for_save(sqlite_repo);
+                repo.set_queued_sqlite(QueuedSqlite::new(sqlite_repo, self.sync_queue()?));
                 tracing::info!("SQLiteリポジトリを保存用に追加しました（Tag）");
             }
         }
 
         // Automergeリポジトリの設定
-        if self.config.automerge_storage_enabled {
+        // SQLite があるときは同期キュー経由で反映するため、Automerge へ直接は書かない
+        if self.config.automerge_storage_enabled && !self.config.sqlite_storage_enabled {
             let automerge_repo = if let Some(doc_manager) = &self.shared_document_manager {
                 TagLocalAutomergeRepository::new_with_manager(doc_manager.clone()).await?
             } else {
@@ -80,13 +82,14 @@ impl UnifiedManager {
             // 保存にもSQLiteリポジトリを追加
             if self.config.sqlite_storage_enabled {
                 let sqlite_repo = TaskTagLocalSqliteRepository::new(db_manager.clone());
-                repo.add_sqlite_for_save(sqlite_repo);
+                repo.set_queued_sqlite(QueuedSqlite::new(sqlite_repo, self.sync_queue()?));
                 tracing::info!("SQLiteリポジトリを保存用に追加しました（TaskTag）");
             }
         }
 
         // Automergeリポジトリの設定
-        if self.config.automerge_storage_enabled {
+        // SQLite があるときは同期キュー経由で反映するため、Automerge へ直接は書かない
+        if self.config.automerge_storage_enabled && !self.config.sqlite_storage_enabled {
             let automerge_repo = if let Some(doc_manager) = &self.shared_document_manager {
                 TaskTagLocalAutomergeRepository::new_with_manager(doc_manager.clone()).await?
             } else {
@@ -125,13 +128,14 @@ impl UnifiedManager {
 
             if self.config.sqlite_storage_enabled {
                 let sqlite_repo = SubtaskTagLocalSqliteRepository::new(db_manager.clone());
-                repo.add_sqlite_for_save(sqlite_repo);
+                repo.set_queued_sqlite(QueuedSqlite::new(sqlite_repo, self.sync_queue()?));
                 tracing::info!("SQLiteリポジトリを保存用に追加しました（SubTaskTag）");
             }
         }
 
         // Automergeリポジトリの設定
-        if self.config.automerge_storage_enabled {
+        // SQLite があるときは同期キュー経由で反映するため、Automerge へ直接は書かない
+        if self.config.automerge_storage_enabled && !self.config.sqlite_storage_enabled {
             let automerge_repo = if let Some(doc_manager) = &self.shared_document_manager {
                 SubtaskTagLocalAutomergeRepository::new_with_manager(doc_manager.clone()).await?
             } else {

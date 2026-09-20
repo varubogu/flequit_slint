@@ -1,32 +1,25 @@
 use super::*;
+use flequit_model::traits::TransactionManager;
 
 impl RecurrenceRuleRepositoryTrait for RecurrenceRuleLocalSqliteRepository {}
 
-#[async_trait]
-impl ProjectRepository<RecurrenceRule, RecurrenceRuleId> for RecurrenceRuleLocalSqliteRepository {
-    async fn save(
+/// トランザクション内で実行する書き込み
+///
+/// 呼び出し側（統合リポジトリ）が Automerge 同期キューへの登録と同じ
+/// トランザクションで実行するために使う。コミット・ロールバックは呼び出し側が行う。
+impl RecurrenceRuleLocalSqliteRepository {
+    pub async fn save_with_txn(
         &self,
+        txn: &sea_orm::DatabaseTransaction,
         project_id: &ProjectId,
         rule: &RecurrenceRule,
         _user_id: &UserId,
         _timestamp: &DateTime<Utc>,
     ) -> Result<(), RepositoryError> {
-        let db_manager = self.db_manager.read().await;
-        let db = db_manager
-            .get_connection()
-            .await
-            .map_err(RepositoryError::from)?;
-
-        // トランザクション開始
-        let txn = db
-            .begin()
-            .await
-            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-
         // 1. メインレコードの保存
         let existing =
             RecurrenceRuleEntity::find_by_id((project_id.to_string(), rule.id.to_string()))
-                .one(&txn)
+                .one(txn)
                 .await
                 .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
 
@@ -47,7 +40,7 @@ impl ProjectRepository<RecurrenceRule, RecurrenceRuleId> for RecurrenceRuleLocal
             active_model.updated_at = new_active.updated_at;
 
             active_model
-                .update(&txn)
+                .update(txn)
                 .await
                 .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
         } else {
@@ -60,13 +53,13 @@ impl ProjectRepository<RecurrenceRule, RecurrenceRuleId> for RecurrenceRuleLocal
             active_model.project_id = Set(project_id.to_string());
 
             active_model
-                .insert(&txn)
+                .insert(txn)
                 .await
                 .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
         }
 
         // 2. 既存の関連データを削除
-        self.delete_related_data(&txn, project_id, &rule.id).await?;
+        self.delete_related_data(txn, project_id, &rule.id).await?;
 
         // 3. adjustment の保存
         tracing::info!(
@@ -83,7 +76,7 @@ impl ProjectRepository<RecurrenceRule, RecurrenceRuleId> for RecurrenceRuleLocal
                 adjustment.date_conditions.len(),
                 adjustment.weekday_conditions.len()
             );
-            self.save_adjustment(&txn, project_id, &rule.id, adjustment)
+            self.save_adjustment(txn, project_id, &rule.id, adjustment)
                 .await?;
         } else {
             tracing::warn!(
@@ -94,18 +87,46 @@ impl ProjectRepository<RecurrenceRule, RecurrenceRuleId> for RecurrenceRuleLocal
 
         // 4. details の保存
         if let Some(ref details) = rule.details {
-            self.save_details(&txn, project_id, &rule.id, details)
+            self.save_details(txn, project_id, &rule.id, details)
                 .await?;
         }
 
         // 5. days_of_week の保存
-        self.save_days_of_week(&txn, project_id, rule).await?;
+        self.save_days_of_week(txn, project_id, rule).await?;
 
-        // コミット
-        txn.commit()
+        Ok(())
+    }
+
+    pub async fn delete_with_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        project_id: &ProjectId,
+        id: &RecurrenceRuleId,
+    ) -> Result<(), RepositoryError> {
+        let db = txn;
+
+        RecurrenceRuleEntity::delete_by_id((project_id.to_string(), id.to_string()))
+            .exec(db)
             .await
             .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
         Ok(())
+    }
+}
+
+#[async_trait]
+impl ProjectRepository<RecurrenceRule, RecurrenceRuleId> for RecurrenceRuleLocalSqliteRepository {
+    async fn save(
+        &self,
+        project_id: &ProjectId,
+        rule: &RecurrenceRule,
+        _user_id: &UserId,
+        _timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError> {
+        let db_manager = self.db_manager.read().await;
+        let txn = db_manager.begin().await?;
+        self.save_with_txn(&txn, project_id, rule, _user_id, _timestamp)
+            .await?;
+        db_manager.commit(txn).await
     }
 
     async fn find_by_id(
@@ -193,16 +214,9 @@ impl ProjectRepository<RecurrenceRule, RecurrenceRuleId> for RecurrenceRuleLocal
         id: &RecurrenceRuleId,
     ) -> Result<(), RepositoryError> {
         let db_manager = self.db_manager.read().await;
-        let db = db_manager
-            .get_connection()
-            .await
-            .map_err(RepositoryError::from)?;
-
-        RecurrenceRuleEntity::delete_by_id((project_id.to_string(), id.to_string()))
-            .exec(db)
-            .await
-            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-        Ok(())
+        let txn = db_manager.begin().await?;
+        self.delete_with_txn(&txn, project_id, id).await?;
+        db_manager.commit(txn).await
     }
 
     async fn exists(

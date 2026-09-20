@@ -5,8 +5,9 @@
 //! 1. Resolve the platform backend (paths, capabilities).
 //! 2. Initialise logging with a platform-appropriate sink.
 //! 3. Build the Tokio runtime.
-//! 4. Set up infrastructure (SQLite + Automerge).
+//! 4. Set up infrastructure (SQLite + Automerge) and start the Automerge sync worker.
 //! 5. Create the window, wire the ViewModel, run the event loop.
+//! 6. On exit, give the sync worker a moment to apply what is still queued.
 //!
 //! Nothing below this crate constructs a runtime or reads a hardcoded path.
 
@@ -74,6 +75,9 @@ pub fn run() -> Result<(), BootstrapError> {
     let runtime = build_runtime(platform.as_ref())?;
     let (user_settings, settings_store) = load_settings(&runtime, platform.as_ref())?;
     let repositories = runtime.block_on(setup_infrastructure(platform.as_ref()))?;
+    // Writes commit to SQLite only; this worker applies them to Automerge in the
+    // background. It also picks up whatever the previous session left queued.
+    let automerge_sync = repositories.start_automerge_sync(runtime.handle());
 
     let window = AppWindow::new()?;
     let view_model = AppViewModel::new_with_settings(
@@ -96,8 +100,20 @@ pub fn run() -> Result<(), BootstrapError> {
     window.run()?;
 
     tracing::info!("shutting down");
+    if let Some(automerge_sync) = automerge_sync
+        && !runtime.block_on(automerge_sync.shutdown(AUTOMERGE_SYNC_SHUTDOWN_TIMEOUT))
+    {
+        // Nothing is lost: the queue lives in SQLite and the next launch resumes it.
+        tracing::warn!("Automerge sync did not finish before exit; it resumes on next launch");
+    }
     Ok(())
 }
+
+/// How long closing the window may wait for queued changes to reach Automerge.
+///
+/// Short enough that quitting still feels immediate. Anything left over stays
+/// in the SQLite queue and is applied on the next launch.
+const AUTOMERGE_SYNC_SHUTDOWN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
 
 struct AppSettingsStore {
     manager: Arc<SettingsManager>,

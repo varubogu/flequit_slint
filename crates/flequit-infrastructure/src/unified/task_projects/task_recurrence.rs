@@ -12,6 +12,8 @@ use flequit_repository::repositories::project_relation_repository_trait::Project
 use flequit_repository::repositories::task_projects::task_recurrence_repository_trait::TaskRecurrenceRepositoryTrait;
 use flequit_types::errors::repository_error::RepositoryError;
 
+use crate::automerge_sync::{AutomergeChange, QueuedSqlite, RelationChange};
+
 #[derive(Debug)]
 pub enum TaskRecurrenceRepositoryVariant {
     LocalSqlite(TaskRecurrenceLocalSqliteRepository),
@@ -127,6 +129,8 @@ impl ProjectRelationRepository<TaskRecurrence, TaskId, RecurrenceRuleId>
 pub struct TaskRecurrenceUnifiedRepository {
     save_repositories: Vec<TaskRecurrenceRepositoryVariant>,
     search_repositories: Vec<TaskRecurrenceRepositoryVariant>,
+    /// SQLite への書き込み先と Automerge 同期キュー。SQLite ストレージが有効なときにある
+    queued_sqlite: Option<QueuedSqlite<TaskRecurrenceLocalSqliteRepository>>,
 }
 
 impl Default for TaskRecurrenceUnifiedRepository {
@@ -143,12 +147,19 @@ impl TaskRecurrenceUnifiedRepository {
         Self {
             save_repositories,
             search_repositories,
+            queued_sqlite: None,
         }
     }
 
     pub fn add_sqlite_for_save(&mut self, sqlite_repo: TaskRecurrenceLocalSqliteRepository) {
         self.save_repositories
             .push(TaskRecurrenceRepositoryVariant::LocalSqlite(sqlite_repo));
+    }
+
+    /// 書き込みを「Automerge 同期キューへの登録 + SQLite への書き込み」の
+    /// 1 トランザクションにする。Automerge へはワーカーが後から反映する
+    pub fn set_queued_sqlite(&mut self, queued: QueuedSqlite<TaskRecurrenceLocalSqliteRepository>) {
+        self.queued_sqlite = Some(queued);
     }
 
     pub fn add_automerge_for_save(
@@ -177,7 +188,7 @@ impl TaskRecurrenceUnifiedRepository {
     }
 
     pub fn save_repositories_count(&self) -> usize {
-        self.save_repositories.len()
+        self.save_repositories.len() + usize::from(self.queued_sqlite.is_some())
     }
 
     pub fn search_repositories_count(&self) -> usize {
@@ -203,6 +214,30 @@ impl ProjectRelationRepository<TaskRecurrence, TaskId, RecurrenceRuleId>
             "Adding task recurrence relation - project: {}, task: {}, rule: {}",
             project_id, parent_id, child_id
         );
+        if let Some(queued) = &self.queued_sqlite {
+            let txn = queued
+                .queue
+                .begin(vec![AutomergeChange::TaskRecurrence(RelationChange::Add {
+                    project_id: *project_id,
+                    parent_id: *parent_id,
+                    child_id: *child_id,
+                    user_id: *user_id,
+                    timestamp: *timestamp,
+                })])
+                .await?;
+            let result = queued
+                .sqlite
+                .add_with_txn(
+                    txn.txn(),
+                    project_id,
+                    parent_id,
+                    child_id,
+                    user_id,
+                    timestamp,
+                )
+                .await;
+            return txn.finish(result).await;
+        }
 
         info!(
             "TaskRecurrenceUnifiedRepository::add - save_repositories count: {}",
@@ -237,6 +272,23 @@ impl ProjectRelationRepository<TaskRecurrence, TaskId, RecurrenceRuleId>
             "Removing task recurrence relation - project: {}, task: {}, rule: {}",
             project_id, parent_id, child_id
         );
+        if let Some(queued) = &self.queued_sqlite {
+            let txn = queued
+                .queue
+                .begin(vec![AutomergeChange::TaskRecurrence(
+                    RelationChange::Remove {
+                        project_id: *project_id,
+                        parent_id: *parent_id,
+                        child_id: *child_id,
+                    },
+                )])
+                .await?;
+            let result = queued
+                .sqlite
+                .remove_with_txn(txn.txn(), project_id, parent_id, child_id)
+                .await;
+            return txn.finish(result).await;
+        }
 
         for repository in &self.save_repositories {
             repository.remove(project_id, parent_id, child_id).await?;
@@ -254,6 +306,22 @@ impl ProjectRelationRepository<TaskRecurrence, TaskId, RecurrenceRuleId>
             "Removing all recurrence relations for task - project: {}, task: {}",
             project_id, parent_id
         );
+        if let Some(queued) = &self.queued_sqlite {
+            let txn = queued
+                .queue
+                .begin(vec![AutomergeChange::TaskRecurrence(
+                    RelationChange::RemoveAll {
+                        project_id: *project_id,
+                        parent_id: *parent_id,
+                    },
+                )])
+                .await?;
+            let result = queued
+                .sqlite
+                .remove_all_with_txn(txn.txn(), project_id, parent_id)
+                .await;
+            return txn.finish(result).await;
+        }
 
         for repository in &self.save_repositories {
             repository.remove_all(project_id, parent_id).await?;

@@ -9,6 +9,7 @@ use crate::models::{
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use flequit_model::models::task_projects::tag::Tag;
+use flequit_model::traits::TransactionManager;
 use flequit_model::types::id_types::{ProjectId, TagId, UserId};
 use flequit_repository::repositories::project_repository_trait::ProjectRepository;
 use flequit_types::errors::repository_error::RepositoryError;
@@ -234,20 +235,37 @@ impl TagLocalSqliteRepository {
     }
 }
 
-#[async_trait]
-impl ProjectRepository<Tag, TagId> for TagLocalSqliteRepository {
-    async fn save(
+/// トランザクション内で実行する書き込み
+///
+/// 呼び出し側（統合リポジトリ）が Automerge 同期キューへの登録と同じ
+/// トランザクションで実行するために使う。コミット・ロールバックは呼び出し側が行う。
+impl TagLocalSqliteRepository {
+    /// トランザクション内でタグの存在を確認する
+    ///
+    /// 同じトランザクションで作成したばかりのタグも見えるよう、プールの別接続ではなく
+    /// `txn` で読む。
+    pub async fn exists_with_txn(
         &self,
+        txn: &sea_orm::DatabaseTransaction,
+        project_id: &ProjectId,
+        tag_id: &TagId,
+    ) -> Result<bool, RepositoryError> {
+        let found = TagEntity::find_by_id((project_id.to_string(), tag_id.to_string()))
+            .one(txn)
+            .await
+            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
+        Ok(found.is_some())
+    }
+
+    pub async fn save_with_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
         project_id: &ProjectId,
         tag: &Tag,
         _user_id: &UserId,
         _timestamp: &DateTime<Utc>,
     ) -> Result<(), RepositoryError> {
-        let db_manager = self.db_manager.read().await;
-        let db = db_manager
-            .get_connection()
-            .await
-            .map_err(RepositoryError::from)?;
+        let db = txn;
 
         // 名前での重複チェック（プロジェクト内のみ）
         let existing_by_name = self.find_by_name_in_project(project_id, &tag.name).await?;
@@ -295,6 +313,23 @@ impl ProjectRepository<Tag, TagId> for TagLocalSqliteRepository {
                 .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
             Ok(())
         }
+    }
+}
+
+#[async_trait]
+impl ProjectRepository<Tag, TagId> for TagLocalSqliteRepository {
+    async fn save(
+        &self,
+        project_id: &ProjectId,
+        tag: &Tag,
+        _user_id: &UserId,
+        _timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError> {
+        let db_manager = self.db_manager.read().await;
+        let txn = db_manager.begin().await?;
+        self.save_with_txn(&txn, project_id, tag, _user_id, _timestamp)
+            .await?;
+        db_manager.commit(txn).await
     }
 
     async fn find_by_id(

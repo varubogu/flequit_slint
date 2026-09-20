@@ -7,6 +7,7 @@ use crate::models::user_preferences::tag_bookmark::{
 };
 use crate::models::{DomainToSqliteConverter, SqliteModelConverter};
 use flequit_model::models::user_preferences::tag_bookmark::TagBookmark;
+use flequit_model::traits::TransactionManager;
 use flequit_model::types::id_types::{ProjectId, TagBookmarkId, TagId, UserId};
 use flequit_types::errors::repository_error::RepositoryError;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
@@ -18,18 +19,17 @@ pub struct TagBookmarkLocalSqliteRepository {
     db_manager: Arc<RwLock<DatabaseManager>>,
 }
 
+/// トランザクション内で実行する書き込み
+///
+/// 呼び出し側（統合リポジトリ）が Automerge 同期キューへの登録と同じ
+/// トランザクションで実行するために使う。コミット・ロールバックは呼び出し側が行う。
 impl TagBookmarkLocalSqliteRepository {
-    pub fn new(db_manager: Arc<RwLock<DatabaseManager>>) -> Self {
-        Self { db_manager }
-    }
-
-    /// ブックマークを作成
-    pub async fn create(&self, bookmark: &TagBookmark) -> Result<(), RepositoryError> {
-        let db_manager = self.db_manager.read().await;
-        let db = db_manager
-            .get_connection()
-            .await
-            .map_err(RepositoryError::from)?;
+    pub async fn create_with_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        bookmark: &TagBookmark,
+    ) -> Result<(), RepositoryError> {
+        let db = txn;
 
         let active_model = bookmark
             .to_sqlite_model()
@@ -42,6 +42,75 @@ impl TagBookmarkLocalSqliteRepository {
             .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
 
         Ok(())
+    }
+
+    pub async fn update_with_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        bookmark: &TagBookmark,
+    ) -> Result<(), RepositoryError> {
+        let db = txn;
+
+        let existing = TagBookmarkEntity::find_by_id(bookmark.id.to_string())
+            .one(db)
+            .await
+            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?
+            .ok_or_else(|| {
+                RepositoryError::NotFound(format!("TagBookmark not found: {}", bookmark.id))
+            })?;
+
+        let mut active_model: TagBookmarkActiveModel = existing.into();
+
+        // 更新可能なフィールドのみを更新
+        active_model.order_index = Set(bookmark.order_index);
+        active_model.updated_at = Set(bookmark.updated_at);
+
+        active_model
+            .update(db)
+            .await
+            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
+
+        Ok(())
+    }
+
+    pub async fn update_bulk_with_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        bookmarks: &[TagBookmark],
+    ) -> Result<(), RepositoryError> {
+        for bookmark in bookmarks {
+            self.update_with_txn(txn, bookmark).await?;
+        }
+        Ok(())
+    }
+
+    pub async fn delete_with_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        id: &TagBookmarkId,
+    ) -> Result<(), RepositoryError> {
+        let db = txn;
+
+        TagBookmarkEntity::delete_by_id(id.to_string())
+            .exec(db)
+            .await
+            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
+
+        Ok(())
+    }
+}
+
+impl TagBookmarkLocalSqliteRepository {
+    pub fn new(db_manager: Arc<RwLock<DatabaseManager>>) -> Self {
+        Self { db_manager }
+    }
+
+    /// ブックマークを作成
+    pub async fn create(&self, bookmark: &TagBookmark) -> Result<(), RepositoryError> {
+        let db_manager = self.db_manager.read().await;
+        let txn = db_manager.begin().await?;
+        self.create_with_txn(&txn, bookmark).await?;
+        db_manager.commit(txn).await
     }
 
     /// ブックマークをIDで検索
@@ -197,31 +266,9 @@ impl TagBookmarkLocalSqliteRepository {
     /// ブックマークを更新
     pub async fn update(&self, bookmark: &TagBookmark) -> Result<(), RepositoryError> {
         let db_manager = self.db_manager.read().await;
-        let db = db_manager
-            .get_connection()
-            .await
-            .map_err(RepositoryError::from)?;
-
-        let existing = TagBookmarkEntity::find_by_id(bookmark.id.to_string())
-            .one(db)
-            .await
-            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?
-            .ok_or_else(|| {
-                RepositoryError::NotFound(format!("TagBookmark not found: {}", bookmark.id))
-            })?;
-
-        let mut active_model: TagBookmarkActiveModel = existing.into();
-
-        // 更新可能なフィールドのみを更新
-        active_model.order_index = Set(bookmark.order_index);
-        active_model.updated_at = Set(bookmark.updated_at);
-
-        active_model
-            .update(db)
-            .await
-            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-
-        Ok(())
+        let txn = db_manager.begin().await?;
+        self.update_with_txn(&txn, bookmark).await?;
+        db_manager.commit(txn).await
     }
 
     /// 複数のブックマークを一括更新（並び替え用）
@@ -235,17 +282,9 @@ impl TagBookmarkLocalSqliteRepository {
     /// ブックマークを削除
     pub async fn delete(&self, id: &TagBookmarkId) -> Result<(), RepositoryError> {
         let db_manager = self.db_manager.read().await;
-        let db = db_manager
-            .get_connection()
-            .await
-            .map_err(RepositoryError::from)?;
-
-        TagBookmarkEntity::delete_by_id(id.to_string())
-            .exec(db)
-            .await
-            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-
-        Ok(())
+        let txn = db_manager.begin().await?;
+        self.delete_with_txn(&txn, id).await?;
+        db_manager.commit(txn).await
     }
 
     /// ユーザーとプロジェクトにおける最大order_indexを取得

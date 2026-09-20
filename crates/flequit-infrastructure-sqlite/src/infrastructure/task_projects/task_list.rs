@@ -7,6 +7,7 @@ use crate::models::{DomainToSqliteConverterWithProjectId, SqliteModelConverter};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use flequit_model::models::task_projects::task_list::TaskList;
+use flequit_model::traits::TransactionManager;
 use flequit_model::types::id_types::{ProjectId, TaskListId, UserId};
 use flequit_repository::repositories::project_patchable_trait::ProjectPatchable;
 use flequit_repository::repositories::project_repository_trait::ProjectRepository;
@@ -91,20 +92,20 @@ impl TaskListLocalSqliteRepository {
     }
 }
 
-#[async_trait]
-impl ProjectRepository<TaskList, TaskListId> for TaskListLocalSqliteRepository {
-    async fn save(
+/// トランザクション内で実行する書き込み
+///
+/// 呼び出し側（統合リポジトリ）が Automerge 同期キューへの登録と同じ
+/// トランザクションで実行するために使う。コミット・ロールバックは呼び出し側が行う。
+impl TaskListLocalSqliteRepository {
+    pub async fn save_with_txn(
         &self,
+        txn: &sea_orm::DatabaseTransaction,
         project_id: &ProjectId,
         task_list: &TaskList,
         _user_id: &UserId,
         _timestamp: &DateTime<Utc>,
     ) -> Result<(), RepositoryError> {
-        let db_manager = self.db_manager.read().await;
-        let db = db_manager
-            .get_connection()
-            .await
-            .map_err(RepositoryError::from)?;
+        let db = txn;
         let active_model = task_list
             .to_sqlite_model_with_project_id(project_id)
             .await
@@ -131,6 +132,23 @@ impl ProjectRepository<TaskList, TaskListId> for TaskListLocalSqliteRepository {
                 .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
         }
         Ok(())
+    }
+}
+
+#[async_trait]
+impl ProjectRepository<TaskList, TaskListId> for TaskListLocalSqliteRepository {
+    async fn save(
+        &self,
+        project_id: &ProjectId,
+        task_list: &TaskList,
+        _user_id: &UserId,
+        _timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError> {
+        let db_manager = self.db_manager.read().await;
+        let txn = db_manager.begin().await?;
+        self.save_with_txn(&txn, project_id, task_list, _user_id, _timestamp)
+            .await?;
+        db_manager.commit(txn).await
     }
 
     async fn find_by_id(

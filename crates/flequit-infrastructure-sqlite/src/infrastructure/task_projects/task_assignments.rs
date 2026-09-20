@@ -7,6 +7,7 @@ use crate::models::task_assignments::{Column, Entity as TaskAssignmentEntity};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use flequit_model::models::task_projects::task_assignment::TaskAssignment;
+use flequit_model::traits::TransactionManager;
 use flequit_model::types::id_types::{ProjectId, TaskId, UserId};
 use flequit_repository::repositories::project_relation_repository_trait::ProjectRelationRepository;
 use flequit_types::errors::repository_error::RepositoryError;
@@ -20,6 +21,69 @@ use tokio::sync::RwLock;
 #[derive(Debug)]
 pub struct TaskAssignmentLocalSqliteRepository {
     db_manager: Arc<RwLock<DatabaseManager>>,
+}
+
+/// トランザクション内で実行する書き込み
+///
+/// 呼び出し側（統合リポジトリ）が Automerge 同期キューへの登録と同じ
+/// トランザクションで実行するために使う。コミット・ロールバックは呼び出し側が行う。
+impl TaskAssignmentLocalSqliteRepository {
+    pub async fn add_assignment_with_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        project_id: &ProjectId,
+        task_id: &TaskId,
+        user_id: &UserId,
+    ) -> Result<(), RepositoryError> {
+        let db = txn;
+
+        // 既存の割り当てが存在するかチェック
+        let existing = TaskAssignmentEntity::find()
+            .filter(Column::TaskId.eq(task_id.to_string()))
+            .filter(Column::UserId.eq(user_id.to_string()))
+            .one(db)
+            .await
+            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
+
+        if existing.is_none() {
+            // 割り当てが存在しない場合のみ追加
+            let now = Utc::now();
+            let active_model = crate::models::task_assignments::ActiveModel {
+                task_id: Set(task_id.to_string()),
+                project_id: Set(project_id.to_string()),
+                user_id: Set(user_id.to_string()),
+                created_at: Set(now),
+                updated_at: Set(now),
+                deleted: Set(false),
+                updated_by: Set(user_id.to_string()),
+            };
+
+            active_model
+                .insert(db)
+                .await
+                .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn remove_assignment_with_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        task_id: &TaskId,
+        user_id: &UserId,
+    ) -> Result<(), RepositoryError> {
+        let db = txn;
+
+        TaskAssignmentEntity::delete_many()
+            .filter(Column::TaskId.eq(task_id.to_string()))
+            .filter(Column::UserId.eq(user_id.to_string()))
+            .exec(db)
+            .await
+            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
+
+        Ok(())
+    }
 }
 
 impl TaskAssignmentLocalSqliteRepository {
@@ -85,39 +149,10 @@ impl TaskAssignmentLocalSqliteRepository {
         user_id: &UserId,
     ) -> Result<(), RepositoryError> {
         let db_manager = self.db_manager.read().await;
-        let db = db_manager
-            .get_connection()
-            .await
-            .map_err(RepositoryError::from)?;
-
-        // 既存の割り当てが存在するかチェック
-        let existing = TaskAssignmentEntity::find()
-            .filter(Column::TaskId.eq(task_id.to_string()))
-            .filter(Column::UserId.eq(user_id.to_string()))
-            .one(db)
-            .await
-            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-
-        if existing.is_none() {
-            // 割り当てが存在しない場合のみ追加
-            let now = Utc::now();
-            let active_model = crate::models::task_assignments::ActiveModel {
-                task_id: Set(task_id.to_string()),
-                project_id: Set(project_id.to_string()),
-                user_id: Set(user_id.to_string()),
-                created_at: Set(now),
-                updated_at: Set(now),
-                deleted: Set(false),
-                updated_by: Set(user_id.to_string()),
-            };
-
-            active_model
-                .insert(db)
-                .await
-                .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-        }
-
-        Ok(())
+        let txn = db_manager.begin().await?;
+        self.add_assignment_with_txn(&txn, project_id, task_id, user_id)
+            .await?;
+        db_manager.commit(txn).await
     }
 
     /// タスクとユーザーの割り当てを削除
@@ -127,19 +162,10 @@ impl TaskAssignmentLocalSqliteRepository {
         user_id: &UserId,
     ) -> Result<(), RepositoryError> {
         let db_manager = self.db_manager.read().await;
-        let db = db_manager
-            .get_connection()
-            .await
-            .map_err(RepositoryError::from)?;
-
-        TaskAssignmentEntity::delete_many()
-            .filter(Column::TaskId.eq(task_id.to_string()))
-            .filter(Column::UserId.eq(user_id.to_string()))
-            .exec(db)
-            .await
-            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-
-        Ok(())
+        let txn = db_manager.begin().await?;
+        self.remove_assignment_with_txn(&txn, task_id, user_id)
+            .await?;
+        db_manager.commit(txn).await
     }
 
     /// 指定タスクの全ての割り当てをトランザクション内で削除

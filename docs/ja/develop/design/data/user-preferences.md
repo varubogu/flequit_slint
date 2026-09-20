@@ -51,7 +51,8 @@
 
 ### 同期フロー
 
-端末 A での設定変更 → SQLite + Automerge を更新 → 同期サーバ (将来) 経由 → 端末 B が Automerge を受信 → SQLite に反映。
+端末 A での設定変更 → SQLite を更新し、同じトランザクションで Automerge 同期キューへ登録 → ワーカーが Automerge へ反映 → 同期サーバ (将来) 経由 → 端末 B が Automerge を受信 → SQLite に反映。
+キューの仕組みは [`automerge-sync-queue.md`](./automerge-sync-queue.md) を参照。
 
 ## `user_id` の扱い
 
@@ -71,6 +72,7 @@
 ### 3. SQLite と Automerge の整合性
 
 両方に同じデータを保存。SQLite は読み取り最適化、Automerge は同期最適化。
+SQLite が先に確定し、Automerge は同期キュー経由で追いつく（結果整合）。
 
 ## 拡張計画
 

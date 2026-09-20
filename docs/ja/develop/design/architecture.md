@@ -35,8 +35,9 @@
   - facade がトランザクション境界と複数 service の協調を担当
 - データアクセスレイヤー
   - Automerge をベースとしたデータ構造
-  - ローカルでは SQLite を併用し、**データ検索は SQLite のみ**、
-    **データ更新は SQLite → Automerge の順** で保存する
+  - ローカルでは SQLite を併用し、**データ検索は SQLite のみ**。
+    **データ更新は SQLite に確定し、Automerge へは同期キュー経由でバックグラウンドで反映する**
+    （`design/data/automerge-sync-queue.md`）
   - クラウドストレージ（Automerge）の同期も対応
   - 将来的に Git でも同期可能
 

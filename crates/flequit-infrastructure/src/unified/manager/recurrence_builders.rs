@@ -3,6 +3,7 @@
 //! RecurrenceRule、TaskRecurrence、SubTaskRecurrence エンティティのUnifiedRepositoryを構築するメソッドを提供する
 
 use super::{UnifiedManager, get_default_automerge_path};
+use crate::automerge_sync::QueuedSqlite;
 use crate::unified::{
     RecurrenceRuleUnifiedRepository, SubTaskRecurrenceUnifiedRepository,
     TaskRecurrenceUnifiedRepository,
@@ -37,13 +38,14 @@ impl UnifiedManager {
 
             if self.config.sqlite_storage_enabled {
                 let sqlite_repo = RecurrenceRuleLocalSqliteRepository::new(db_manager.clone());
-                repo.add_sqlite_for_save(sqlite_repo);
+                repo.set_queued_sqlite(QueuedSqlite::new(sqlite_repo, self.sync_queue()?));
                 tracing::info!("SQLiteリポジトリを保存用に追加しました（RecurrenceRule）");
             }
         }
 
         // Automergeリポジトリの設定
-        if self.config.automerge_storage_enabled {
+        // SQLite があるときは同期キュー経由で反映するため、Automerge へ直接は書かない
+        if self.config.automerge_storage_enabled && !self.config.sqlite_storage_enabled {
             let automerge_repo = if let Some(doc_manager) = &self.shared_document_manager {
                 RecurrenceRuleLocalAutomergeRepository::new_with_manager(doc_manager.clone())
                     .await?
@@ -84,13 +86,14 @@ impl UnifiedManager {
 
             if self.config.sqlite_storage_enabled {
                 let sqlite_repo = TaskRecurrenceLocalSqliteRepository::new(db_manager.clone());
-                repo.add_sqlite_for_save(sqlite_repo);
+                repo.set_queued_sqlite(QueuedSqlite::new(sqlite_repo, self.sync_queue()?));
                 tracing::info!("SQLiteリポジトリを保存用に追加しました（TaskRecurrence）");
             }
         }
 
         // Automergeリポジトリの設定
-        if self.config.automerge_storage_enabled {
+        // SQLite があるときは同期キュー経由で反映するため、Automerge へ直接は書かない
+        if self.config.automerge_storage_enabled && !self.config.sqlite_storage_enabled {
             let automerge_repo = if let Some(doc_manager) = &self.shared_document_manager {
                 TaskRecurrenceLocalAutomergeRepository::new_with_manager(doc_manager.clone())
                     .await?
@@ -131,13 +134,14 @@ impl UnifiedManager {
 
             if self.config.sqlite_storage_enabled {
                 let sqlite_repo = SubtaskRecurrenceLocalSqliteRepository::new(db_manager.clone());
-                repo.add_sqlite_for_save(sqlite_repo);
+                repo.set_queued_sqlite(QueuedSqlite::new(sqlite_repo, self.sync_queue()?));
                 tracing::info!("SQLiteリポジトリを保存用に追加しました（SubTaskRecurrence）");
             }
         }
 
         // Automergeリポジトリの設定
-        if self.config.automerge_storage_enabled {
+        // SQLite があるときは同期キュー経由で反映するため、Automerge へ直接は書かない
+        if self.config.automerge_storage_enabled && !self.config.sqlite_storage_enabled {
             let automerge_repo = if let Some(doc_manager) = &self.shared_document_manager {
                 SubtaskRecurrenceLocalAutomergeRepository::new_with_manager(doc_manager.clone())
                     .await?

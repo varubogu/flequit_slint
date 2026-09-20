@@ -1,7 +1,5 @@
 use crate::InfrastructureRepositoriesTrait;
-use crate::ports::infrastructure_repositories::{
-    TagBookmarkAutomergeRepositoryPort, TagBookmarkSqliteRepositoryPort,
-};
+use crate::ports::infrastructure_repositories::TagBookmarkRepositoryPort;
 use chrono::Utc;
 use flequit_model::models::user_preferences::tag_bookmark::TagBookmark;
 use flequit_model::types::id_types::{ProjectId, TagBookmarkId, TagId, UserId};
@@ -17,7 +15,7 @@ where
 {
     // 既に同じブックマークが存在するか確認
     let existing = repositories
-        .tag_bookmarks_sqlite()
+        .tag_bookmarks()
         .find_by_user_project_tag(&bookmark.user_id, &bookmark.project_id, &bookmark.tag_id)
         .await?;
 
@@ -32,17 +30,7 @@ where
     new_bookmark.created_at = now;
     new_bookmark.updated_at = now;
 
-    // SQLiteに保存
-    repositories
-        .tag_bookmarks_sqlite()
-        .create(&new_bookmark)
-        .await?;
-
-    // Automergeに保存
-    repositories
-        .tag_bookmarks_automerge()
-        .create(&new_bookmark)
-        .await?;
+    repositories.tag_bookmarks().create(&new_bookmark).await?;
 
     Ok(())
 }
@@ -58,7 +46,7 @@ where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
     repositories
-        .tag_bookmarks_sqlite()
+        .tag_bookmarks()
         .find_by_user_project_tag(user_id, project_id, tag_id)
         .await
         .map_err(ServiceError::from)
@@ -74,7 +62,7 @@ where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
     repositories
-        .tag_bookmarks_sqlite()
+        .tag_bookmarks()
         .find_by_user_and_project(user_id, project_id)
         .await
         .map_err(ServiceError::from)
@@ -89,7 +77,7 @@ where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
     repositories
-        .tag_bookmarks_sqlite()
+        .tag_bookmarks()
         .find_by_user(user_id)
         .await
         .map_err(ServiceError::from)
@@ -106,15 +94,8 @@ where
     let mut updated_bookmark = bookmark.clone();
     updated_bookmark.updated_at = Utc::now();
 
-    // SQLiteを更新
     repositories
-        .tag_bookmarks_sqlite()
-        .update(&updated_bookmark)
-        .await?;
-
-    // Automergeを更新
-    repositories
-        .tag_bookmarks_automerge()
+        .tag_bookmarks()
         .update(&updated_bookmark)
         .await?;
 
@@ -139,45 +120,29 @@ where
         })
         .collect();
 
-    // SQLiteを一括更新
     repositories
-        .tag_bookmarks_sqlite()
+        .tag_bookmarks()
         .update_bulk(&updated_bookmarks)
         .await?;
-
-    // Automergeを一括更新
-    for bookmark in &updated_bookmarks {
-        repositories
-            .tag_bookmarks_automerge()
-            .update(bookmark)
-            .await?;
-    }
 
     Ok(())
 }
 
 /// ブックマークを削除
+///
+/// Automerge 側の削除に使うユーザー・プロジェクト・タグは、リポジトリが
+/// `bookmark_id` の行から引く。残りの引数は呼び出し互換のためだけにある。
 pub async fn delete_bookmark<R>(
     repositories: &R,
     bookmark_id: &TagBookmarkId,
-    user_id: &UserId,
-    project_id: &ProjectId,
-    tag_id: &TagId,
+    _user_id: &UserId,
+    _project_id: &ProjectId,
+    _tag_id: &TagId,
 ) -> Result<(), ServiceError>
 where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
-    // SQLiteから削除
-    repositories
-        .tag_bookmarks_sqlite()
-        .delete(bookmark_id)
-        .await?;
-
-    // Automergeから削除
-    repositories
-        .tag_bookmarks_automerge()
-        .delete(user_id, project_id, tag_id)
-        .await?;
+    repositories.tag_bookmarks().delete(bookmark_id).await?;
 
     Ok(())
 }
@@ -193,7 +158,7 @@ where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
     let bookmark = repositories
-        .tag_bookmarks_sqlite()
+        .tag_bookmarks()
         .find_by_user_project_tag(user_id, project_id, tag_id)
         .await?;
 
@@ -210,7 +175,7 @@ where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
     let max_order = repositories
-        .tag_bookmarks_sqlite()
+        .tag_bookmarks()
         .get_max_order_index(user_id, project_id)
         .await?;
 
@@ -265,23 +230,13 @@ where
 {
     // タグに紐づくブックマークを取得
     let bookmarks = repositories
-        .tag_bookmarks_sqlite()
+        .tag_bookmarks()
         .find_by_project_and_tag(project_id, tag_id)
         .await?;
 
     // 各ブックマークを削除
     for bookmark in bookmarks {
-        // SQLiteから削除
-        repositories
-            .tag_bookmarks_sqlite()
-            .delete(&bookmark.id)
-            .await?;
-
-        // Automergeから削除
-        repositories
-            .tag_bookmarks_automerge()
-            .delete(&bookmark.user_id, &bookmark.project_id, &bookmark.tag_id)
-            .await?;
+        repositories.tag_bookmarks().delete(&bookmark.id).await?;
     }
 
     Ok(())

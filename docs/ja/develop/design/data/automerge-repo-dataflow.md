@@ -81,9 +81,20 @@ Slint UI → ViewModel → Facade → Service → Repository
 - **SQLite**: 最新データの高速アクセス、インデックス・クエリ最適化
 - **Automerge**: 履歴管理・同期機能に特化
 - **読み込み**: SQLite から最新データを取得 (高速)
-- **書き込み**: SQLite + Automerge 両方を更新 (整合性保証)
+- **書き込み**: SQLite へのエンティティの書き込みと Automerge 同期キューへの登録を
+  1 トランザクションで確定する。Automerge へはワーカーがバックグラウンドで反映する
+  （結果整合。詳細は [`automerge-sync-queue.md`](./automerge-sync-queue.md)）
 - **同期**: Automerge の変更を SQLite に反映
 - **履歴**: Automerge から過去データへアクセス
+
+```text
+Repository（統合リポジトリ）
+    ├─ SQLite: エンティティ CRUD ┐ 同一トランザクション
+    └─ SQLite: 同期キュー INSERT ┘
+                    │ コミット後に通知
+                    ▼
+        ワーカー → Automerge ドキュメントへ適用 → processed
+```
 
 ## 5. ファイルストレージと DocumentId マッピング
 
@@ -198,6 +209,11 @@ Tauri 版にあった `CommandError`（IPC 用の文字列化エラー）は不�
 
 - **削除済みエンティティへの操作**: `.deleted/` 配下のドキュメントへの操作は `RepositoryError` で失敗
 - **バリデーションエラー**: 必須フィールド不足・型制約違反等。入力値検証は Service、データ制約は Repository
+
+### Automerge への反映エラー
+
+- 書き込み操作そのものは SQLite のコミットで成功する。Automerge への反映の失敗は
+  ワーカーが再試行し、UI にはエラーを返さない（[`automerge-sync-queue.md`](./automerge-sync-queue.md) §5）
 
 ### 同期エラー
 

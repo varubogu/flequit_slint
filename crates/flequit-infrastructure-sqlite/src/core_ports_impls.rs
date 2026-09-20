@@ -4,7 +4,7 @@ use flequit_core::ports::infrastructure_repositories::{
     SqliteSubtaskTagRepositoryPort, SqliteTagBookmarkRepositoryPort, SqliteTagRepositoryPort,
     SqliteTaskAssignmentRepositoryPort, SqliteTaskListRepositoryPort,
     SqliteTaskRecurrenceRepositoryPort, SqliteTaskRepositoryPort, SqliteTaskTagRepositoryPort,
-    TagBookmarkSqliteRepositoryPort,
+    TagBookmarkRepositoryPort,
 };
 use flequit_model::models::user_preferences::tag_bookmark::TagBookmark;
 use flequit_model::types::id_types::{ProjectId, TagBookmarkId, TagId, TaskId, TaskListId, UserId};
@@ -24,7 +24,7 @@ use crate::infrastructure::task_projects::task_tag::TaskTagLocalSqliteRepository
 use crate::infrastructure::user_preferences::tag_bookmark::TagBookmarkLocalSqliteRepository;
 
 #[async_trait]
-impl TagBookmarkSqliteRepositoryPort for TagBookmarkLocalSqliteRepository {
+impl TagBookmarkRepositoryPort for TagBookmarkLocalSqliteRepository {
     async fn create(&self, bookmark: &TagBookmark) -> Result<(), RepositoryError> {
         self.create(bookmark).await
     }

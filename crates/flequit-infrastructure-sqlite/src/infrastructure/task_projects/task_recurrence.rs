@@ -6,13 +6,14 @@ use crate::models::task_recurrence::{Column, Entity as TaskRecurrenceEntity};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use flequit_model::models::task_projects::task_recurrence::TaskRecurrence;
+use flequit_model::traits::TransactionManager;
 use flequit_model::types::id_types::{ProjectId, RecurrenceRuleId, TaskId, UserId};
 use flequit_repository::repositories::project_relation_repository_trait::ProjectRelationRepository;
 use flequit_repository::repositories::task_projects::task_recurrence_repository_trait::TaskRecurrenceRepositoryTrait;
 use flequit_types::errors::repository_error::RepositoryError;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, TransactionTrait,
+    QueryOrder,
 };
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -49,34 +50,25 @@ impl TaskRecurrenceLocalSqliteRepository {
 
 impl TaskRecurrenceRepositoryTrait for TaskRecurrenceLocalSqliteRepository {}
 
-#[async_trait]
-impl ProjectRelationRepository<TaskRecurrence, TaskId, RecurrenceRuleId>
-    for TaskRecurrenceLocalSqliteRepository
-{
-    async fn add(
+/// トランザクション内で実行する書き込み
+///
+/// 呼び出し側（統合リポジトリ）が Automerge 同期キューへの登録と同じ
+/// トランザクションで実行するために使う。コミット・ロールバックは呼び出し側が行う。
+impl TaskRecurrenceLocalSqliteRepository {
+    pub async fn add_with_txn(
         &self,
+        txn: &sea_orm::DatabaseTransaction,
         project_id: &ProjectId,
         parent_id: &TaskId,
         child_id: &RecurrenceRuleId,
         user_id: &UserId,
         timestamp: &DateTime<Utc>,
     ) -> Result<(), RepositoryError> {
-        let db_manager = self.db_manager.read().await;
-        let db = db_manager
-            .get_connection()
-            .await
-            .map_err(RepositoryError::from)?;
-
-        let txn = db
-            .begin()
-            .await
-            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-
         // タスクごとに1つの繰り返しルールのみ許可する。
         TaskRecurrenceEntity::delete_many()
             .filter(Column::ProjectId.eq(project_id.to_string()))
             .filter(Column::TaskId.eq(parent_id.to_string()))
-            .exec(&txn)
+            .exec(txn)
             .await
             .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
 
@@ -91,28 +83,21 @@ impl ProjectRelationRepository<TaskRecurrence, TaskId, RecurrenceRuleId>
         };
 
         active
-            .insert(&txn)
-            .await
-            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
-
-        txn.commit()
+            .insert(txn)
             .await
             .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
 
         Ok(())
     }
 
-    async fn remove(
+    pub async fn remove_with_txn(
         &self,
+        txn: &sea_orm::DatabaseTransaction,
         project_id: &ProjectId,
         parent_id: &TaskId,
         child_id: &RecurrenceRuleId,
     ) -> Result<(), RepositoryError> {
-        let db_manager = self.db_manager.read().await;
-        let db = db_manager
-            .get_connection()
-            .await
-            .map_err(RepositoryError::from)?;
+        let db = txn;
 
         TaskRecurrenceEntity::delete_many()
             .filter(Column::ProjectId.eq(project_id.to_string()))
@@ -123,6 +108,39 @@ impl ProjectRelationRepository<TaskRecurrence, TaskId, RecurrenceRuleId>
             .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
 
         Ok(())
+    }
+}
+
+#[async_trait]
+impl ProjectRelationRepository<TaskRecurrence, TaskId, RecurrenceRuleId>
+    for TaskRecurrenceLocalSqliteRepository
+{
+    async fn add(
+        &self,
+        project_id: &ProjectId,
+        parent_id: &TaskId,
+        child_id: &RecurrenceRuleId,
+        user_id: &UserId,
+        timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError> {
+        let db_manager = self.db_manager.read().await;
+        let txn = db_manager.begin().await?;
+        self.add_with_txn(&txn, project_id, parent_id, child_id, user_id, timestamp)
+            .await?;
+        db_manager.commit(txn).await
+    }
+
+    async fn remove(
+        &self,
+        project_id: &ProjectId,
+        parent_id: &TaskId,
+        child_id: &RecurrenceRuleId,
+    ) -> Result<(), RepositoryError> {
+        let db_manager = self.db_manager.read().await;
+        let txn = db_manager.begin().await?;
+        self.remove_with_txn(&txn, project_id, parent_id, child_id)
+            .await?;
+        db_manager.commit(txn).await
     }
 
     async fn remove_all(

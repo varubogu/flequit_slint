@@ -38,8 +38,12 @@ pub trait TagRepositoryExt: Send + Sync {
     ) -> Result<(), RepositoryError>;
 }
 
+/// タグブックマークの読み書き
+///
+/// 実装は SQLite へ書き込み、Automerge へは同期キュー経由で反映する
+/// （呼び出し側は Automerge を意識しない）。
 #[async_trait]
-pub trait TagBookmarkSqliteRepositoryPort: Send + Sync {
+pub trait TagBookmarkRepositoryPort: Send + Sync {
     async fn create(&self, bookmark: &TagBookmark) -> Result<(), RepositoryError>;
     async fn find_by_id(&self, id: &TagBookmarkId) -> Result<Option<TagBookmark>, RepositoryError>;
     async fn find_by_user_project_tag(
@@ -67,18 +71,6 @@ pub trait TagBookmarkSqliteRepositoryPort: Send + Sync {
         user_id: &UserId,
         project_id: &ProjectId,
     ) -> Result<i32, RepositoryError>;
-}
-
-#[async_trait]
-pub trait TagBookmarkAutomergeRepositoryPort: Send + Sync {
-    async fn create(&self, bookmark: &TagBookmark) -> Result<(), RepositoryError>;
-    async fn update(&self, bookmark: &TagBookmark) -> Result<(), RepositoryError>;
-    async fn delete(
-        &self,
-        user_id: &UserId,
-        project_id: &ProjectId,
-        tag_id: &TagId,
-    ) -> Result<(), RepositoryError>;
 }
 
 #[async_trait]
@@ -399,9 +391,47 @@ pub trait TransactionalDeletionPort: Send + Sync {
     ) -> Result<(), RepositoryError>;
 }
 
+/// ゴミ箱（論理削除済み）からの復元
+///
+/// 削除済みのデータは Automerge にだけ残っている。実装は Automerge への未反映の
+/// 変更を先に反映してから削除済みデータを読み、SQLite へ戻す。
+#[async_trait]
+pub trait TransactionalRestorePort: Send + Sync {
+    async fn restore_project_transactionally(
+        &self,
+        project_id: &ProjectId,
+        user_id: &UserId,
+        timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError>;
+
+    async fn restore_task_transactionally(
+        &self,
+        project_id: &ProjectId,
+        task_id: &TaskId,
+        user_id: &UserId,
+        timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError>;
+
+    async fn restore_task_list_transactionally(
+        &self,
+        project_id: &ProjectId,
+        task_list_id: &TaskListId,
+        user_id: &UserId,
+        timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError>;
+
+    async fn restore_tag_transactionally(
+        &self,
+        project_id: &ProjectId,
+        tag_id: &TagId,
+        user_id: &UserId,
+        timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError>;
+}
+
 #[async_trait]
 pub trait InfrastructureRepositoriesTrait:
-    TransactionalDeletionPort + Send + Sync + std::fmt::Debug
+    TransactionalDeletionPort + TransactionalRestorePort + Send + Sync + std::fmt::Debug
 {
     type AccountsRepository: Repository<Account, AccountId> + Send + Sync;
     type ProjectsRepository: Repository<Project, ProjectId>
@@ -431,8 +461,7 @@ pub trait InfrastructureRepositoriesTrait:
         + Send
         + Sync;
 
-    type TagBookmarksSqliteRepository: TagBookmarkSqliteRepositoryPort;
-    type TagBookmarksAutomergeRepository: TagBookmarkAutomergeRepositoryPort;
+    type TagBookmarksRepository: TagBookmarkRepositoryPort;
 
     type SqliteRepositories: SqliteRepositoriesPort;
     type AutomergeRepositories: AutomergeRepositoriesPort;
@@ -452,8 +481,7 @@ pub trait InfrastructureRepositoriesTrait:
     fn task_recurrences(&self) -> &Self::TaskRecurrencesRepository;
     fn subtask_recurrences(&self) -> &Self::SubtaskRecurrencesRepository;
 
-    fn tag_bookmarks_sqlite(&self) -> &Self::TagBookmarksSqliteRepository;
-    fn tag_bookmarks_automerge(&self) -> &Self::TagBookmarksAutomergeRepository;
+    fn tag_bookmarks(&self) -> &Self::TagBookmarksRepository;
 
     fn sqlite_repositories(&self) -> Option<&Arc<RwLock<Self::SqliteRepositories>>>;
     fn automerge_repositories(&self) -> Option<&Arc<RwLock<Self::AutomergeRepositories>>>;

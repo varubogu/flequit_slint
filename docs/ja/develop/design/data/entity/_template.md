@@ -1,6 +1,6 @@
 # エンティティ定義テンプレート
 
-統合エンティティドキュメント (`projects.md` / `settings.md` / `accounts-and-users.md` / `user-preferences.md`) で各エンティティを記述する際の共通フォーマット。
+統合エンティティドキュメント (`projects.md` / `settings.md` / `accounts-and-users.md` / `user-preferences.md` / `automerge-sync-queue.md`) で各エンティティを記述する際の共通フォーマット。
 
 ## 各エンティティの記述項目
 

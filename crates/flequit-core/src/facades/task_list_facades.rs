@@ -1,10 +1,8 @@
 use crate::InfrastructureRepositoriesTrait;
-use crate::ports::infrastructure_repositories::*;
 use crate::services::task_list_service;
 use chrono::{DateTime, Utc};
 use flequit_model::models::task_projects::task_list::{PartialTaskList, TaskList};
 use flequit_model::types::id_types::{ProjectId, TaskListId, UserId};
-use flequit_repository::repositories::project_repository_trait::ProjectRepository;
 use flequit_types::errors::service_error::ServiceError;
 
 pub async fn create_task_list<R>(
@@ -118,57 +116,8 @@ pub async fn restore_task_list<R>(
 where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
-    let automerge = match repositories.automerge_repositories() {
-        Some(a) => a,
-        None => {
-            return Err(ServiceError::InternalError(
-                "Automerge repositories not initialized".to_string(),
-            ));
-        }
-    };
-    let automerge_guard = automerge.read().await;
-
-    // 1. Automergeから削除済みタスクリストを取得
-    let deleted_task_list = match automerge_guard
-        .projects_repo()
-        .get_deleted_task_list_by_id(project_id, id)
-        .await
-    {
-        Ok(Some(tl)) => tl,
-        Ok(None) => {
-            return Err(ServiceError::NotFound(format!(
-                "Task list not found or not deleted: {}",
-                id
-            )));
-        }
-        Err(error) => return Err(error.into()),
-    };
-
-    // 2. SQLiteにタスクリストを再作成
-    if let Err(e) = repositories
-        .task_lists()
-        .save(project_id, &deleted_task_list, user_id, timestamp)
-        .await
-    {
-        return Err(e.into());
-    }
-
-    // 3. Automergeでタスクリストを復元（deleted=false）
-    if let Err(e) = automerge_guard
-        .projects_repo()
-        .restore_task_list(project_id, id, user_id, timestamp)
-        .await
-    {
-        // Automerge復元失敗 → SQLiteから再削除してロールバック
-        if let Err(del_err) = repositories.task_lists().delete(project_id, id).await {
-            tracing::error!(
-                "Failed to restore Automerge and cleanup SQLite also failed: automerge={:?}, sqlite={:?}",
-                e,
-                del_err
-            );
-        }
-        return Err(e.into());
-    }
-
+    repositories
+        .restore_task_list_transactionally(project_id, id, user_id, timestamp)
+        .await?;
     Ok(true)
 }

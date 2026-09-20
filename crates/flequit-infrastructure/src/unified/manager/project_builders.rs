@@ -3,6 +3,7 @@
 //! Project、Account、User エンティティのUnifiedRepositoryを構築するメソッドを提供する
 
 use super::{UnifiedManager, get_default_automerge_path};
+use crate::automerge_sync::QueuedSqlite;
 use crate::unified::{AccountUnifiedRepository, ProjectUnifiedRepository, UserUnifiedRepository};
 use flequit_infrastructure_automerge::infrastructure::accounts::account::AccountLocalAutomergeRepository;
 use flequit_infrastructure_automerge::infrastructure::task_projects::project::ProjectLocalAutomergeRepository;
@@ -33,13 +34,14 @@ impl UnifiedManager {
             // 保存にもSQLiteリポジトリを追加（設定により）
             if self.config.sqlite_storage_enabled {
                 let sqlite_repo = ProjectLocalSqliteRepository::new(db_manager.clone());
-                repo.add_sqlite_for_save(sqlite_repo);
+                repo.set_queued_sqlite(QueuedSqlite::new(sqlite_repo, self.sync_queue()?));
                 tracing::info!("SQLiteリポジトリを保存用に追加しました");
             }
         }
 
         // Automergeリポジトリの設定
-        if self.config.automerge_storage_enabled {
+        // SQLite があるときは同期キュー経由で反映するため、Automerge へ直接は書かない
+        if self.config.automerge_storage_enabled && !self.config.sqlite_storage_enabled {
             // 新しいProjectLocalAutomergeRepositoryを作成
             let automerge_repo = if let Some(doc_manager) = &self.shared_document_manager {
                 ProjectLocalAutomergeRepository::new_with_manager(doc_manager.clone()).await?
@@ -84,13 +86,14 @@ impl UnifiedManager {
             // 保存にもSQLiteリポジトリを追加（設定により）
             if self.config.sqlite_storage_enabled {
                 let sqlite_repo = AccountLocalSqliteRepository::new(db_manager.clone());
-                repo.add_sqlite_for_save(sqlite_repo);
+                repo.set_queued_sqlite(QueuedSqlite::new(sqlite_repo, self.sync_queue()?));
                 tracing::info!("SQLiteリポジトリを保存用に追加しました（Account）");
             }
         }
 
         // Automergeリポジトリの設定
-        if self.config.automerge_storage_enabled {
+        // SQLite があるときは同期キュー経由で反映するため、Automerge へ直接は書かない
+        if self.config.automerge_storage_enabled && !self.config.sqlite_storage_enabled {
             // 新しいAccountLocalAutomergeRepositoryを作成
             let automerge_repo = if let Some(doc_manager) = &self.shared_document_manager {
                 AccountLocalAutomergeRepository::new_with_manager(doc_manager.clone()).await?
@@ -130,13 +133,14 @@ impl UnifiedManager {
             // 保存にもSQLiteリポジトリを追加（設定により）
             if self.config.sqlite_storage_enabled {
                 let sqlite_repo = UserLocalSqliteRepository::new(db_manager.clone());
-                repo.add_sqlite_for_save(sqlite_repo);
+                repo.set_queued_sqlite(QueuedSqlite::new(sqlite_repo, self.sync_queue()?));
                 tracing::info!("SQLiteリポジトリを保存用に追加しました（User）");
             }
         }
 
         // Automergeリポジトリの設定
-        if self.config.automerge_storage_enabled {
+        // SQLite があるときは同期キュー経由で反映するため、Automerge へ直接は書かない
+        if self.config.automerge_storage_enabled && !self.config.sqlite_storage_enabled {
             let automerge_repo = if let Some(doc_manager) = &self.shared_document_manager {
                 UserLocalAutomergeRepository::new_with_manager(doc_manager.clone()).await?
             } else {

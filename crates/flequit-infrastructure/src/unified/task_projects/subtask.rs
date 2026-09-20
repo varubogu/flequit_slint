@@ -13,6 +13,8 @@ use flequit_repository::repositories::project_repository_trait::ProjectRepositor
 use flequit_repository::repositories::task_projects::subtask_repository_trait::SubTaskRepositoryTrait;
 use flequit_types::errors::repository_error::RepositoryError;
 
+use crate::automerge_sync::{AutomergeChange, ProjectChange, QueuedSqlite};
+
 #[derive(Debug)]
 pub enum SubTaskRepositoryVariant {
     LocalSqlite(SubTaskLocalSqliteRepository),
@@ -84,6 +86,8 @@ impl ProjectRepository<SubTask, SubTaskId> for SubTaskRepositoryVariant {
 pub struct SubTaskUnifiedRepository {
     save_repositories: Vec<SubTaskRepositoryVariant>,
     search_repositories: Vec<SubTaskRepositoryVariant>,
+    /// SQLite への書き込み先と Automerge 同期キュー。SQLite ストレージが有効なときにある
+    queued_sqlite: Option<QueuedSqlite<SubTaskLocalSqliteRepository>>,
 }
 
 impl Default for SubTaskUnifiedRepository {
@@ -100,12 +104,19 @@ impl SubTaskUnifiedRepository {
         Self {
             save_repositories,
             search_repositories,
+            queued_sqlite: None,
         }
     }
 
     pub fn add_sqlite_for_save(&mut self, sqlite_repo: SubTaskLocalSqliteRepository) {
         self.save_repositories
             .push(SubTaskRepositoryVariant::LocalSqlite(sqlite_repo));
+    }
+
+    /// 書き込みを「Automerge 同期キューへの登録 + SQLite への書き込み」の
+    /// 1 トランザクションにする。Automerge へはワーカーが後から反映する
+    pub fn set_queued_sqlite(&mut self, queued: QueuedSqlite<SubTaskLocalSqliteRepository>) {
+        self.queued_sqlite = Some(queued);
     }
 
     pub fn add_automerge_for_save(&mut self, automerge_repo: SubTaskLocalAutomergeRepository) {
@@ -135,7 +146,7 @@ impl SubTaskUnifiedRepository {
 
     /// 保存用リポジトリの数を取得
     pub fn save_repositories_count(&self) -> usize {
-        self.save_repositories.len()
+        self.save_repositories.len() + usize::from(self.queued_sqlite.is_some())
     }
 
     /// 検索用リポジトリの数を取得
@@ -162,6 +173,22 @@ impl ProjectRepository<SubTask, SubTaskId> for SubTaskUnifiedRepository {
             "Saving subtask entity with ID: {} in project: {}",
             entity.id, project_id
         );
+        if let Some(queued) = &self.queued_sqlite {
+            let txn = queued
+                .queue
+                .begin(vec![AutomergeChange::SubTask(ProjectChange::Save {
+                    project_id: *project_id,
+                    entity: entity.clone(),
+                    user_id: *user_id,
+                    timestamp: *timestamp,
+                })])
+                .await?;
+            let result = queued
+                .sqlite
+                .save_with_txn(txn.txn(), project_id, entity, user_id, timestamp)
+                .await;
+            return txn.finish(result).await;
+        }
 
         for repository in &self.save_repositories {
             repository
@@ -203,6 +230,25 @@ impl ProjectRepository<SubTask, SubTaskId> for SubTaskUnifiedRepository {
             "Deleting subtask with ID: {} in project: {}",
             id, project_id
         );
+        if let Some(queued) = &self.queued_sqlite {
+            if !queued.sqlite.exists(project_id, id).await? {
+                return Err(RepositoryError::NotFound(format!(
+                    "SubTask not found: {id}"
+                )));
+            }
+            let txn = queued
+                .queue
+                .begin(vec![AutomergeChange::SubTask(ProjectChange::Delete {
+                    project_id: *project_id,
+                    id: *id,
+                })])
+                .await?;
+            let result = queued
+                .sqlite
+                .delete_with_txn(txn.txn(), project_id, id)
+                .await;
+            return txn.finish(result).await;
+        }
 
         // 削除前に全リポジトリでデータの存在を確認
         let mut existence_status = Vec::new();

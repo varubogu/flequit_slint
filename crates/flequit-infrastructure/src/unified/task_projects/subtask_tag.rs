@@ -12,6 +12,8 @@ use flequit_repository::repositories::project_relation_repository_trait::Project
 use flequit_repository::repositories::task_projects::subtask_tag_repository_trait::SubTaskTagRepositoryTrait;
 use flequit_types::errors::repository_error::RepositoryError;
 
+use crate::automerge_sync::{AutomergeChange, QueuedSqlite, RelationChange};
+
 #[derive(Debug)]
 pub enum SubTaskTagRepositoryVariant {
     LocalSqlite(SubtaskTagLocalSqliteRepository),
@@ -139,6 +141,8 @@ impl ProjectRelationRepository<SubTaskTag, SubTaskId, TagId> for SubTaskTagRepos
 pub struct SubTaskTagUnifiedRepository {
     save_repositories: Vec<SubTaskTagRepositoryVariant>,
     search_repositories: Vec<SubTaskTagRepositoryVariant>,
+    /// SQLite への書き込み先と Automerge 同期キュー。SQLite ストレージが有効なときにある
+    queued_sqlite: Option<QueuedSqlite<SubtaskTagLocalSqliteRepository>>,
 }
 
 impl Default for SubTaskTagUnifiedRepository {
@@ -155,12 +159,19 @@ impl SubTaskTagUnifiedRepository {
         Self {
             save_repositories,
             search_repositories,
+            queued_sqlite: None,
         }
     }
 
     pub fn add_sqlite_for_save(&mut self, sqlite_repo: SubtaskTagLocalSqliteRepository) {
         self.save_repositories
             .push(SubTaskTagRepositoryVariant::LocalSqlite(sqlite_repo));
+    }
+
+    /// 書き込みを「Automerge 同期キューへの登録 + SQLite への書き込み」の
+    /// 1 トランザクションにする。Automerge へはワーカーが後から反映する
+    pub fn set_queued_sqlite(&mut self, queued: QueuedSqlite<SubtaskTagLocalSqliteRepository>) {
+        self.queued_sqlite = Some(queued);
     }
 
     pub fn add_automerge_for_save(&mut self, automerge_repo: SubtaskTagLocalAutomergeRepository) {
@@ -189,7 +200,7 @@ impl SubTaskTagUnifiedRepository {
     }
 
     pub fn save_repositories_count(&self) -> usize {
-        self.save_repositories.len()
+        self.save_repositories.len() + usize::from(self.queued_sqlite.is_some())
     }
 
     pub fn search_repositories_count(&self) -> usize {
@@ -206,6 +217,22 @@ impl SubTaskTagUnifiedRepository {
             "Removing all subtask tag relations for tag - project: {}, tag: {}",
             project_id, tag_id
         );
+        if let Some(queued) = &self.queued_sqlite {
+            let txn = queued
+                .queue
+                .begin(vec![AutomergeChange::SubTaskTag(
+                    RelationChange::RemoveAllByChild {
+                        project_id: *project_id,
+                        child_id: *tag_id,
+                    },
+                )])
+                .await?;
+            let result = queued
+                .sqlite
+                .remove_all_by_tag_id_with_txn(txn.txn(), tag_id)
+                .await;
+            return txn.finish(result).await;
+        }
 
         for repository in &self.save_repositories {
             repository
@@ -233,6 +260,23 @@ impl ProjectRelationRepository<SubTaskTag, SubTaskId, TagId> for SubTaskTagUnifi
             "Adding subtask tag relation - project: {}, subtask: {}, tag: {}",
             project_id, parent_id, child_id
         );
+        if let Some(queued) = &self.queued_sqlite {
+            let txn = queued
+                .queue
+                .begin(vec![AutomergeChange::SubTaskTag(RelationChange::Add {
+                    project_id: *project_id,
+                    parent_id: *parent_id,
+                    child_id: *child_id,
+                    user_id: *user_id,
+                    timestamp: *timestamp,
+                })])
+                .await?;
+            let result = queued
+                .sqlite
+                .add_relation_with_txn(txn.txn(), project_id, parent_id, child_id)
+                .await;
+            return txn.finish(result).await;
+        }
 
         for repository in &self.save_repositories {
             repository
@@ -253,6 +297,21 @@ impl ProjectRelationRepository<SubTaskTag, SubTaskId, TagId> for SubTaskTagUnifi
             "Removing subtask tag relation - project: {}, subtask: {}, tag: {}",
             project_id, parent_id, child_id
         );
+        if let Some(queued) = &self.queued_sqlite {
+            let txn = queued
+                .queue
+                .begin(vec![AutomergeChange::SubTaskTag(RelationChange::Remove {
+                    project_id: *project_id,
+                    parent_id: *parent_id,
+                    child_id: *child_id,
+                })])
+                .await?;
+            let result = queued
+                .sqlite
+                .remove_relation_with_txn(txn.txn(), parent_id, child_id)
+                .await;
+            return txn.finish(result).await;
+        }
 
         for repository in &self.save_repositories {
             repository.remove(project_id, parent_id, child_id).await?;
@@ -270,6 +329,22 @@ impl ProjectRelationRepository<SubTaskTag, SubTaskId, TagId> for SubTaskTagUnifi
             "Removing all subtask tags for subtask - project: {}, subtask: {}",
             project_id, parent_id
         );
+        if let Some(queued) = &self.queued_sqlite {
+            let txn = queued
+                .queue
+                .begin(vec![AutomergeChange::SubTaskTag(
+                    RelationChange::RemoveAll {
+                        project_id: *project_id,
+                        parent_id: *parent_id,
+                    },
+                )])
+                .await?;
+            let result = queued
+                .sqlite
+                .remove_all_by_subtask_id_with_txn(txn.txn(), parent_id)
+                .await;
+            return txn.finish(result).await;
+        }
 
         for repository in &self.save_repositories {
             repository.remove_all(project_id, parent_id).await?;

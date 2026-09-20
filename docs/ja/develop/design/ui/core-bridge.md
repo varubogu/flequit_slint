@@ -73,9 +73,11 @@ flequit-infrastructure-{sqlite,automerge}
 
 ### 削除系 facade のトランザクション境界
 
-削除 facade は `flequit-core` の `TransactionalDeletionPort` を呼び出す。
-SQLite のトランザクション型、削除順序、Automerge のスナップショット復元は
-`flequit-infrastructure` の実装内に閉じ込める。
+削除 facade は `flequit-core` の `TransactionalDeletionPort` を、
+ゴミ箱からの復元 facade は `TransactionalRestorePort` を呼び出す。
+SQLite のトランザクション型、削除順序、Automerge 同期キューへの登録は
+`flequit-infrastructure` の実装内に閉じ込める
+（`design/data/automerge-sync-queue.md` 参照）。
 
 この境界により ViewModel はほかの facade と同じく
 `Result<T, ServiceError>` だけを扱い、ストレージ固有型や repository trait を参照しない。

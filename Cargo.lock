@@ -1971,11 +1971,13 @@ dependencies = [
  "flequit-infrastructure-sqlite",
  "flequit-model",
  "flequit-repository",
+ "flequit-testing",
  "flequit-types",
  "log",
  "scopeguard",
  "sea-orm",
  "serde",
+ "serde_json",
  "tokio",
  "tracing",
 ]

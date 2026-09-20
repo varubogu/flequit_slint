@@ -12,6 +12,8 @@ use flequit_repository::repositories::project_repository_trait::ProjectRepositor
 use flequit_repository::repositories::task_projects::tag_repository_trait::TagRepositoryTrait;
 use flequit_types::errors::repository_error::RepositoryError;
 
+use crate::automerge_sync::{AutomergeChange, ProjectChange, QueuedSqlite};
+
 #[derive(Debug)]
 pub enum TagRepositoryVariant {
     LocalSqlite(TagLocalSqliteRepository),
@@ -79,6 +81,8 @@ impl ProjectRepository<Tag, TagId> for TagRepositoryVariant {
 pub struct TagUnifiedRepository {
     save_repositories: Vec<TagRepositoryVariant>,
     search_repositories: Vec<TagRepositoryVariant>,
+    /// SQLite への書き込み先と Automerge 同期キュー。SQLite ストレージが有効なときにある
+    queued_sqlite: Option<QueuedSqlite<TagLocalSqliteRepository>>,
 }
 
 impl Default for TagUnifiedRepository {
@@ -95,12 +99,19 @@ impl TagUnifiedRepository {
         Self {
             save_repositories,
             search_repositories,
+            queued_sqlite: None,
         }
     }
 
     pub fn add_sqlite_for_save(&mut self, sqlite_repo: TagLocalSqliteRepository) {
         self.save_repositories
             .push(TagRepositoryVariant::LocalSqlite(sqlite_repo));
+    }
+
+    /// 書き込みを「Automerge 同期キューへの登録 + SQLite への書き込み」の
+    /// 1 トランザクションにする。Automerge へはワーカーが後から反映する
+    pub fn set_queued_sqlite(&mut self, queued: QueuedSqlite<TagLocalSqliteRepository>) {
+        self.queued_sqlite = Some(queued);
     }
 
     pub fn add_automerge_for_save(&mut self, automerge_repo: TagLocalAutomergeRepository) {
@@ -130,7 +141,7 @@ impl TagUnifiedRepository {
 
     /// 保存用リポジトリの数を取得
     pub fn save_repositories_count(&self) -> usize {
-        self.save_repositories.len()
+        self.save_repositories.len() + usize::from(self.queued_sqlite.is_some())
     }
 
     /// 検索用リポジトリの数を取得
@@ -149,21 +160,8 @@ impl TagUnifiedRepository {
             project_id, tag_id
         );
 
-        // SQLiteリポジトリでトランザクション内で全削除を実行
-        for repository in &self.save_repositories {
-            match repository {
-                TagRepositoryVariant::LocalSqlite(repo) => {
-                    // SQLiteは単純削除（関連削除はFacade層で実行済み）
-                    repo.delete(project_id, tag_id).await?;
-                }
-                TagRepositoryVariant::LocalAutomerge(repo) => {
-                    // Automergeは通常の削除（トランザクション不要）
-                    repo.delete(project_id, tag_id).await?;
-                }
-            }
-        }
-
-        Ok(())
+        // 関連の削除は Facade 層で済んでいる。タグ本体の削除は通常の削除と同じ
+        ProjectRepository::delete(self, project_id, tag_id).await
     }
 }
 
@@ -182,6 +180,22 @@ impl ProjectRepository<Tag, TagId> for TagUnifiedRepository {
             "Saving tag entity with ID: {} in project: {}",
             entity.id, project_id
         );
+        if let Some(queued) = &self.queued_sqlite {
+            let txn = queued
+                .queue
+                .begin(vec![AutomergeChange::Tag(ProjectChange::Save {
+                    project_id: *project_id,
+                    entity: entity.clone(),
+                    user_id: *user_id,
+                    timestamp: *timestamp,
+                })])
+                .await?;
+            let result = queued
+                .sqlite
+                .save_with_txn(txn.txn(), project_id, entity, user_id, timestamp)
+                .await;
+            return txn.finish(result).await;
+        }
 
         for repository in &self.save_repositories {
             repository
@@ -220,6 +234,20 @@ impl ProjectRepository<Tag, TagId> for TagUnifiedRepository {
 
     async fn delete(&self, project_id: &ProjectId, id: &TagId) -> Result<(), RepositoryError> {
         info!("Deleting tag with ID: {} in project: {}", id, project_id);
+        if let Some(queued) = &self.queued_sqlite {
+            let txn = queued
+                .queue
+                .begin(vec![AutomergeChange::Tag(ProjectChange::Delete {
+                    project_id: *project_id,
+                    id: *id,
+                })])
+                .await?;
+            let result = queued
+                .sqlite
+                .delete_with_txn(txn.txn(), project_id, id)
+                .await;
+            return txn.finish(result).await;
+        }
 
         for repository in &self.save_repositories {
             repository.delete(project_id, id).await?;

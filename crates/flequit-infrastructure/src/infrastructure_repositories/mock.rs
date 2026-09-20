@@ -7,10 +7,9 @@ use crate::unified::*;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use flequit_core::ports::infrastructure_repositories::{
-    InfrastructureRepositoriesTrait, TransactionalDeletionPort,
+    InfrastructureRepositoriesTrait, TransactionalDeletionPort, TransactionalRestorePort,
 };
 use flequit_infrastructure_automerge::infrastructure::local_automerge_repositories::LocalAutomergeRepositories;
-use flequit_infrastructure_automerge::infrastructure::user_preferences::tag_bookmark::TagBookmarkLocalAutomergeRepository;
 use flequit_infrastructure_sqlite::infrastructure::database_manager::DatabaseManager;
 use flequit_infrastructure_sqlite::infrastructure::local_sqlite_repositories::LocalSqliteRepositories;
 use flequit_infrastructure_sqlite::infrastructure::user_preferences::tag_bookmark::TagBookmarkLocalSqliteRepository;
@@ -37,8 +36,7 @@ pub struct MockInfrastructureRepositories {
     pub subtask_tags: SubTaskTagUnifiedRepository,
     pub task_recurrences: TaskRecurrenceUnifiedRepository,
     pub subtask_recurrences: SubTaskRecurrenceUnifiedRepository,
-    pub tag_bookmarks_sqlite: flequit_infrastructure_sqlite::infrastructure::user_preferences::tag_bookmark::TagBookmarkLocalSqliteRepository,
-    pub tag_bookmarks_automerge: flequit_infrastructure_automerge::infrastructure::user_preferences::tag_bookmark::TagBookmarkLocalAutomergeRepository,
+    pub tag_bookmarks: TagBookmarkLocalSqliteRepository,
     pub unified_manager: UnifiedManager,
 }
 
@@ -66,13 +64,9 @@ impl MockInfrastructureRepositories {
             subtask_tags: SubTaskTagUnifiedRepository::default(),
             task_recurrences: TaskRecurrenceUnifiedRepository::default(),
             subtask_recurrences: SubTaskRecurrenceUnifiedRepository::default(),
-            tag_bookmarks_sqlite:
-                flequit_infrastructure_sqlite::infrastructure::user_preferences::tag_bookmark::TagBookmarkLocalSqliteRepository::new(
-                    Arc::new(RwLock::new(DatabaseManager::new_for_test(
-                        "/tmp/flequit-placeholder.sqlite",
-                    ))),
-                ),
-            tag_bookmarks_automerge: flequit_infrastructure_automerge::infrastructure::user_preferences::tag_bookmark::TagBookmarkLocalAutomergeRepository::default(),
+            tag_bookmarks: TagBookmarkLocalSqliteRepository::new(Arc::new(RwLock::new(
+                DatabaseManager::new_for_test("/tmp/flequit-placeholder.sqlite"),
+            ))),
             unified_manager: UnifiedManager::default(),
         }
     }
@@ -147,6 +141,52 @@ impl TransactionalDeletionPort for MockInfrastructureRepositories {
 }
 
 #[async_trait]
+impl TransactionalRestorePort for MockInfrastructureRepositories {
+    async fn restore_project_transactionally(
+        &self,
+        _project_id: &ProjectId,
+        _user_id: &UserId,
+        _timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError> {
+        self.log_call("restore_project_transactionally");
+        Ok(())
+    }
+
+    async fn restore_task_transactionally(
+        &self,
+        _project_id: &ProjectId,
+        _task_id: &TaskId,
+        _user_id: &UserId,
+        _timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError> {
+        self.log_call("restore_task_transactionally");
+        Ok(())
+    }
+
+    async fn restore_task_list_transactionally(
+        &self,
+        _project_id: &ProjectId,
+        _task_list_id: &TaskListId,
+        _user_id: &UserId,
+        _timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError> {
+        self.log_call("restore_task_list_transactionally");
+        Ok(())
+    }
+
+    async fn restore_tag_transactionally(
+        &self,
+        _project_id: &ProjectId,
+        _tag_id: &TagId,
+        _user_id: &UserId,
+        _timestamp: &DateTime<Utc>,
+    ) -> Result<(), RepositoryError> {
+        self.log_call("restore_tag_transactionally");
+        Ok(())
+    }
+}
+
+#[async_trait]
 impl InfrastructureRepositoriesTrait for MockInfrastructureRepositories {
     type AccountsRepository = AccountUnifiedRepository;
     type ProjectsRepository = ProjectUnifiedRepository;
@@ -162,8 +202,7 @@ impl InfrastructureRepositoriesTrait for MockInfrastructureRepositories {
     type SubtaskTagsRepository = SubTaskTagUnifiedRepository;
     type TaskRecurrencesRepository = TaskRecurrenceUnifiedRepository;
     type SubtaskRecurrencesRepository = SubTaskRecurrenceUnifiedRepository;
-    type TagBookmarksSqliteRepository = TagBookmarkLocalSqliteRepository;
-    type TagBookmarksAutomergeRepository = TagBookmarkLocalAutomergeRepository;
+    type TagBookmarksRepository = TagBookmarkLocalSqliteRepository;
     type SqliteRepositories = LocalSqliteRepositories;
     type AutomergeRepositories = LocalAutomergeRepositories;
 
@@ -247,14 +286,9 @@ impl InfrastructureRepositoriesTrait for MockInfrastructureRepositories {
         &self.subtask_recurrences
     }
 
-    fn tag_bookmarks_sqlite(&self) -> &Self::TagBookmarksSqliteRepository {
-        self.log_call("tag_bookmarks_sqlite");
-        &self.tag_bookmarks_sqlite
-    }
-
-    fn tag_bookmarks_automerge(&self) -> &Self::TagBookmarksAutomergeRepository {
-        self.log_call("tag_bookmarks_automerge");
-        &self.tag_bookmarks_automerge
+    fn tag_bookmarks(&self) -> &Self::TagBookmarksRepository {
+        self.log_call("tag_bookmarks");
+        &self.tag_bookmarks
     }
 
     async fn initialize(&mut self) -> Result<(), Box<dyn std::error::Error>> {

@@ -17,6 +17,7 @@ pub use crate::config::InfrastructureConfig as UnifiedConfig;
 // 統合リポジトリ群（サブフォルダ単位）
 pub mod accounts;
 pub mod task_projects;
+pub mod user_preferences;
 pub mod users;
 
 // 将来追加予定のモジュール
@@ -34,6 +35,7 @@ pub use task_projects::{
     TagUnifiedRepository, TaskAssignmentUnifiedRepository, TaskListUnifiedRepository,
     TaskRecurrenceUnifiedRepository, TaskTagUnifiedRepository, TaskUnifiedRepository,
 };
+pub use user_preferences::TagBookmarkUnifiedRepository;
 pub use users::UserUnifiedRepository;
 
 // Infrastructure層リポジトリの再エクスポート
