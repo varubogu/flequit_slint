@@ -65,13 +65,23 @@ export component SubTaskDetailView inherits Rectangle {
                 spacing: Theme.space-md;
                 alignment: start;
 
-                LineEdit {
+                // Plain bindings, not `<=>`: writing a keystroke back into
+                // `root.subtask` would drop the caller's
+                // `subtask: AppState.selected-subtask` binding and freeze the
+                // pane. The pane refills the editors itself on every move.
+                private property <string> subtask-key: root.subtask.id;
+                changed subtask-key => {
+                    title-edit.text = root.subtask.title;
+                    notes-edit.text = root.subtask.notes;
+                }
+
+                title-edit := LineEdit {
                     private property <int> focus-detail-request: AppState.focus-detail-request;
                     init => {
                         if (self.focus-detail-request > 0) { self.focus(); }
                     }
                     changed focus-detail-request => { self.focus(); }
-                    text <=> root.subtask.title;
+                    text: root.subtask.title;
                     font-size: Theme.font-size-title;
                     placeholder-text: @tr("SubTaskDetail" => "Subtask title");
                     accessible-label: @tr("SubTaskDetail" => "Subtask title");
@@ -147,9 +157,9 @@ export component SubTaskDetailView inherits Rectangle {
                     font-size: Theme.font-size-sm;
                 }
 
-                TextEdit {
+                notes-edit := TextEdit {
                     height: 160px;
-                    text <=> root.subtask.notes;
+                    text: root.subtask.notes;
                     accessible-label: @tr("SubTaskDetail" => "Subtask notes");
                     wrap: word-wrap;
                     edited => { Actions.update-subtask-notes(root.subtask.id, self.text); }

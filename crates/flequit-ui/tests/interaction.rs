@@ -2582,6 +2582,8 @@ fn the_shell_responds_to_user_actions() {
     the_compact_sidebar_overlay_covers_the_task_list();
     the_loading_veil_swallows_clicks();
     a_long_task_list_only_instantiates_visible_rows();
+    the_detail_pane_follows_the_selection_after_an_edit();
+    the_subtask_detail_pane_follows_the_selection_after_an_edit();
 }
 
 /// The colour tokens once ignored `Theme.mode`: nothing derived `Theme.dark`
@@ -2633,5 +2635,100 @@ fn the_theme_switches_between_light_and_dark() {
     assert_eq!(
         theme.get_background(),
         Color::from_rgb_u8(0xff, 0xff, 0xff).into()
+    );
+}
+
+/// Editing the detail pane once used to freeze it: the title and notes editors
+/// two-way bound into `task`, so the first keystroke wrote the field back into
+/// that property and dropped the `task: AppState.selected-task` binding. Every
+/// later selection then left the pane showing the task that had been edited.
+fn the_detail_pane_follows_the_selection_after_an_edit() {
+    let window = window_with_content();
+    let state = window.global::<AppState>();
+    state.set_tasks(ModelRc::new(VecModel::from(vec![
+        task_item("t1", "Buy milk"),
+        task_item("t2", "Wash car"),
+    ])));
+
+    let select = |index: usize| {
+        let task = state
+            .get_tasks()
+            .row_data(index)
+            .expect("the test task should exist");
+        state.set_selected_task_id(task.id.clone());
+        state.set_selected_task(task);
+        state.set_has_selected_task(true);
+        settle();
+    };
+    let title = || {
+        ElementHandle::find_by_accessible_label(&window, "Task title")
+            .find(|element| element.accessible_value().is_some())
+            .expect("the title field is not reachable")
+            .accessible_value()
+            .map(|value| value.to_string())
+    };
+
+    select(0);
+    assert_eq!(title().as_deref(), Some("Buy milk"));
+
+    // What the editor does to its own text is what used to break the binding.
+    set_value(&window, "Task title", "Buy oat milk");
+
+    select(1);
+    assert_eq!(
+        title().as_deref(),
+        Some("Wash car"),
+        "the detail pane still shows the previously edited task"
+    );
+
+    select(0);
+    assert_eq!(
+        title().as_deref(),
+        Some("Buy milk"),
+        "the detail pane must refill from the model, not from its own draft"
+    );
+}
+
+/// The subtask pane carried the same defect as the task pane: its editors
+/// wrote back into `subtask`, so an edit cut the pane off from
+/// `AppState.selected-subtask`.
+fn the_subtask_detail_pane_follows_the_selection_after_an_edit() {
+    let window = window_with_content();
+    let state = window.global::<AppState>();
+    let mut task = state
+        .get_tasks()
+        .row_data(0)
+        .expect("the test task should exist");
+    let first = subtask_item("s1", "Pick up bread");
+    let second = subtask_item("s2", "Pick up cheese");
+    task.subtasks = ModelRc::new(VecModel::from(vec![first.clone(), second.clone()]));
+    state.set_selected_task_id(task.id.clone());
+    state.set_selected_task(task);
+    state.set_has_selected_task(true);
+
+    let select = |subtask: &SubTaskItem| {
+        state.set_selected_subtask_id(subtask.id.clone());
+        state.set_selected_subtask(subtask.clone());
+        state.set_has_selected_subtask(true);
+        settle();
+    };
+    let title = || {
+        ElementHandle::find_by_accessible_label(&window, "Subtask title")
+            .find(|element| element.accessible_value().is_some())
+            .expect("the subtask title field is not reachable")
+            .accessible_value()
+            .map(|value| value.to_string())
+    };
+
+    select(&first);
+    assert_eq!(title().as_deref(), Some("Pick up bread"));
+
+    set_value(&window, "Subtask title", "Pick up rye bread");
+
+    select(&second);
+    assert_eq!(
+        title().as_deref(),
+        Some("Pick up cheese"),
+        "the subtask pane still shows the previously edited subtask"
     );
 }

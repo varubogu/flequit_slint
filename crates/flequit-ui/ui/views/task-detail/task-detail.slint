@@ -79,8 +79,21 @@ export component TaskDetailView inherits Rectangle {
                 spacing: Theme.space-md;
                 alignment: start;
 
+                // The text editors must not two-way bind into `root.task`: a
+                // keystroke would write the field back into that property, and
+                // the write drops the `task: AppState.selected-task` binding
+                // the caller put there — leaving the pane frozen on whichever
+                // task was open when the first edit landed. They take a plain
+                // binding instead, which an edit only drops locally, and the
+                // pane refills them itself whenever the selection moves on.
+                private property <string> task-key: root.task.id;
+                changed task-key => {
+                    title-edit.text = root.task.title;
+                    notes-edit.text = root.task.notes;
+                }
+
                 // Title
-                LineEdit {
+                title-edit := LineEdit {
                     private property <int> focus-detail-request: AppState.focus-detail-request;
                     init => {
                         if (self.focus-detail-request > 0 && root.has-task) { self.focus(); }
@@ -88,7 +101,7 @@ export component TaskDetailView inherits Rectangle {
                     changed focus-detail-request => {
                         if (root.has-task) { self.focus(); }
                     }
-                    text <=> root.task.title;
+                    text: root.task.title;
                     font-size: Theme.font-size-title;
                     placeholder-text: @tr("TaskDetail" => "Task title");
                     accessible-label: @tr("TaskDetail" => "Task title");
@@ -333,9 +346,9 @@ export component TaskDetailView inherits Rectangle {
                     font-size: Theme.font-size-sm;
                 }
 
-                TextEdit {
+                notes-edit := TextEdit {
                     height: 160px;
-                    text <=> root.task.notes;
+                    text: root.task.notes;
                     wrap: word-wrap;
                     edited => { Actions.update-task-notes(root.task.id, self.text); }
                 }
