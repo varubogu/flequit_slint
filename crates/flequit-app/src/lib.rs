@@ -72,7 +72,8 @@ pub fn run() -> Result<(), BootstrapError> {
         "starting flequit"
     );
 
-    let runtime = build_runtime(platform.as_ref())?;
+    // Declared before everything that hands it work, so it is dropped after them.
+    let runtime = AppRuntime(Some(build_runtime(platform.as_ref())?));
     let (user_settings, settings_store) = load_settings(&runtime, platform.as_ref())?;
     let repositories = runtime.block_on(setup_infrastructure(platform.as_ref()))?;
     // Writes commit to SQLite only; this worker applies them to Automerge in the
@@ -114,6 +115,41 @@ pub fn run() -> Result<(), BootstrapError> {
 /// Short enough that quitting still feels immediate. Anything left over stays
 /// in the SQLite queue and is applied on the next launch.
 const AUTOMERGE_SYNC_SHUTDOWN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// How long exiting may wait for the runtime's worker threads.
+///
+/// Tasks are cancelled at their next `.await`, which for nearly all of them is
+/// immediate. The exception is applying a queued change to Automerge: that is
+/// synchronous CPU work, and on a large document it can outlast any wait a user
+/// would accept. Past this limit the process exits without it; the change is
+/// still queued in SQLite and is applied on the next launch.
+const RUNTIME_SHUTDOWN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// The Tokio runtime, shut down with a time limit when dropped.
+///
+/// Dropping a plain `Runtime` blocks until every worker thread has finished the
+/// task it is running, with no limit, so an Automerge apply in progress when
+/// the window closes would freeze the exit. Doing it in `Drop` covers every way
+/// out of [`run`], early returns included.
+struct AppRuntime(Option<tokio::runtime::Runtime>);
+
+impl std::ops::Deref for AppRuntime {
+    type Target = tokio::runtime::Runtime;
+
+    fn deref(&self) -> &Self::Target {
+        self.0
+            .as_ref()
+            .expect("the runtime is only taken out when dropped")
+    }
+}
+
+impl Drop for AppRuntime {
+    fn drop(&mut self) {
+        if let Some(runtime) = self.0.take() {
+            runtime.shutdown_timeout(RUNTIME_SHUTDOWN_TIMEOUT);
+        }
+    }
+}
 
 struct AppSettingsStore {
     manager: Arc<SettingsManager>,
@@ -503,6 +539,28 @@ fn open_log_file(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dropping_the_runtime_does_not_wait_for_a_task_that_never_yields() {
+        let runtime = AppRuntime(Some(
+            tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(1)
+                .build()
+                .unwrap(),
+        ));
+        let (started_tx, started_rx) = std::sync::mpsc::channel();
+        runtime.spawn(async move {
+            started_tx.send(()).unwrap();
+            // Stands in for an Automerge apply: synchronous work with no `.await`.
+            std::thread::sleep(std::time::Duration::from_secs(60));
+        });
+        started_rx.recv().unwrap();
+
+        let started = std::time::Instant::now();
+        drop(runtime);
+
+        assert!(started.elapsed() < RUNTIME_SHUTDOWN_TIMEOUT + std::time::Duration::from_secs(2));
+    }
 
     #[test]
     fn settings_adapter_uses_persisted_due_visibility() {

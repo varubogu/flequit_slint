@@ -236,11 +236,17 @@ pub struct AutomergeSyncHandle {
 impl AutomergeSyncHandle {
     /// 残っている行をできるだけ反映してから止める。
     ///
-    /// `timeout` を過ぎたら待つのをやめる（残りは次回起動時に反映される）。
-    /// 時間内に止まったら `true` を返す。
-    pub async fn shutdown(self, timeout: Duration) -> bool {
+    /// `timeout` を過ぎたらタスクを中断する（残りは次回起動時に反映される）。
+    /// 中断が効くのは次の `.await` からで、実行中の Automerge への適用は同期処理の
+    /// ため最後まで走る。時間内に止まったら `true` を返す。
+    pub async fn shutdown(mut self, timeout: Duration) -> bool {
         let _ = self.shutdown.send(true);
-        tokio::time::timeout(timeout, self.task).await.is_ok()
+        if tokio::time::timeout(timeout, &mut self.task).await.is_ok() {
+            return true;
+        }
+        // JoinHandle を捨てるだけではタスクは止まらず、終了処理と並んで走り続ける
+        self.task.abort();
+        false
     }
 }
 
