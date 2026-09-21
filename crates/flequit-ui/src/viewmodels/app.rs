@@ -60,7 +60,9 @@ use crate::bindings::{
 use crate::viewmodels::TaskListUiViewModel;
 use crate::viewmodels::ordering;
 use crate::viewmodels::project_editor;
-use crate::viewmodels::recurrence::{self, occurrence, preview_limit, rule_from_state};
+use crate::viewmodels::recurrence::{
+    self, NextOccurrence, occurrence, preview_limit, rule_from_state,
+};
 use crate::viewmodels::reload_gate::ReloadGate;
 use crate::viewmodels::search::{NameIndex, QueryEdit as SearchEdit, SearchSession, UserEntry};
 use crate::viewmodels::settings::{SearchMemory, SettingsStore, SettingsViewModel, UserSettings};
@@ -205,11 +207,12 @@ struct SharedState {
     successors: HashMap<TaskId, Successor>,
 }
 
-/// The task a completed repeating task handed its series on to.
+/// The occurrence a completed repeating task handed its series on to.
 #[derive(Debug, Clone)]
 struct Successor {
-    /// The task as it was created, carrying the handed-over rule.
-    task: Task,
+    /// The task and its subtasks as they were created, carrying the
+    /// handed-over rule.
+    created: NextOccurrence,
     /// The rule as the completed task had it, restored on withdrawal.
     rule_before: RecurrenceRule,
 }
@@ -4081,10 +4084,9 @@ fn plan_next_occurrence(
         .iter()
         .find(|list| list.id == task.list_id)
         .map_or(0, |list| list.tasks.len() as i32);
-    let (next, _) =
-        recurrence::next_task(task, Utc::now(), display.timezone, order_index, user_id)?;
+    let created = recurrence::next_task(task, Utc::now(), display.timezone, order_index, user_id)?;
     Some(Successor {
-        task: next,
+        created,
         rule_before: task.recurrence_rule.clone()?,
     })
 }
@@ -4101,8 +4103,8 @@ fn take_untouched_successor(
     let mut state = state.lock().expect("shared state poisoned");
     let completed_id = TaskId::try_from_str(task_id.as_str()).ok()?;
     let successor = state.successors.remove(&completed_id)?;
-    let (_, current) = state.task_with_project(&successor.task.id.to_string())?;
-    recurrence::is_untouched(&successor.task, current).then_some(successor)
+    let (_, current) = state.task_with_project(&successor.created.task.id.to_string())?;
+    recurrence::is_untouched(&successor.created, current).then_some(successor)
 }
 
 /// Persists a status change together with what it does to a repeating task's
@@ -4175,7 +4177,7 @@ fn spawn_completion_patch<R>(
                         .await;
                 match result {
                     Ok(()) => {
-                        let next = &successor.task;
+                        let next = &successor.created.task;
                         let reminders = next
                             .reminders
                             .iter()
@@ -4206,8 +4208,8 @@ fn spawn_completion_patch<R>(
                 .await;
                 match result {
                     Ok(()) => {
-                        let next_id = successor.task.id.to_string();
-                        for reminder in &successor.task.reminders {
+                        let next_id = successor.created.task.id.to_string();
+                        for reminder in &successor.created.task.reminders {
                             let id = NotificationId::scheduled(&next_id, reminder);
                             if let Err(error) = platform.cancel_notification(&id).await {
                                 tracing::warn!(%error, %next_id, "failed to cancel withdrawn task reminder");
@@ -4233,10 +4235,12 @@ fn spawn_completion_patch<R>(
     });
 }
 
-/// Creates the next task in a series and moves the rule over to it.
+/// Creates the next task in a series, with its own copies of the completed
+/// task's subtasks, and moves the rule over to it.
 ///
 /// The completed task gives up its link, so the rule is never shared: editing
-/// or clearing the schedule on one task cannot reach the other.
+/// or clearing the schedule on one task cannot reach the other. The copied
+/// subtasks carry no rule of their own — only the task repeats.
 async fn hand_over_recurrence<R>(
     repositories: &R,
     project_id: &ProjectId,
@@ -4247,7 +4251,7 @@ async fn hand_over_recurrence<R>(
 where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
-    let next = &successor.task;
+    let next = &successor.created.task;
     let Some(rule) = next.recurrence_rule.clone() else {
         return Ok(());
     };
@@ -4255,6 +4259,19 @@ where
     for tag_id in &next.tag_ids {
         task_facades::add_task_tag_relation(repositories, project_id, &next.id, tag_id, user_id)
             .await?;
+    }
+    for sub_task in &successor.created.sub_tasks {
+        subtask_facades::create_sub_task(repositories, project_id, sub_task, user_id).await?;
+        for tag_id in &sub_task.tag_ids {
+            subtask_facades::add_subtask_tag_relation(
+                repositories,
+                project_id,
+                &sub_task.id,
+                tag_id,
+                user_id,
+            )
+            .await?;
+        }
     }
     recurrence_facades::delete_task_recurrence(repositories, project_id, completed_id).await?;
     write_recurrence(repositories, project_id, &next.id, rule, true, user_id).await
@@ -4264,7 +4281,8 @@ where
 /// back to the task it came from, as that task had it.
 ///
 /// The successor's link goes first, so a failure part way leaves at worst a
-/// task without a schedule, never two tasks sharing one rule.
+/// task without a schedule, never two tasks sharing one rule. Deleting the
+/// task takes its copied subtasks with it, in the same transaction.
 async fn withdraw_successor<R>(
     repositories: &R,
     project_id: &ProjectId,
@@ -4275,7 +4293,7 @@ async fn withdraw_successor<R>(
 where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
-    let next_id = &successor.task.id;
+    let next_id = &successor.created.task.id;
     recurrence_facades::delete_task_recurrence(repositories, project_id, next_id).await?;
     task_facades::delete_task(repositories, project_id, next_id, user_id, &Utc::now()).await?;
     write_recurrence(

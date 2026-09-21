@@ -16,9 +16,7 @@ use flequit_infrastructure_sqlite::infrastructure::automerge_sync_queue::NewSync
 use flequit_infrastructure_sqlite::models::automerge_sync_queue::SyncQueueStatus;
 use flequit_model::models::task_projects::{project::Project, task::Task, task_list::TaskList};
 use flequit_model::models::user_preferences::tag_bookmark::TagBookmark;
-use flequit_model::types::id_types::{
-    ProjectId, TagBookmarkId, TagId, TaskId, TaskListId, UserId,
-};
+use flequit_model::types::id_types::{ProjectId, TagBookmarkId, TagId, TaskId, TaskListId, UserId};
 use flequit_model::types::project_types::ProjectStatus;
 use flequit_model::types::task_types::TaskStatus;
 use flequit_repository::project_repository_trait::ProjectRepository;
@@ -199,7 +197,11 @@ async fn a_write_commits_to_sqlite_and_reaches_automerge_only_through_the_queue(
     assert_eq!(report.processed, 3);
     assert_eq!(count(&repositories, SyncQueueStatus::Pending).await, 0);
     assert_eq!(count(&repositories, SyncQueueStatus::Processed).await, 3);
-    let tasks = processor.targets().projects().get_tasks(&project_id).await?;
+    let tasks = processor
+        .targets()
+        .projects()
+        .get_tasks(&project_id)
+        .await?;
     assert_eq!(
         tasks.iter().map(|task| task.id).collect::<Vec<_>>(),
         [f.task.id]
@@ -332,7 +334,11 @@ async fn processed_rows_are_deleted_after_thirty_days() -> TestResult {
         .collect();
     processor.process_pending().await?;
     // 失敗し続ける行（pending のまま残る）
-    enqueue(&repositories, vec![delete_in_missing_project(ProjectId::new())]).await?;
+    enqueue(
+        &repositories,
+        vec![delete_in_missing_project(ProjectId::new())],
+    )
+    .await?;
 
     let now = Utc::now();
     let repository = processor.queue().repository();
@@ -369,7 +375,10 @@ async fn the_worker_drains_the_queue_in_the_background() -> TestResult {
         }
     })
     .await;
-    assert!(drained.is_ok(), "the worker should apply the queued changes");
+    assert!(
+        drained.is_ok(),
+        "the worker should apply the queued changes"
+    );
     assert_eq!(count(&repositories, SyncQueueStatus::Processed).await, 3);
     assert!(worker.shutdown(Duration::from_secs(5)).await);
     Ok(())
@@ -397,7 +406,10 @@ async fn restoring_a_task_first_applies_the_queued_deletion() -> TestResult {
         .restore_task_transactionally(&project_id, &f.task.id, &f.user_id, &Utc::now())
         .await?;
 
-    let restored = repositories.tasks.find_by_id(&project_id, &f.task.id).await?;
+    let restored = repositories
+        .tasks
+        .find_by_id(&project_id, &f.task.id)
+        .await?;
     assert!(restored.is_some_and(|task| !task.deleted));
     let processor = repositories.automerge_sync().unwrap();
     processor.process_pending().await?;

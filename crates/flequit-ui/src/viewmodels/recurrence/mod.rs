@@ -8,12 +8,13 @@
 
 pub mod occurrence;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeDelta, Utc};
 use flequit_model::models::task_projects::recurrence_details::RecurrenceDetails;
 use flequit_model::models::task_projects::recurrence_rule::RecurrenceRule;
+use flequit_model::models::task_projects::subtask::{SubTask, SubTaskTree};
 use flequit_model::models::task_projects::task::{Task, TaskTree};
 use flequit_model::types::datetime_calendar_types::{DayOfWeek, RecurrenceUnit as DomainUnit};
-use flequit_model::types::id_types::{RecurrenceRuleId, TaskId, UserId};
+use flequit_model::types::id_types::{RecurrenceRuleId, SubTaskId, TaskId, UserId};
 use flequit_model::types::task_types::TaskStatus;
 
 use crate::adapters::datetime::{DateTimeParts, DisplayTimezone, from_display_parts};
@@ -157,34 +158,50 @@ fn details(
     })
 }
 
-/// The task that takes over a repeating task once it is completed.
+/// The task and subtasks that take over a repeating task once it is completed.
+#[derive(Debug, Clone)]
+pub struct NextOccurrence {
+    /// The successor task, carrying the handed-over rule.
+    pub task: Task,
+    /// Fresh copies of the completed task's subtasks, belonging to it.
+    pub sub_tasks: Vec<SubTask>,
+    /// The rule as it stands once it has moved to the successor.
+    pub rule: RecurrenceRule,
+}
+
+/// The occurrence that takes over a repeating task once it is completed.
 ///
 /// The next task is due on the rule's next date after the completed one's due
 /// date (or after `now` when it had none), and keeps its title, notes,
 /// priority, tags and assignees. A span or reminders move by the same distance
-/// as the due date. `None` when the series has nothing left ahead of it.
+/// as the due date, and so do the subtasks: the gap the user arranged between
+/// a subtask and its task is what decides when the next subtask is due. `None`
+/// when the series has nothing left ahead of it.
 ///
 /// The rule is handed over rather than copied: it returns with one fewer
 /// occurrence left, so a limited series still ends where it was set to end.
+/// Only the task carries it — a subtask never repeats on its own.
 pub fn next_task(
     task: &TaskTree,
     now: DateTime<Utc>,
     timezone: DisplayTimezone,
     order_index: i32,
     user_id: UserId,
-) -> Option<(Task, RecurrenceRule)> {
+) -> Option<NextOccurrence> {
     let rule = task.recurrence_rule.as_ref()?;
     let anchor = task.plan_end_date.unwrap_or(now);
     let next_due = *occurrence::next_occurrences(rule, &anchor, timezone, 1).first()?;
-    let shift = |date: DateTime<Utc>| date + (next_due - anchor);
+    let offset = next_due - anchor;
+    let shift = |date: DateTime<Utc>| date + offset;
 
     let mut handed_over = rule.clone();
     handed_over.max_occurrences = rule.max_occurrences.map(|max| (max - 1).max(1));
     handed_over.updated_at = now;
     handed_over.updated_by = user_id;
 
+    let next_id = TaskId::new();
     let next = Task {
-        id: TaskId::new(),
+        id: next_id,
         project_id: task.project_id,
         list_id: task.list_id,
         title: task.title.clone(),
@@ -211,38 +228,124 @@ pub fn next_task(
         deleted: false,
         updated_by: user_id,
     };
-    Some((next, handed_over))
+    Some(NextOccurrence {
+        task: next,
+        sub_tasks: next_sub_tasks(task, next_id, offset, now, user_id),
+        rule: handed_over,
+    })
 }
 
-/// Whether the task `next_task` created is still exactly as it was made.
+/// Fresh copies of the completed task's subtasks, for its successor.
+///
+/// Each copy starts unstarted, and its planned dates move by the same distance
+/// as the task's due date: a subtask due two days before its task is again due
+/// two days before it in the next occurrence. Subtasks already deleted are
+/// left behind, and no copy carries a rule — the series belongs to the task.
+fn next_sub_tasks(
+    task: &TaskTree,
+    parent_id: TaskId,
+    offset: TimeDelta,
+    now: DateTime<Utc>,
+    user_id: UserId,
+) -> Vec<SubTask> {
+    task.sub_tasks
+        .iter()
+        .filter(|sub_task| !sub_task.deleted)
+        .map(|sub_task| SubTask {
+            id: SubTaskId::new(),
+            task_id: parent_id,
+            title: sub_task.title.clone(),
+            description: sub_task.description.clone(),
+            status: TaskStatus::NotStarted,
+            priority: sub_task.priority,
+            plan_start_date: sub_task.plan_start_date.map(|date| date + offset),
+            plan_end_date: sub_task.plan_end_date.map(|date| date + offset),
+            do_start_date: None,
+            do_end_date: None,
+            is_range_date: sub_task.is_range_date,
+            recurrence_rule: None,
+            assigned_user_ids: sub_task.assigned_user_ids.clone(),
+            tag_ids: sub_task.tag_ids.clone(),
+            order_index: sub_task.order_index,
+            completed: false,
+            created_at: now,
+            updated_at: now,
+            deleted: false,
+            updated_by: user_id,
+        })
+        .collect()
+}
+
+/// Whether the occurrence `next_task` created is still exactly as it was made.
 ///
 /// Undoing a completion takes the successor back only in this case: once the
-/// user has edited it, completed it, given it subtasks or changed its
+/// user has edited it, completed it, changed its subtasks or changed its
 /// schedule, it is their task and stays.
-pub fn is_untouched(created: &Task, current: &TaskTree) -> bool {
+pub fn is_untouched(created: &NextOccurrence, current: &TaskTree) -> bool {
+    let task = &created.task;
+    let mut created_tags = task.tag_ids.clone();
+    let mut current_tags = current.tag_ids.clone();
+    created_tags.sort();
+    current_tags.sort();
+
+    current.id == task.id
+        && !current.deleted
+        && !current.is_archived
+        && current.list_id == task.list_id
+        && current.title == task.title
+        && current.description == task.description
+        && current.status == task.status
+        && current.priority == task.priority
+        && current.plan_start_date == task.plan_start_date
+        && current.plan_end_date == task.plan_end_date
+        && current.do_start_date == task.do_start_date
+        && current.do_end_date == task.do_end_date
+        && current.is_range_date == task.is_range_date
+        && current.reminders == task.reminders
+        && current_tags == created_tags
+        && sub_tasks_are_untouched(&created.sub_tasks, &current.sub_tasks)
+        && schedule_of(current.recurrence_rule.as_ref())
+            == schedule_of(task.recurrence_rule.as_ref())
+}
+
+/// Whether the successor still has exactly the subtasks it was created with.
+///
+/// Subtasks added, removed or edited since make the successor the user's, so
+/// the set has to match one for one; a subtask deleted in the meantime counts
+/// as a change rather than as absent.
+fn sub_tasks_are_untouched(created: &[SubTask], current: &[SubTaskTree]) -> bool {
+    let live: Vec<&SubTaskTree> = current
+        .iter()
+        .filter(|sub_task| !sub_task.deleted)
+        .collect();
+
+    live.len() == created.len()
+        && created.iter().all(|created| {
+            live.iter()
+                .find(|current| current.id == created.id)
+                .is_some_and(|current| sub_task_is_untouched(created, current))
+        })
+}
+
+/// Whether one created subtask is still as `next_task` made it.
+fn sub_task_is_untouched(created: &SubTask, current: &SubTaskTree) -> bool {
     let mut created_tags = created.tag_ids.clone();
     let mut current_tags = current.tag_ids.clone();
     created_tags.sort();
     current_tags.sort();
 
-    current.id == created.id
-        && !current.deleted
-        && !current.is_archived
-        && current.list_id == created.list_id
-        && current.title == created.title
+    current.title == created.title
         && current.description == created.description
         && current.status == created.status
+        && current.completed == created.completed
         && current.priority == created.priority
         && current.plan_start_date == created.plan_start_date
         && current.plan_end_date == created.plan_end_date
         && current.do_start_date == created.do_start_date
         && current.do_end_date == created.do_end_date
         && current.is_range_date == created.is_range_date
-        && current.reminders == created.reminders
+        && current.order_index == created.order_index
         && current_tags == created_tags
-        && current.sub_tasks.iter().all(|sub| sub.deleted)
-        && schedule_of(current.recurrence_rule.as_ref())
-            == schedule_of(created.recurrence_rule.as_ref())
 }
 
 /// What a rule does, without when it was last written.
@@ -449,7 +552,8 @@ mod tests {
         task.reminders = vec![due - chrono::TimeDelta::minutes(30)];
         let user = UserId::new();
 
-        let (next, rule) = next_task(&task, due, DisplayTimezone::Utc, 3, user).unwrap();
+        let created = next_task(&task, due, DisplayTimezone::Utc, 3, user).unwrap();
+        let (next, rule) = (created.task, created.rule);
 
         let next_due = Utc.with_ymd_and_hms(2026, 9, 20, 9, 0, 0).unwrap();
         assert_ne!(next.id, task.id);
@@ -478,10 +582,10 @@ mod tests {
         let task = repeating_task(DomainUnit::Week, None);
         let now = Utc.with_ymd_and_hms(2026, 9, 19, 8, 0, 0).unwrap();
 
-        let (next, _) = next_task(&task, now, DisplayTimezone::Utc, 0, UserId::new()).unwrap();
+        let created = next_task(&task, now, DisplayTimezone::Utc, 0, UserId::new()).unwrap();
 
         assert_eq!(
-            next.plan_end_date,
+            created.task.plan_end_date,
             Some(Utc.with_ymd_and_hms(2026, 9, 26, 8, 0, 0).unwrap())
         );
     }
@@ -492,10 +596,10 @@ mod tests {
         let mut task = repeating_task(DomainUnit::Day, Some(due));
         task.recurrence_rule.as_mut().unwrap().max_occurrences = Some(2);
 
-        let (_, rule) = next_task(&task, due, DisplayTimezone::Utc, 0, UserId::new()).unwrap();
-        assert_eq!(rule.max_occurrences, Some(1));
+        let created = next_task(&task, due, DisplayTimezone::Utc, 0, UserId::new()).unwrap();
+        assert_eq!(created.rule.max_occurrences, Some(1));
 
-        task.recurrence_rule = Some(rule);
+        task.recurrence_rule = Some(created.rule);
         assert!(next_task(&task, due, DisplayTimezone::Utc, 0, UserId::new()).is_none());
     }
 
@@ -510,23 +614,25 @@ mod tests {
     #[test]
     fn an_untouched_successor_is_recognised() {
         let due = Utc.with_ymd_and_hms(2026, 9, 19, 9, 0, 0).unwrap();
-        let task = repeating_task(DomainUnit::Day, Some(due));
-        let (next, rule) = next_task(&task, due, DisplayTimezone::Utc, 0, UserId::new()).unwrap();
+        let mut task = repeating_task(DomainUnit::Day, Some(due));
+        task.sub_tasks = vec![sub_task_of(&task, "Fill the can", Some(due))];
+        let created = next_task(&task, due, DisplayTimezone::Utc, 0, UserId::new()).unwrap();
 
-        let mut stored = as_tree(&next);
+        let mut stored = as_tree(&created);
         // Saving rewrites the rule's bookkeeping without changing the schedule.
         stored.recurrence_rule = Some(RecurrenceRule {
             updated_at: due + chrono::TimeDelta::seconds(1),
-            ..rule
+            ..created.rule.clone()
         });
-        assert!(is_untouched(&next, &stored));
+        assert!(is_untouched(&created, &stored));
     }
 
     #[test]
     fn any_edit_makes_the_successor_the_users() {
         let due = Utc.with_ymd_and_hms(2026, 9, 19, 9, 0, 0).unwrap();
-        let task = repeating_task(DomainUnit::Day, Some(due));
-        let (next, _) = next_task(&task, due, DisplayTimezone::Utc, 0, UserId::new()).unwrap();
+        let mut task = repeating_task(DomainUnit::Day, Some(due));
+        task.sub_tasks = vec![sub_task_of(&task, "Fill the can", Some(due))];
+        let created = next_task(&task, due, DisplayTimezone::Utc, 0, UserId::new()).unwrap();
 
         let edits: Vec<fn(&mut TaskTree)> = vec![
             |t| t.title.push('!'),
@@ -537,15 +643,133 @@ mod tests {
             |t| t.recurrence_rule.as_mut().unwrap().interval = 2,
             |t| t.recurrence_rule = None,
             |t| t.deleted = true,
+            |t| t.sub_tasks[0].title.push('!'),
+            |t| t.sub_tasks[0].plan_end_date = None,
+            |t| t.sub_tasks[0].completed = true,
+            |t| t.sub_tasks[0].deleted = true,
+            |t| t.sub_tasks.clear(),
+            |t| {
+                let extra = t.sub_tasks[0].clone();
+                t.sub_tasks.push(SubTaskTree {
+                    id: SubTaskId::new(),
+                    ..extra
+                });
+            },
         ];
         for edit in edits {
-            let mut stored = as_tree(&next);
+            let mut stored = as_tree(&created);
             edit(&mut stored);
-            assert!(!is_untouched(&next, &stored));
+            assert!(!is_untouched(&created, &stored));
         }
     }
 
-    fn as_tree(task: &Task) -> TaskTree {
+    #[test]
+    fn a_subtask_keeps_its_distance_from_the_task_it_belongs_to() {
+        // A weekly task due on the 5th with a subtask due on the 3rd repeats
+        // as a task due on the 12th with its subtask due on the 10th.
+        let due = Utc.with_ymd_and_hms(2026, 1, 5, 9, 0, 0).unwrap();
+        let sub_due = Utc.with_ymd_and_hms(2026, 1, 3, 9, 0, 0).unwrap();
+        let mut task = repeating_task(DomainUnit::Week, Some(due));
+        task.sub_tasks = vec![sub_task_of(&task, "Buy the soil", Some(sub_due))];
+
+        let created = next_task(&task, due, DisplayTimezone::Utc, 0, UserId::new()).unwrap();
+
+        assert_eq!(
+            created.task.plan_end_date,
+            Some(Utc.with_ymd_and_hms(2026, 1, 12, 9, 0, 0).unwrap())
+        );
+        assert_eq!(created.sub_tasks.len(), 1);
+        assert_eq!(
+            created.sub_tasks[0].plan_end_date,
+            Some(Utc.with_ymd_and_hms(2026, 1, 10, 9, 0, 0).unwrap())
+        );
+    }
+
+    #[test]
+    fn a_copied_subtask_starts_over_and_never_repeats_on_its_own() {
+        let due = Utc.with_ymd_and_hms(2026, 1, 5, 9, 0, 0).unwrap();
+        let mut task = repeating_task(DomainUnit::Week, Some(due));
+        let mut source = sub_task_of(&task, "Buy the soil", Some(due));
+        source.plan_start_date = Some(due - chrono::TimeDelta::hours(3));
+        source.do_start_date = Some(due - chrono::TimeDelta::hours(2));
+        source.do_end_date = Some(due);
+        source.status = TaskStatus::Completed;
+        source.completed = true;
+        source.order_index = 4;
+        task.sub_tasks = vec![source.clone()];
+
+        let created = next_task(&task, due, DisplayTimezone::Utc, 0, UserId::new()).unwrap();
+        let copy = &created.sub_tasks[0];
+
+        assert_ne!(copy.id, source.id);
+        assert_eq!(copy.task_id, created.task.id);
+        assert_eq!(copy.title, source.title);
+        assert_eq!(copy.status, TaskStatus::NotStarted);
+        assert!(!copy.completed);
+        assert_eq!(copy.order_index, source.order_index);
+        assert_eq!(copy.tag_ids, source.tag_ids);
+        assert!(copy.recurrence_rule.is_none());
+        assert!(copy.do_start_date.is_none());
+        assert!(copy.do_end_date.is_none());
+        assert_eq!(
+            copy.plan_start_date,
+            Some(Utc.with_ymd_and_hms(2026, 1, 12, 6, 0, 0).unwrap())
+        );
+    }
+
+    #[test]
+    fn a_subtask_without_a_due_date_stays_without_one() {
+        let due = Utc.with_ymd_and_hms(2026, 1, 5, 9, 0, 0).unwrap();
+        let mut task = repeating_task(DomainUnit::Week, Some(due));
+        task.sub_tasks = vec![sub_task_of(&task, "Ask the neighbour", None)];
+
+        let created = next_task(&task, due, DisplayTimezone::Utc, 0, UserId::new()).unwrap();
+
+        assert!(created.sub_tasks[0].plan_end_date.is_none());
+    }
+
+    #[test]
+    fn a_deleted_subtask_is_left_behind() {
+        let due = Utc.with_ymd_and_hms(2026, 1, 5, 9, 0, 0).unwrap();
+        let mut task = repeating_task(DomainUnit::Week, Some(due));
+        let mut gone = sub_task_of(&task, "No longer needed", Some(due));
+        gone.deleted = true;
+        task.sub_tasks = vec![gone, sub_task_of(&task, "Buy the soil", Some(due))];
+
+        let created = next_task(&task, due, DisplayTimezone::Utc, 0, UserId::new()).unwrap();
+
+        assert_eq!(created.sub_tasks.len(), 1);
+        assert_eq!(created.sub_tasks[0].title, "Buy the soil");
+    }
+
+    fn sub_task_of(task: &TaskTree, title: &str, due: Option<DateTime<Utc>>) -> SubTaskTree {
+        let now = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        SubTaskTree {
+            id: SubTaskId::new(),
+            task_id: task.id,
+            title: title.to_string(),
+            description: Some("from the shed".to_string()),
+            status: TaskStatus::NotStarted,
+            priority: Some(1),
+            plan_start_date: None,
+            plan_end_date: due,
+            do_start_date: None,
+            do_end_date: None,
+            is_range_date: None,
+            recurrence_rule: None,
+            order_index: 0,
+            completed: false,
+            created_at: now,
+            updated_at: now,
+            deleted: false,
+            updated_by: UserId::new(),
+            assigned_user_ids: Vec::new(),
+            tag_ids: vec![TagId::new()],
+        }
+    }
+
+    fn as_tree(created: &NextOccurrence) -> TaskTree {
+        let task = &created.task;
         TaskTree {
             id: task.id,
             project_id: task.project_id,
@@ -568,8 +792,33 @@ mod tests {
             updated_at: task.updated_at,
             deleted: task.deleted,
             updated_by: task.updated_by,
-            sub_tasks: Vec::new(),
+            sub_tasks: created.sub_tasks.iter().map(as_sub_task_tree).collect(),
             tag_ids: task.tag_ids.clone(),
+        }
+    }
+
+    fn as_sub_task_tree(sub_task: &SubTask) -> SubTaskTree {
+        SubTaskTree {
+            id: sub_task.id,
+            task_id: sub_task.task_id,
+            title: sub_task.title.clone(),
+            description: sub_task.description.clone(),
+            status: sub_task.status.clone(),
+            priority: sub_task.priority,
+            plan_start_date: sub_task.plan_start_date,
+            plan_end_date: sub_task.plan_end_date,
+            do_start_date: sub_task.do_start_date,
+            do_end_date: sub_task.do_end_date,
+            is_range_date: sub_task.is_range_date,
+            recurrence_rule: sub_task.recurrence_rule.clone(),
+            order_index: sub_task.order_index,
+            completed: sub_task.completed,
+            created_at: sub_task.created_at,
+            updated_at: sub_task.updated_at,
+            deleted: sub_task.deleted,
+            updated_by: sub_task.updated_by,
+            assigned_user_ids: sub_task.assigned_user_ids.clone(),
+            tag_ids: sub_task.tag_ids.clone(),
         }
     }
 }
