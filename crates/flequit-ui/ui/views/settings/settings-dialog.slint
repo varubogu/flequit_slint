@@ -8,6 +8,7 @@ import { IconButton } from "../../components/icon-button.slint";
 import { IconName } from "../../components/icon.slint";
 import { AccountSettings } from "account-settings.slint";
 import { AppearanceSettings } from "appearance-settings.slint";
+import { DataSyncSettings } from "data-sync-settings.slint";
 import { BasicSettings } from "basic-settings.slint";
 import { DateTimeSettings } from "datetime-settings.slint";
 import { SettingsCategories } from "settings-categories.slint";
@@ -20,6 +21,7 @@ component SelectedSettings inherits Rectangle {
         if SettingsState.selected-category == SettingsCategory.date-time: DateTimeSettings { }
         if SettingsState.selected-category == SettingsCategory.appearance: AppearanceSettings { }
         if SettingsState.selected-category == SettingsCategory.account: AccountSettings { }
+        if SettingsState.selected-category == SettingsCategory.data-sync: DataSyncSettings { }
     }
 }
 
@@ -30,7 +32,8 @@ component AllSettings inherits ScrollView {
         self.viewport-y = root.category == SettingsCategory.basic ? 0px
             : root.category == SettingsCategory.date-time ? 0px - date-time.y
             : root.category == SettingsCategory.appearance ? 0px - appearance.y
-            : 0px - account.y;
+            : root.category == SettingsCategory.account ? 0px - account.y
+            : 0px - data-sync.y;
     }
 
     VerticalLayout {
@@ -43,6 +46,8 @@ component AllSettings inherits ScrollView {
         appearance := AppearanceSettings { }
         Rectangle { height: 1px; background: Theme.border; }
         account := AccountSettings { }
+        Rectangle { height: 1px; background: Theme.border; }
+        data-sync := DataSyncSettings { }
     }
 }
 

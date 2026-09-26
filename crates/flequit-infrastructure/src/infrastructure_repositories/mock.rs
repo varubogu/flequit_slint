@@ -7,9 +7,9 @@ use crate::unified::*;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use flequit_core::ports::infrastructure_repositories::{
-    InfrastructureRepositoriesTrait, TransactionalDeletionPort, TransactionalRestorePort,
+    FailedSyncChange, InfrastructureRepositoriesTrait, SyncDiagnosticsPort, SyncQueueSummary,
+    SyncRequeueReport, TransactionalDeletionPort, TransactionalRestorePort,
 };
-use flequit_infrastructure_automerge::infrastructure::local_automerge_repositories::LocalAutomergeRepositories;
 use flequit_infrastructure_sqlite::infrastructure::database_manager::DatabaseManager;
 use flequit_infrastructure_sqlite::infrastructure::local_sqlite_repositories::LocalSqliteRepositories;
 use flequit_infrastructure_sqlite::infrastructure::user_preferences::tag_bookmark::TagBookmarkLocalSqliteRepository;
@@ -187,6 +187,33 @@ impl TransactionalRestorePort for MockInfrastructureRepositories {
 }
 
 #[async_trait]
+impl SyncDiagnosticsPort for MockInfrastructureRepositories {
+    async fn sync_queue_summary(&self) -> Result<Option<SyncQueueSummary>, RepositoryError> {
+        self.log_call("sync_queue_summary");
+        Ok(None)
+    }
+
+    async fn failed_sync_changes(
+        &self,
+        _limit: u64,
+    ) -> Result<Vec<FailedSyncChange>, RepositoryError> {
+        self.log_call("failed_sync_changes");
+        Ok(Vec::new())
+    }
+
+    async fn requeue_failed_sync_changes(
+        &self,
+        ids: &[i64],
+    ) -> Result<SyncRequeueReport, RepositoryError> {
+        self.log_call("requeue_failed_sync_changes");
+        Ok(SyncRequeueReport {
+            not_failed: ids.to_vec(),
+            ..SyncRequeueReport::default()
+        })
+    }
+}
+
+#[async_trait]
 impl InfrastructureRepositoriesTrait for MockInfrastructureRepositories {
     type AccountsRepository = AccountUnifiedRepository;
     type ProjectsRepository = ProjectUnifiedRepository;
@@ -204,15 +231,8 @@ impl InfrastructureRepositoriesTrait for MockInfrastructureRepositories {
     type SubtaskRecurrencesRepository = SubTaskRecurrenceUnifiedRepository;
     type TagBookmarksRepository = TagBookmarkLocalSqliteRepository;
     type SqliteRepositories = LocalSqliteRepositories;
-    type AutomergeRepositories = LocalAutomergeRepositories;
 
     fn sqlite_repositories(&self) -> Option<&std::sync::Arc<RwLock<Self::SqliteRepositories>>> {
-        None
-    }
-
-    fn automerge_repositories(
-        &self,
-    ) -> Option<&std::sync::Arc<RwLock<Self::AutomergeRepositories>>> {
         None
     }
 

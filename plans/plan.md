@@ -1,6 +1,6 @@
 # Flequit (Slint) 作業計画
 
-- 最終更新: 2026-09-20
+- 最終更新: 2026-09-26
 - 正本: 本ファイル。完了した計画はクリアし、判断の詳細は各仕様書と `docs/ja/` に残す
 
 ## 1. 検索ボックスを中心にしたタスク一覧
@@ -87,12 +87,15 @@
 
 ### 2.2 残作業
 
-- [ ] `failed` の行を調べて再投入する手段（診断画面またはログ出力）
-- [ ] アプリ終了時に Automerge-Repo を停止（`RepoHandle::stop`）し、ファイル保存の完了を待つ
-- [ ] モバイルでバックグラウンドへ移るときにキューを反映する（ライフサイクル通知から起こす）
-- [ ] 使われなくなったスナップショット系の port（`AutomergeProjectRepositoryPort` の
+- [x] `failed` の行を調べて再投入する手段（設定画面「データ同期」と起動時のログ出力）
+- [x] アプリ終了時に Automerge-Repo を停止（`RepoHandle::stop`）し、ファイル保存の完了を待つ
+- [x] モバイルでバックグラウンドへ移るときにキューを反映する（ライフサイクル通知から起こす）
+- [x] 使われなくなったスナップショット系の port（`AutomergeProjectRepositoryPort` の
       `create_snapshot` / `restore_from_snapshot`、`AutomergeRepositoriesPort::projects_repo`）の整理
 - [ ] 将来の端末間同期では、送信前に対象ドキュメントのキューを `flush_document` で反映する
+      （端末間同期の実装時に行う）
+- [ ] 実機での確認: 診断画面の表示（en / ja、各ブレークポイント）、モバイルのバックグラウンド移行時の反映
+- [ ] 後の変更が反映済みで再投入できない `failed` の行を直す手段（SQLite の現在の内容から Automerge を作り直す）
 
 ### 2.3 実装時の判断
 
@@ -112,4 +115,17 @@
   差分だけを書く形に改めた（`docs/ja/develop/design/data/automerge-structure.md`）。
   旧リスト形式は読み取り時にそのまま受け付け、最初の書き込みで Map に変換する。
   終了時は Tokio ランタイムの停止を 1 秒で打ち切る
+- （2026-09-26）`failed` の再投入は「同じドキュメントで後の行が `processed` でない」行だけに限った。
+  保存は行の内容でエンティティを上書きするため、古い行を後から当てると Automerge を巻き戻す。
+  判定の手がかりを失わないよう、掃除はドキュメントごとに最も新しい `processed` の行を残す
+- 再投入の入口は設定画面の「データ同期」（ユーザー判断で診断画面を選択）。core に `SyncDiagnosticsPort` と
+  `sync_diagnostics_facades` を追加し、ViewModel は Facade だけを呼ぶ
+- Automerge-Repo の停止は、同期キューのワーカーが時間内に止まったときだけ行う。
+  停止後にドキュメントへ書き込むと Automerge-Repo 0.3 が panic するため。
+  `DocumentManager` は `Mutex` 越しに共有されるので、停止用のハンドル（`RepoStopHandle`）を起動時に取り出しておく
+- バックグラウンド移行時の反映はライフサイクル通知のスレッドで最大 2 秒待つ。OS は通知から
+  すぐ戻ることを求める（Android の ANR・iOS の強制終了は約 5 秒）一方、待つ間はプロセスが止められないため
+- スナップショット系の port は `AutomergeProjectRepositoryPort` ごと削除した（削除済みデータの読み書きも
+  含め、core からは一度も使われていなかった）。`flequit-infrastructure-automerge` は `flequit-core` に
+  依存しなくなった。スナップショットの具象メソッドは Automerge クレートのテストが使うため残した
 

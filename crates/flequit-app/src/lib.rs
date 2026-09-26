@@ -7,11 +7,14 @@
 //! 3. Build the Tokio runtime.
 //! 4. Set up infrastructure (SQLite + Automerge) and start the Automerge sync worker.
 //! 5. Create the window, wire the ViewModel, run the event loop.
-//! 6. On exit, give the sync worker a moment to apply what is still queued.
+//! 6. On exit, give the sync worker a moment to apply what is still queued,
+//!    then stop Automerge-Repo so its pending file writes finish.
 //!
 //! Nothing below this crate constructs a runtime or reads a hardcoded path.
 
 use std::sync::Arc;
+
+mod automerge_sync;
 
 // Platform entry points. Selected by Cargo feature, not by `cfg(target_os)`:
 // that attribute belongs to `flequit-platform` alone.
@@ -75,14 +78,20 @@ pub fn run() -> Result<(), BootstrapError> {
     // Declared before everything that hands it work, so it is dropped after them.
     let runtime = AppRuntime(Some(build_runtime(platform.as_ref())?));
     let (user_settings, settings_store) = load_settings(&runtime, platform.as_ref())?;
-    let repositories = runtime.block_on(setup_infrastructure(platform.as_ref()))?;
+    let repositories = Arc::new(runtime.block_on(setup_infrastructure(platform.as_ref()))?);
     // Writes commit to SQLite only; this worker applies them to Automerge in the
     // background. It also picks up whatever the previous session left queued.
     let automerge_sync = repositories.start_automerge_sync(runtime.handle());
+    // Held for the whole session, like `_lifecycle` below. `None` on desktop.
+    let _flush_on_suspend = automerge_sync::flush_on_suspend(
+        platform.as_ref(),
+        repositories.automerge_sync(),
+        runtime.handle(),
+    );
 
     let window = AppWindow::new()?;
     let view_model = AppViewModel::new_with_settings(
-        Arc::new(repositories),
+        Arc::clone(&repositories),
         Arc::clone(&platform),
         runtime.handle().clone(),
         user_settings,
@@ -101,14 +110,32 @@ pub fn run() -> Result<(), BootstrapError> {
     window.run()?;
 
     tracing::info!("shutting down");
-    if let Some(automerge_sync) = automerge_sync
-        && !runtime.block_on(automerge_sync.shutdown(AUTOMERGE_SYNC_SHUTDOWN_TIMEOUT))
-    {
+    let worker_stopped = match automerge_sync {
+        Some(automerge_sync) => {
+            runtime.block_on(automerge_sync.shutdown(AUTOMERGE_SYNC_SHUTDOWN_TIMEOUT))
+        }
+        None => true,
+    };
+    if !worker_stopped {
         // Nothing is lost: the queue lives in SQLite and the next launch resumes it.
+        // Automerge-Repo is left running: the change being applied would write to
+        // it after it stopped, which Automerge-Repo answers with a panic.
         tracing::warn!("Automerge sync did not finish before exit; it resumes on next launch");
+    } else if !repositories.stop_automerge_repo(AUTOMERGE_REPO_STOP_TIMEOUT) {
+        // The queue already counts these changes as applied, so one cut off here
+        // is missing from the Automerge file until something rewrites it.
+        tracing::warn!("Automerge did not finish saving documents before exit");
     }
     Ok(())
 }
+
+/// How long exiting may wait for Automerge-Repo to write changed documents.
+///
+/// Automerge-Repo saves in the background and does not report completion, so
+/// stopping it is the only way to know the last applied change is on disk.
+/// Writing an incremental chunk is fast; this covers compacting a large
+/// document on a slow disk.
+const AUTOMERGE_REPO_STOP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
 
 /// How long closing the window may wait for queued changes to reach Automerge.
 ///

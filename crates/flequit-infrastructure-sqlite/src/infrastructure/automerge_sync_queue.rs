@@ -12,8 +12,8 @@ use flequit_types::errors::repository_error::RepositoryError;
 use sea_orm::sea_query::Expr;
 use sea_orm::{
     ActiveValue::{NotSet, Set},
-    ColumnTrait, DatabaseTransaction, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect,
+    ColumnTrait, ConnectionTrait, DatabaseTransaction, DbBackend, EntityTrait, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Statement,
 };
 use tokio::sync::RwLock;
 
@@ -55,6 +55,41 @@ impl From<Model> for SyncQueueEntry {
             created_at: model.created_at,
         }
     }
+}
+
+/// 反映を諦めた（`failed`）1 件。調査と再投入の判断に使う
+#[derive(Debug, Clone, PartialEq)]
+pub struct FailedSyncQueueEntry {
+    pub id: i64,
+    pub document_key: String,
+    pub change_kind: String,
+    pub attempts: i32,
+    pub last_error: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+impl From<Model> for FailedSyncQueueEntry {
+    fn from(model: Model) -> Self {
+        Self {
+            id: model.id,
+            document_key: model.document_key,
+            change_kind: model.change_kind,
+            attempts: model.attempts,
+            last_error: model.last_error,
+            created_at: model.created_at,
+        }
+    }
+}
+
+/// `failed` の行を `pending` へ戻した結果
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RequeueOutcome {
+    /// `pending` に戻した
+    Requeued,
+    /// 同じドキュメントで後の行が反映済み。戻すと Automerge を古い内容へ巻き戻すので戻さない
+    Superseded,
+    /// 行が無いか、`failed` ではない
+    NotFailed,
 }
 
 #[derive(Debug, Clone)]
@@ -195,20 +230,80 @@ impl AutomergeSyncQueueLocalSqliteRepository {
 
     /// `cutoff` より前に処理済みになった行を削除し、削除件数を返す。
     ///
-    /// `pending` と `failed` の行は消さない。
+    /// `pending` と `failed` の行は消さない。ドキュメントごとに最も新しい
+    /// `processed` の行も残す。`failed` の行を戻してよいか（後の行が反映済みでないか）を
+    /// [`Self::requeue_failed`] が判断する手がかりになるため。
     pub async fn delete_processed_before(
         &self,
         cutoff: DateTime<Utc>,
     ) -> Result<u64, RepositoryError> {
         let db_manager = self.db_manager.read().await;
         let db = db_manager.get_connection().await?;
-        let result = SyncQueueEntity::delete_many()
-            .filter(Column::Status.eq(SyncQueueStatus::Processed.as_str()))
-            .filter(Column::ProcessedAt.lt(cutoff))
-            .exec(db)
+        let statement = Statement::from_sql_and_values(
+            DbBackend::Sqlite,
+            "DELETE FROM automerge_sync_queue \
+             WHERE status = 'processed' AND processed_at < ? \
+               AND id NOT IN ( \
+                 SELECT MAX(id) FROM automerge_sync_queue \
+                 WHERE status = 'processed' GROUP BY document_key)",
+            [cutoff.into()],
+        );
+        let result = db.execute(statement).await.map_err(db_error)?;
+        Ok(result.rows_affected())
+    }
+
+    /// `failed` の行を id 順に最大 `limit` 件返す
+    pub async fn find_failed(
+        &self,
+        limit: u64,
+    ) -> Result<Vec<FailedSyncQueueEntry>, RepositoryError> {
+        let db_manager = self.db_manager.read().await;
+        let db = db_manager.get_connection().await?;
+        let models = SyncQueueEntity::find()
+            .filter(Column::Status.eq(SyncQueueStatus::Failed.as_str()))
+            .order_by_asc(Column::Id)
+            .limit(limit)
+            .all(db)
             .await
             .map_err(db_error)?;
-        Ok(result.rows_affected)
+        Ok(models.into_iter().map(FailedSyncQueueEntry::from).collect())
+    }
+
+    /// `failed` の行を `pending` に戻し、試行回数を 0 からやり直す。
+    ///
+    /// 同じドキュメントで後の行がすでに反映済みなら戻さない。古い変更を後から当てると、
+    /// Automerge を新しい内容から古い内容へ巻き戻すため。判定と更新は 1 文で行い、
+    /// ワーカーが間に後の行を反映しても順序が崩れないようにする。
+    /// `last_error` は調査のため残す。
+    pub async fn requeue_failed(&self, id: i64) -> Result<RequeueOutcome, RepositoryError> {
+        let db_manager = self.db_manager.read().await;
+        let db = db_manager.get_connection().await?;
+        let statement = Statement::from_sql_and_values(
+            DbBackend::Sqlite,
+            "UPDATE automerge_sync_queue \
+             SET status = 'pending', attempts = 0, next_attempt_at = NULL \
+             WHERE id = ? AND status = 'failed' \
+               AND NOT EXISTS ( \
+                 SELECT 1 FROM automerge_sync_queue AS later \
+                 WHERE later.document_key = automerge_sync_queue.document_key \
+                   AND later.id > automerge_sync_queue.id \
+                   AND later.status = 'processed')",
+            [id.into()],
+        );
+        let result = db.execute(statement).await.map_err(db_error)?;
+        if result.rows_affected() > 0 {
+            return Ok(RequeueOutcome::Requeued);
+        }
+        let row = SyncQueueEntity::find_by_id(id)
+            .one(db)
+            .await
+            .map_err(db_error)?;
+        Ok(match row {
+            Some(row) if row.status == SyncQueueStatus::Failed.as_str() => {
+                RequeueOutcome::Superseded
+            }
+            _ => RequeueOutcome::NotFailed,
+        })
     }
 
     /// 状態ごとの行数（診断・テスト用）

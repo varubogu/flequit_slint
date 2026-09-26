@@ -72,10 +72,18 @@ Automerge への書き込みはプロジェクト単位のドキュメント全�
 
 ### 起動と停止
 
-- `flequit-app` が起動時に開始する。最初に前回の残りを反映し、処理済みの古い行を掃除する
+- `flequit-app` が起動時に開始する。最初に `failed` の行があればログに出し（[§6](#6-反映を諦めた変更の確認と再投入)）、
+  前回の残りを反映し、処理済みの古い行を掃除する
 - コミットのたびに通知を受けて起きる。通知が無くても 60 秒ごとにキューを見る
+- **バックグラウンドへ移るとき**（モバイルの `LifecycleEvent::Suspend`）は、その場でキューを反映する。
+  OS はこの通知をメインスレッドで送り、すぐ戻ることを求めるため最大 2 秒で待つのをやめる。
+  待つ間はプロセスが止められないので、この間に反映を済ませる。残りは再開後か次回起動時に反映される
 - アプリ終了時は、残りの行を最大 3 秒まで反映してから止まる。
   間に合わなかった行は SQLite に残り、次回起動時に反映される
+- ワーカーが止まったら **Automerge-Repo を止める**（`RepoHandle::stop`）。Automerge-Repo は
+  止まるときに変更のあるドキュメントをファイルへ保存し終えてから戻るので、直前に反映した変更もファイルに残る。
+  保存は最大 2 秒まで待つ。ワーカーが時間内に止まらなかった場合は止めない
+  （実行中の適用が停止後の Automerge-Repo へ書き込むと panic するため）
 
 ### 適用の順序
 
@@ -110,7 +118,40 @@ Automerge への書き込みはプロジェクト単位のドキュメント全�
 `processed` になって 30 日（`processed_at` 基準）経った行を削除する。
 起動時と、その後 24 時間ごとに行う。`pending` と `failed` は消さない。
 
-## 6. トランザクションとロック
+ただし **ドキュメントごとに最も新しい `processed` の行は残す**。`failed` の行を戻してよいか
+（同じドキュメントの後の行が反映済みでないか）の判断に使うため（[§6](#6-反映を諦めた変更の確認と再投入)）。
+残るのはドキュメントあたり 1 行だけなので、テーブルは増え続けない。
+
+## 6. 反映を諦めた変更の確認と再投入
+
+`failed` の行は自動では消えず、再試行もしない。調べて戻す手段を 2 つ用意する。
+
+- **ログ**: ワーカーの起動時に `failed` の件数と、古い順に最大 20 行（id・種類・反映先・試行回数・
+  登録日時・最後のエラー）を警告として出す
+- **設定画面の「データ同期」**: 件数と `failed` の一覧を表示し、行ごとまたはまとめて再投入できる
+  （[`page/settings/settings.md`](../ui/page/settings/settings.md)）。
+  UI からは `SyncDiagnosticsPort`（`flequit-core`）と `sync_diagnostics_facades` を通して呼ぶ
+
+### 再投入の規則
+
+再投入は `failed` の行を `pending` に戻し、`attempts` を 0 に、`next_attempt_at` を空にする
+（`last_error` は調査のため残す）。行の id は変えないので、同じドキュメントのまだ反映していない後続より先に適用される。
+
+**同じドキュメントで後の行がすでに `processed` なら戻さない**。保存は「エンティティを行の内容に合わせる」
+操作なので、古い行を後から当てると Automerge を新しい内容から古い内容へ巻き戻してしまう。
+戻せなかった行は `failed` のまま残し、結果として件数を返す（画面に表示する）。
+
+| 結果 | 意味 |
+| --- | --- |
+| 再投入した | `pending` に戻した。ワーカーを起こしてすぐ反映させる |
+| 新しい変更が反映済み | 同じドキュメントの後の行が `processed`。戻すと巻き戻すため戻さない |
+| 対象外 | 行が無いか、すでに `failed` ではない |
+
+判定と更新は 1 つの `UPDATE ... WHERE NOT EXISTS (...)` で行う。判定の後にワーカーが後の行を
+反映しても、順序が崩れた状態で戻すことはない。判定には後の `processed` の行が要るため、
+掃除はドキュメントごとに最も新しい `processed` の行を残す（[§5 掃除](#掃除)）。
+
+## 7. トランザクションとロック
 
 - **キューの INSERT をトランザクションの最初の文にする**。SQLite は読み取りから書き込みへ
   切り替わるときに別の接続が書き込み中だと、待たずに `SQLITE_BUSY` を返すことがある。
@@ -121,7 +162,7 @@ Automerge への書き込みはプロジェクト単位のドキュメント全�
   渡されたトランザクションで読む（例: タスク保存時のタグ存在確認。プロジェクトの復元でタグとタスクを
   1 トランザクションで戻すため）
 
-## 7. Automerge を読む処理（読み取りバリア）
+## 8. Automerge を読む処理（読み取りバリア）
 
 Automerge にしか無いデータを読む処理は、キューが未反映だと古い内容を読んでしまう。
 現状これに当たるのは **ゴミ箱からの復元** だけ（削除済みのデータは SQLite から消えている）。
@@ -134,7 +175,7 @@ Automerge にしか無いデータを読む処理は、キューが未反映だ�
 復元は Facade から `TransactionalRestorePort`（`flequit-core`）を通して呼ぶ。
 削除の `TransactionalDeletionPort` と同じく、トランザクションとキューは `flequit-infrastructure` に閉じる。
 
-## 8. ストレージ設定ごとの動作
+## 9. ストレージ設定ごとの動作
 
 | SQLite | Automerge | 書き込み | ワーカー |
 | --- | --- | --- | --- |
@@ -142,22 +183,25 @@ Automerge にしか無いデータを読む処理は、キューが未反映だ�
 | ○ | × | SQLite だけ。キューには入れない | 起動しない |
 | × | ○ | Automerge へ直接書き込む（キューを置く場所が無いため） | 起動しない |
 
-## 9. 制約と既知の制限
+## 10. 制約と既知の制限
 
 - **Automerge のファイル書き込みの完了は確認できない**。Automerge-Repo（0.3）はドキュメントの変更を
   バックグラウンドのスレッドで保存し、完了を通知しない（失敗もログに出すだけ）。
   そのため `processed` は「Automerge ドキュメントへの適用が成功した」ことを表す。
   適用直後の数ミリ秒の間にプロセスが落ちると、その変更はファイルに残らず再送もされない。
-  キュー導入前も同じ条件だった
+  キュー導入前も同じ条件だった。通常の終了では Automerge-Repo を止めて保存を待つので（[§5](#起動と停止)）、
+  この問題が残るのは強制終了とクラッシュだけ
 - **Automerge は SQLite より遅れる**。ワーカーが追いつくまで Automerge は古い。
   将来の端末間同期は、送る前に対象ドキュメントを `flush_document` で反映させること
-- **`failed` の行を再投入する手段は未実装**。ログと行の `last_error` で調査する
+- **同じドキュメントの後の変更が反映済みの `failed` の行は戻せない**。その変更は Automerge に届かないままになる。
+  後続が同じエンティティの保存ならすでに追いついているが、そうでなければ SQLite の現在の内容から
+  Automerge を作り直す手段が要る（未実装）
 - **Automerge に対応する操作が無い書き込みはキューに入れない**。
   `SubtaskRecurrenceRepositoryTrait` の `save` / `delete_by_subtask_id` / `delete_by_recurrence_rule_id`
   はプロジェクト ID を持たず、Automerge 側が未対応のため SQLite だけに書く
   （関連の追加・解除は `ProjectRelationRepository` 側を使う）
 
-## 10. 実装参照
+## 11. 実装参照
 
 | 役割 | 場所 |
 | --- | --- |
@@ -166,12 +210,15 @@ Automerge にしか無いデータを読む処理は、キューが未反映だ�
 | 変更の型 | `crates/flequit-infrastructure/src/automerge_sync/change.rs` |
 | Automerge への適用 | `crates/flequit-infrastructure/src/automerge_sync/apply.rs` |
 | トランザクションとキュー登録 | `crates/flequit-infrastructure/src/automerge_sync/queue.rs` |
-| ワーカー・再試行・掃除 | `crates/flequit-infrastructure/src/automerge_sync/worker.rs` |
+| ワーカー・再試行・掃除・再投入 | `crates/flequit-infrastructure/src/automerge_sync/worker.rs` |
+| 診断の Port と実装 | `crates/flequit-core/src/ports/infrastructure_repositories.rs` の `SyncDiagnosticsPort`、`crates/flequit-infrastructure/src/infrastructure_repositories/sync_diagnostics.rs` |
+| 診断画面 | `crates/flequit-ui/ui/views/settings/data-sync-settings.slint`、`crates/flequit-ui/src/viewmodels/app/sync_diagnostics.rs` |
 | 削除と復元 | `crates/flequit-infrastructure/src/infrastructure_repositories/transaction/` |
-| 起動と停止 | `crates/flequit-app/src/lib.rs` の `run()` |
+| 起動と停止（Automerge-Repo の停止を含む） | `crates/flequit-app/src/lib.rs` の `run()` |
+| バックグラウンド移行時の反映 | `crates/flequit-app/src/automerge_sync.rs` |
 | 統合テスト | `crates/flequit-infrastructure/tests/automerge_sync_queue.rs` |
 
-## 11. 以前の方式との違い
+## 12. 以前の方式との違い
 
 | 項目 | 以前 | 同期キュー |
 | --- | --- | --- |

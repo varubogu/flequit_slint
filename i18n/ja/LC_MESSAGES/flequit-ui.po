@@ -2108,3 +2108,71 @@ msgstr "リストを絞り込む"
 msgctxt "TaskList"
 msgid "{0} · recent"
 msgstr "{0} ・最近使用"
+
+msgctxt "Settings"
+msgid "Recorded {0} · attempts: {1}"
+msgstr "{0} に記録 ・試行 {1} 回"
+
+msgctxt "Settings"
+msgid "Retry"
+msgstr "再試行"
+
+msgctxt "Settings"
+msgid "Retry {0}"
+msgstr "{0} を再試行"
+
+msgctxt "Settings"
+msgid "Data sync"
+msgstr "データ同期"
+
+msgctxt "Settings"
+msgid "Changes are saved on this device first and then added to the sync history in the background."
+msgstr "変更はまずこの端末に保存され、その後バックグラウンドで同期履歴に追加されます。"
+
+msgctxt "Settings"
+msgid "The sync history is not used with the current storage settings."
+msgstr "現在の保存先の設定では同期履歴を使用していません。"
+
+msgctxt "Settings"
+msgid "Could not read the sync status."
+msgstr "同期の状態を読み込めませんでした。"
+
+msgctxt "Settings"
+msgid "Waiting to be added to the sync history"
+msgstr "同期履歴への追加待ち"
+
+msgctxt "Settings"
+msgid "Could not be added to the sync history"
+msgstr "同期履歴に追加できなかった変更"
+
+msgctxt "Settings"
+msgid "Refresh"
+msgstr "再読み込み"
+
+msgctxt "Settings"
+msgid "Retry all"
+msgstr "すべて再試行"
+
+msgctxt "Settings"
+msgid "Queued again: {0}"
+msgstr "再試行に回した変更: {0} 件"
+
+msgctxt "Settings"
+msgid "Not queued because newer changes to the same data were already added: {0}"
+msgstr "同じデータのより新しい変更が追加済みのため再試行しなかった変更: {0} 件"
+
+msgctxt "Settings"
+msgid "Changes that could not be added"
+msgstr "追加できなかった変更"
+
+msgctxt "Settings"
+msgid "Showing the oldest {0} of {1}."
+msgstr "{1} 件のうち古い {0} 件を表示しています。"
+
+msgctxt "Settings"
+msgid "Data sync Sync history Failed changes Retry Diagnostics"
+msgstr "データ同期 同期履歴 失敗した変更 再試行 診断"
+
+msgctxt "Settings"
+msgid "Sync history status and failed changes"
+msgstr "同期履歴の状態と失敗した変更"

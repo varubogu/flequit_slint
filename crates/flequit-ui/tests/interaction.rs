@@ -15,11 +15,12 @@ use std::rc::Rc;
 use flequit_ui::bindings::DueUnit;
 use flequit_ui::bindings::{
     Actions, AppState, AppWindow, BookmarkedTagItem, Capabilities, ColorOption, DueButtonSetting,
-    DueFilterItem, EditorKind, FilterHighlight, FilterKind, Layout, ProjectItem, QueryEdit,
-    RecurrenceEnd, RecurrenceMonthlyMode, RecurrencePresetSetting, RecurrenceState, RecurrenceUnit,
-    RecurrenceWeekOfMonth, ReminderItem, ReminderPresetSetting, ReminderUnit, SearchSuggestion,
-    SearchSuggestionKind, SettingsCategory, SettingsState, SubTaskItem, TagItem, TaskItem,
-    TaskListItem, TaskPriority, TaskSort, TaskStatus, Theme, ThemeMode,
+    DueFilterItem, EditorKind, FailedSyncChangeItem, FilterHighlight, FilterKind, Layout,
+    ProjectItem, QueryEdit, RecurrenceEnd, RecurrenceMonthlyMode, RecurrencePresetSetting,
+    RecurrenceState, RecurrenceUnit, RecurrenceWeekOfMonth, ReminderItem, ReminderPresetSetting,
+    ReminderUnit, SearchSuggestion, SearchSuggestionKind, SettingsCategory, SettingsState,
+    SubTaskItem, TagItem, TaskItem, TaskListItem, TaskPriority, TaskSort, TaskStatus, Theme,
+    ThemeMode,
 };
 use i_slint_backend_testing::ElementHandle;
 use slint::{Brush, Color, ComponentHandle, Model, ModelRc, SharedString, VecModel};
@@ -819,7 +820,7 @@ fn the_settings_dialog_reaches_its_handlers() {
         let seen = Rc::clone(&searches);
         window
             .global::<Actions>()
-            .on_search_settings(move |query, _, _, _, _| {
+            .on_search_settings(move |query, _, _, _, _, _| {
                 seen.borrow_mut().push(query.to_string());
             });
         let seen = Rc::clone(&due_buttons);
@@ -2135,6 +2136,48 @@ fn the_start_date_editor_reaches_its_handlers() {
     assert_eq!(cleared.borrow().as_slice(), ["t1"]);
 }
 
+/// Data sync lists the changes Automerge never received so they can be retried.
+fn the_data_sync_settings_reach_their_handlers() {
+    let window = window_with_content();
+    let refreshed = Rc::new(RefCell::new(0));
+    let retried = Rc::new(RefCell::new(Vec::<String>::new()));
+    let retried_all = Rc::new(RefCell::new(0));
+    {
+        let actions = window.global::<Actions>();
+        let count = Rc::clone(&refreshed);
+        actions.on_refresh_sync_status(move || *count.borrow_mut() += 1);
+        let seen = Rc::clone(&retried);
+        actions.on_requeue_failed_sync_change(move |id| seen.borrow_mut().push(id.to_string()));
+        let count = Rc::clone(&retried_all);
+        actions.on_requeue_all_failed_sync_changes(move || *count.borrow_mut() += 1);
+    }
+    let settings = window.global::<SettingsState>();
+    settings.set_sync_available(true);
+    settings.set_sync_failed_count(1);
+    settings.set_sync_failed_changes(ModelRc::new(VecModel::from(vec![FailedSyncChangeItem {
+        id: SharedString::from("42"),
+        kind: SharedString::from("task.save"),
+        document: SharedString::from("project:p1"),
+        attempts: 10,
+        error: SharedString::from("disk full"),
+        created_at: SharedString::from("2026-09-26 10:00"),
+    }])));
+    settings.set_selected_category(SettingsCategory::DataSync);
+    settings.set_open(true);
+    settle();
+
+    // Showing the section reads the queue, so the numbers are never stale.
+    assert!(*refreshed.borrow() >= 1);
+    scroll_settings_to(&window, "Retry task.save");
+    assert!(activate(&window, "Retry task.save"));
+    assert_eq!(retried.borrow().as_slice(), ["42"]);
+    assert!(activate(&window, "Retry all"));
+    assert_eq!(*retried_all.borrow(), 1);
+    let before = *refreshed.borrow();
+    assert!(activate(&window, "Refresh"));
+    assert_eq!(*refreshed.borrow(), before + 1);
+}
+
 /// The language switch had a Rust handler but no control anywhere in the UI.
 fn the_language_switch_reaches_its_handler() {
     let window = window_with_content();
@@ -2574,6 +2617,7 @@ fn the_shell_responds_to_user_actions() {
     the_subtask_detail_pane_reaches_its_handlers();
     the_start_date_editor_reaches_its_handlers();
     the_language_switch_reaches_its_handler();
+    the_data_sync_settings_reach_their_handlers();
     recurrence_presets_reach_their_handlers();
     the_font_picker_lists_what_the_platform_reported();
     a_modal_keeps_keyboard_focus_inside_itself();

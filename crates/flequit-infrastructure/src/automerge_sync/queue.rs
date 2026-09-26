@@ -57,6 +57,11 @@ impl AutomergeSyncQueue {
         Arc::clone(&self.wake)
     }
 
+    /// ワーカーを起こし、未処理の行をすぐ反映させる
+    pub(crate) fn wake(&self) {
+        self.wake.notify_one();
+    }
+
     /// 書き込みトランザクションを始め、最初の文として `changes` をキューへ入れる。
     ///
     /// 返した [`QueuedTransaction`] の上で SQLite への書き込みを行い、

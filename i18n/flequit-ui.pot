@@ -2131,3 +2131,71 @@ msgstr ""
 msgctxt "TaskList"
 msgid "{0} · recent"
 msgstr ""
+
+msgctxt "Settings"
+msgid "Recorded {0} · attempts: {1}"
+msgstr ""
+
+msgctxt "Settings"
+msgid "Retry"
+msgstr ""
+
+msgctxt "Settings"
+msgid "Retry {0}"
+msgstr ""
+
+msgctxt "Settings"
+msgid "Data sync"
+msgstr ""
+
+msgctxt "Settings"
+msgid "Changes are saved on this device first and then added to the sync history in the background."
+msgstr ""
+
+msgctxt "Settings"
+msgid "The sync history is not used with the current storage settings."
+msgstr ""
+
+msgctxt "Settings"
+msgid "Could not read the sync status."
+msgstr ""
+
+msgctxt "Settings"
+msgid "Waiting to be added to the sync history"
+msgstr ""
+
+msgctxt "Settings"
+msgid "Could not be added to the sync history"
+msgstr ""
+
+msgctxt "Settings"
+msgid "Refresh"
+msgstr ""
+
+msgctxt "Settings"
+msgid "Retry all"
+msgstr ""
+
+msgctxt "Settings"
+msgid "Queued again: {0}"
+msgstr ""
+
+msgctxt "Settings"
+msgid "Not queued because newer changes to the same data were already added: {0}"
+msgstr ""
+
+msgctxt "Settings"
+msgid "Changes that could not be added"
+msgstr ""
+
+msgctxt "Settings"
+msgid "Showing the oldest {0} of {1}."
+msgstr ""
+
+msgctxt "Settings"
+msgid "Data sync Sync history Failed changes Retry Diagnostics"
+msgstr ""
+
+msgctxt "Settings"
+msgid "Sync history status and failed changes"
+msgstr ""

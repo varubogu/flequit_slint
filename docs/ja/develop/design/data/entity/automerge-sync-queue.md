@@ -41,5 +41,6 @@
 
 ### 補足
 
-- `processed` の行は `processed_at` から 30 日で削除する。`pending` と `failed` は自動では消さない
+- `processed` の行は `processed_at` から 30 日で削除する。ただしドキュメントごとに最も新しい `processed` の行は残す
+  （`failed` の行を再投入してよいかの判断に使う）。`pending` と `failed` は自動では消さない
 - Rust モデル: `crates/flequit-infrastructure-sqlite/src/models/automerge_sync_queue.rs`

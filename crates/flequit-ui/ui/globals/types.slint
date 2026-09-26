@@ -14,7 +14,7 @@ export enum Pane { list, detail }
 // drag and drop rearranges; the others are derived and cannot be dragged.
 export enum TaskSort { manual, due, priority, title }
 
-export enum SettingsCategory { basic, date-time, appearance, account }
+export enum SettingsCategory { basic, date-time, appearance, account, data-sync }
 
 // The period a recurrence rule steps by. Mirrors the domain enum, including the
 // units the editor does not offer, so a rule written by another client survives
@@ -349,4 +349,20 @@ export struct SearchSuggestion {
 export struct LocaleItem {
     tag: string,
     display-name: string,
+}
+
+// A change that was never applied to Automerge (a `failed` sync queue row),
+// listed under Settings > Data sync so it can be inspected and requeued.
+export struct FailedSyncChangeItem {
+    // Queue row id, passed back to `Actions.requeue-failed-sync-change`.
+    id: string,
+    // What was changed, e.g. `task.save`. Shown as-is: it is diagnostic data.
+    kind: string,
+    // Which Automerge document it belongs to, e.g. `project:{uuid}`.
+    document: string,
+    attempts: int,
+    // Last error reported while applying it; empty when none was recorded.
+    error: string,
+    // When the change was made, formatted in the display timezone.
+    created-at: string,
 }

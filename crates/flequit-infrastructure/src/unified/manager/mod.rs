@@ -13,7 +13,9 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 
 use flequit_infrastructure_automerge::LocalAutomergeRepositories;
-use flequit_infrastructure_automerge::infrastructure::document_manager::DocumentManager;
+use flequit_infrastructure_automerge::infrastructure::document_manager::{
+    DocumentManager, RepoStopHandle,
+};
 use flequit_infrastructure_sqlite::infrastructure::database_manager::DatabaseManager;
 use flequit_infrastructure_sqlite::infrastructure::local_sqlite_repositories::LocalSqliteRepositories;
 
@@ -38,6 +40,8 @@ pub struct UnifiedManager {
     pub(super) sync_queue: Option<AutomergeSyncQueue>,
     /// キューを Automerge へ反映する処理（SQLite と Automerge の両方が有効なとき）
     pub(super) automerge_sync: Option<Arc<AutomergeSyncProcessor>>,
+    /// 終了時に Automerge-Repo を止める操作口（Automerge が有効なとき）
+    pub(super) automerge_repo_stop: Option<RepoStopHandle>,
 }
 
 impl UnifiedManager {
@@ -51,6 +55,7 @@ impl UnifiedManager {
             shared_document_manager: None,
             sync_queue: None,
             automerge_sync: None,
+            automerge_repo_stop: None,
         }
     }
 
@@ -66,6 +71,7 @@ impl UnifiedManager {
             shared_document_manager: None,
             sync_queue: None,
             automerge_sync: None,
+            automerge_repo_stop: None,
         };
 
         manager.initialize_backends().await?;
@@ -122,6 +128,7 @@ impl UnifiedManager {
             }
 
             let document_manager = DocumentManager::new(base_path.clone())?;
+            self.automerge_repo_stop = Some(document_manager.stop_handle());
             self.shared_document_manager = Some(Arc::new(Mutex::new(document_manager)));
 
             // 共有DocumentManagerを使用してAutomergeリポジトリを初期化
@@ -137,6 +144,7 @@ impl UnifiedManager {
         } else {
             self.automerge_repositories = None;
             self.shared_document_manager = None;
+            self.automerge_repo_stop = None;
             tracing::info!("Automergeリポジトリを無効にしました");
         }
 
@@ -199,6 +207,16 @@ impl UnifiedManager {
         self.automerge_sync
             .as_ref()
             .map(|processor| spawn_worker(Arc::clone(processor), runtime))
+    }
+
+    /// Automerge-Repo を止め、ファイルへの保存を待つ。Automerge が無効なら何もせず `true`
+    ///
+    /// [`RepoStopHandle::stop`] のとおり、Automerge へ書き込む処理（同期キューの
+    /// ワーカー）を止めてから呼ぶこと。
+    pub fn stop_automerge_repo(&self, timeout: std::time::Duration) -> bool {
+        self.automerge_repo_stop
+            .clone()
+            .is_none_or(|handle| handle.stop(timeout))
     }
 
     pub(super) fn database_manager(

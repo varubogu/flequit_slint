@@ -213,146 +213,6 @@ pub trait SqliteRepositoriesPort: Send + Sync {
     fn tag_bookmarks_repo(&self) -> &Self::TagBookmarksRepository;
 }
 
-#[async_trait]
-pub trait AutomergeProjectRepositoryPort: Send + Sync {
-    type Snapshot: Clone + Send + Sync;
-
-    async fn create_snapshot(
-        &self,
-        project_id: &ProjectId,
-    ) -> Result<Self::Snapshot, RepositoryError>;
-    async fn restore_from_snapshot(
-        &self,
-        project_id: &ProjectId,
-        snapshot: &Self::Snapshot,
-    ) -> Result<(), RepositoryError>;
-
-    async fn mark_project_deleted(
-        &self,
-        project_id: &ProjectId,
-        user_id: &UserId,
-        timestamp: &DateTime<Utc>,
-    ) -> Result<(), RepositoryError>;
-    async fn mark_all_tasks_deleted(
-        &self,
-        project_id: &ProjectId,
-        user_id: &UserId,
-        timestamp: &DateTime<Utc>,
-    ) -> Result<(), RepositoryError>;
-    async fn mark_all_tags_deleted(
-        &self,
-        project_id: &ProjectId,
-        user_id: &UserId,
-        timestamp: &DateTime<Utc>,
-    ) -> Result<(), RepositoryError>;
-    async fn mark_all_task_lists_deleted(
-        &self,
-        project_id: &ProjectId,
-        user_id: &UserId,
-        timestamp: &DateTime<Utc>,
-    ) -> Result<(), RepositoryError>;
-    async fn mark_task_deleted(
-        &self,
-        project_id: &ProjectId,
-        task_id: &TaskId,
-        user_id: &UserId,
-        timestamp: &DateTime<Utc>,
-    ) -> Result<(), RepositoryError>;
-    async fn mark_tag_deleted(
-        &self,
-        project_id: &ProjectId,
-        tag_id: &TagId,
-        user_id: &UserId,
-        timestamp: &DateTime<Utc>,
-    ) -> Result<(), RepositoryError>;
-    async fn mark_task_list_deleted(
-        &self,
-        project_id: &ProjectId,
-        task_list_id: &TaskListId,
-        user_id: &UserId,
-        timestamp: &DateTime<Utc>,
-    ) -> Result<(), RepositoryError>;
-
-    async fn restore_project(
-        &self,
-        project_id: &ProjectId,
-        user_id: &UserId,
-        timestamp: &DateTime<Utc>,
-    ) -> Result<(), RepositoryError>;
-    async fn restore_all_tasks(
-        &self,
-        project_id: &ProjectId,
-        user_id: &UserId,
-        timestamp: &DateTime<Utc>,
-    ) -> Result<(), RepositoryError>;
-    async fn restore_all_tags(
-        &self,
-        project_id: &ProjectId,
-        user_id: &UserId,
-        timestamp: &DateTime<Utc>,
-    ) -> Result<(), RepositoryError>;
-    async fn restore_all_task_lists(
-        &self,
-        project_id: &ProjectId,
-        user_id: &UserId,
-        timestamp: &DateTime<Utc>,
-    ) -> Result<(), RepositoryError>;
-    async fn restore_task(
-        &self,
-        project_id: &ProjectId,
-        task_id: &TaskId,
-        user_id: &UserId,
-        timestamp: &DateTime<Utc>,
-    ) -> Result<(), RepositoryError>;
-    async fn restore_tag(
-        &self,
-        project_id: &ProjectId,
-        tag_id: &TagId,
-        user_id: &UserId,
-        timestamp: &DateTime<Utc>,
-    ) -> Result<(), RepositoryError>;
-    async fn restore_task_list(
-        &self,
-        project_id: &ProjectId,
-        task_list_id: &TaskListId,
-        user_id: &UserId,
-        timestamp: &DateTime<Utc>,
-    ) -> Result<(), RepositoryError>;
-
-    async fn get_deleted_project(
-        &self,
-        project_id: &ProjectId,
-    ) -> Result<Option<Project>, RepositoryError>;
-    async fn get_deleted_tasks(&self, project_id: &ProjectId)
-    -> Result<Vec<Task>, RepositoryError>;
-    async fn get_deleted_tags(&self, project_id: &ProjectId) -> Result<Vec<Tag>, RepositoryError>;
-    async fn get_deleted_task_lists(
-        &self,
-        project_id: &ProjectId,
-    ) -> Result<Vec<TaskList>, RepositoryError>;
-    async fn get_deleted_task_by_id(
-        &self,
-        project_id: &ProjectId,
-        task_id: &TaskId,
-    ) -> Result<Option<Task>, RepositoryError>;
-    async fn get_deleted_tag_by_id(
-        &self,
-        project_id: &ProjectId,
-        tag_id: &TagId,
-    ) -> Result<Option<Tag>, RepositoryError>;
-    async fn get_deleted_task_list_by_id(
-        &self,
-        project_id: &ProjectId,
-        task_list_id: &TaskListId,
-    ) -> Result<Option<TaskList>, RepositoryError>;
-}
-
-pub trait AutomergeRepositoriesPort: Send + Sync {
-    type ProjectsRepository: AutomergeProjectRepositoryPort;
-
-    fn projects_repo(&self) -> &Self::ProjectsRepository;
-}
-
 /// Storage-agnostic boundary for deletions that must span multiple backends.
 ///
 /// Implementations own their concrete transaction and rollback mechanics so
@@ -429,9 +289,69 @@ pub trait TransactionalRestorePort: Send + Sync {
     ) -> Result<(), RepositoryError>;
 }
 
+/// Automerge へ反映を諦めた変更（同期キューの `failed` の行）
+#[derive(Debug, Clone, PartialEq)]
+pub struct FailedSyncChange {
+    pub id: i64,
+    /// 反映先ドキュメント（`project:{id}` / `account` / `user`）
+    pub document_key: String,
+    /// 変更の種類（`task.save` など）
+    pub change_kind: String,
+    pub attempts: i32,
+    pub last_error: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// 同期キューに残っている行の数
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SyncQueueSummary {
+    /// Automerge へ未反映（再試行待ちを含む）
+    pub pending: u64,
+    /// 反映を諦めた
+    pub failed: u64,
+}
+
+/// `failed` の行を再投入した結果
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SyncRequeueReport {
+    /// 未反映に戻した行
+    pub requeued: Vec<i64>,
+    /// 同じドキュメントの後の変更が反映済みのため戻さなかった行
+    /// （戻すと Automerge を古い内容へ巻き戻す）
+    pub superseded: Vec<i64>,
+    /// 見つからないか、すでに `failed` ではない行
+    pub not_failed: Vec<i64>,
+}
+
+/// Automerge 同期キューの診断と、反映を諦めた変更の再投入
+///
+/// Automerge ストレージを使わない構成ではキューが無い。そのとき
+/// [`Self::sync_queue_summary`] は `None`、一覧は空、再投入は何もしない。
+#[async_trait]
+pub trait SyncDiagnosticsPort: Send + Sync {
+    async fn sync_queue_summary(&self) -> Result<Option<SyncQueueSummary>, RepositoryError>;
+
+    /// `failed` の行を古い順に最大 `limit` 件
+    async fn failed_sync_changes(
+        &self,
+        limit: u64,
+    ) -> Result<Vec<FailedSyncChange>, RepositoryError>;
+
+    /// `ids` の `failed` の行を、順序を崩さないものだけ未反映に戻す
+    async fn requeue_failed_sync_changes(
+        &self,
+        ids: &[i64],
+    ) -> Result<SyncRequeueReport, RepositoryError>;
+}
+
 #[async_trait]
 pub trait InfrastructureRepositoriesTrait:
-    TransactionalDeletionPort + TransactionalRestorePort + Send + Sync + std::fmt::Debug
+    TransactionalDeletionPort
+    + TransactionalRestorePort
+    + SyncDiagnosticsPort
+    + Send
+    + Sync
+    + std::fmt::Debug
 {
     type AccountsRepository: Repository<Account, AccountId> + Send + Sync;
     type ProjectsRepository: Repository<Project, ProjectId>
@@ -464,7 +384,6 @@ pub trait InfrastructureRepositoriesTrait:
     type TagBookmarksRepository: TagBookmarkRepositoryPort;
 
     type SqliteRepositories: SqliteRepositoriesPort;
-    type AutomergeRepositories: AutomergeRepositoriesPort;
 
     fn accounts(&self) -> &Self::AccountsRepository;
     fn projects(&self) -> &Self::ProjectsRepository;
@@ -484,7 +403,6 @@ pub trait InfrastructureRepositoriesTrait:
     fn tag_bookmarks(&self) -> &Self::TagBookmarksRepository;
 
     fn sqlite_repositories(&self) -> Option<&Arc<RwLock<Self::SqliteRepositories>>>;
-    fn automerge_repositories(&self) -> Option<&Arc<RwLock<Self::AutomergeRepositories>>>;
 
     async fn initialize(&mut self) -> Result<(), Box<dyn std::error::Error>>;
     async fn cleanup(&mut self) -> Result<(), Box<dyn std::error::Error>>;

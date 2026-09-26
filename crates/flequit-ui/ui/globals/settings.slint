@@ -1,5 +1,5 @@
-import { CustomDueFilterSetting, DateTimeFormatSetting, DueButtonSetting, RecurrencePresetSetting,
-         ReminderPresetSetting, SettingsCategory } from "types.slint";
+import { CustomDueFilterSetting, DateTimeFormatSetting, DueButtonSetting, FailedSyncChangeItem,
+         RecurrencePresetSetting, ReminderPresetSetting, SettingsCategory } from "types.slint";
 import { ThemeMode } from "theme.slint";
 
 // Persisted application preferences plus transient settings-dialog state.
@@ -14,6 +14,7 @@ export global SettingsState {
     in-out property <bool> show-date-time: true;
     in-out property <bool> show-appearance: true;
     in-out property <bool> show-account: true;
+    in-out property <bool> show-data-sync: true;
 
     // --- Basic ---
     in-out property <string> week-start: "sunday";
@@ -60,4 +61,20 @@ export global SettingsState {
     in-out property <string> account-email;
     in-out property <string> account-provider: "local";
     in-out property <bool> local-account: true;
+
+    // --- Data sync (diagnostics, read from the Automerge sync queue) ---
+    // False when this build keeps no queue (Automerge storage is off).
+    in-out property <bool> sync-available: false;
+    in-out property <bool> sync-loading: false;
+    // True when the last refresh or requeue could not read the queue.
+    in-out property <bool> sync-load-failed: false;
+    in-out property <int> sync-pending-count;
+    in-out property <int> sync-failed-count;
+    // The oldest failed changes, at most a page of them.
+    in-out property <[FailedSyncChangeItem]> sync-failed-changes;
+    // Outcome of the last requeue; `sync-has-requeue-result` says whether to show it.
+    in-out property <bool> sync-has-requeue-result: false;
+    in-out property <int> sync-requeued-count;
+    // Rows left failed because a later change to the same document was already applied.
+    in-out property <int> sync-superseded-count;
 }

@@ -1991,7 +1991,6 @@ dependencies = [
  "automerge_repo",
  "chrono",
  "dirs",
- "flequit-core",
  "flequit-model",
  "flequit-repository",
  "flequit-testing",

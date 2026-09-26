@@ -68,6 +68,7 @@ use crate::viewmodels::search::{NameIndex, QueryEdit as SearchEdit, SearchSessio
 use crate::viewmodels::settings::{SearchMemory, SettingsStore, SettingsViewModel, UserSettings};
 
 mod query;
+mod sync_diagnostics;
 use crate::viewmodels::tag_editor;
 use query::{publish_search, refresh_tasks};
 
@@ -592,6 +593,7 @@ where
         self.bind_project_management(window);
         self.bind_tag_management(window);
         self.settings.bind(window);
+        sync_diagnostics::bind(window, &self.repositories, &self.runtime, self.timezone);
         self.bind_shell(window);
     }
 

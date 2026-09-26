@@ -14,7 +14,13 @@ use chrono::{DateTime, Utc};
 use tokio::sync::{Mutex, watch};
 use tokio::task::JoinHandle;
 
-use flequit_infrastructure_sqlite::infrastructure::automerge_sync_queue::SyncQueueEntry;
+use flequit_core::ports::infrastructure_repositories::{
+    FailedSyncChange, SyncQueueSummary, SyncRequeueReport,
+};
+use flequit_infrastructure_sqlite::infrastructure::automerge_sync_queue::{
+    FailedSyncQueueEntry, RequeueOutcome, SyncQueueEntry,
+};
+use flequit_infrastructure_sqlite::models::automerge_sync_queue::SyncQueueStatus;
 use flequit_types::errors::repository_error::RepositoryError;
 
 use super::apply::{AutomergeSyncTargets, is_permanent};
@@ -38,6 +44,9 @@ const POLL_INTERVAL: Duration = Duration::from_secs(60);
 
 /// 処理済みの行を掃除する間隔
 const CLEANUP_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
+
+/// 起動時のログに 1 件ずつ出す `failed` の行の上限
+const FAILED_LOG_LIMIT: u64 = 20;
 
 /// `attempts` 回目の失敗の後、次に試すまでの時間（1, 2, 4, ... 秒、上限 5 分）
 pub fn backoff_after(attempts: i32) -> chrono::Duration {
@@ -202,6 +211,83 @@ impl AutomergeSyncProcessor {
             .await
     }
 
+    /// 未処理・反映を諦めた行の数
+    pub async fn summary(&self) -> Result<SyncQueueSummary, RepositoryError> {
+        let repository = self.queue.repository();
+        Ok(SyncQueueSummary {
+            pending: repository.count_by_status(SyncQueueStatus::Pending).await?,
+            failed: repository.count_by_status(SyncQueueStatus::Failed).await?,
+        })
+    }
+
+    /// `failed` の行を古い順に最大 `limit` 件
+    pub async fn failed_changes(
+        &self,
+        limit: u64,
+    ) -> Result<Vec<FailedSyncChange>, RepositoryError> {
+        let entries = self.queue.repository().find_failed(limit).await?;
+        Ok(entries.into_iter().map(to_failed_change).collect())
+    }
+
+    /// `ids` の `failed` の行を `pending` に戻し、ワーカーを起こす。
+    ///
+    /// 同じドキュメントの後の行が反映済みの行は戻さない（Automerge を古い内容へ
+    /// 巻き戻すため）。判定はリポジトリが 1 文で行う。
+    pub async fn requeue_failed(&self, ids: &[i64]) -> Result<SyncRequeueReport, RepositoryError> {
+        let repository = self.queue.repository();
+        let mut report = SyncRequeueReport::default();
+        for &id in ids {
+            match repository.requeue_failed(id).await? {
+                RequeueOutcome::Requeued => report.requeued.push(id),
+                RequeueOutcome::Superseded => report.superseded.push(id),
+                RequeueOutcome::NotFailed => report.not_failed.push(id),
+            }
+        }
+        tracing::info!(
+            requeued = ?report.requeued,
+            superseded = ?report.superseded,
+            not_failed = ?report.not_failed,
+            "requeued failed Automerge sync queue entries"
+        );
+        if !report.requeued.is_empty() {
+            self.queue.wake();
+        }
+        Ok(report)
+    }
+
+    /// 反映を諦めた行があれば、調査の手がかりとしてログに出す
+    pub async fn log_failed(&self) -> Result<(), RepositoryError> {
+        let failed = self
+            .queue
+            .repository()
+            .count_by_status(SyncQueueStatus::Failed)
+            .await?;
+        if failed == 0 {
+            return Ok(());
+        }
+        tracing::warn!(
+            failed,
+            "some changes were never applied to Automerge; review them under Settings > Data sync"
+        );
+        for entry in self
+            .queue
+            .repository()
+            .find_failed(FAILED_LOG_LIMIT)
+            .await?
+        {
+            tracing::warn!(
+                id = entry.id,
+                kind = %entry.change_kind,
+                document = %entry.document_key,
+                attempts = entry.attempts,
+                created_at = %entry.created_at,
+                error = entry.last_error.as_deref().unwrap_or(""),
+                "failed Automerge sync queue entry"
+            );
+        }
+        Ok(())
+    }
+
     async fn apply_entry(&self, entry: &SyncQueueEntry) -> Result<(), ApplyFailure> {
         let change: AutomergeChange = serde_json::from_str(&entry.payload).map_err(|error| {
             ApplyFailure::Permanent(format!(
@@ -216,6 +302,17 @@ impl AutomergeSyncProcessor {
                 ApplyFailure::Retryable(error.to_string())
             }
         })
+    }
+}
+
+fn to_failed_change(entry: FailedSyncQueueEntry) -> FailedSyncChange {
+    FailedSyncChange {
+        id: entry.id,
+        document_key: entry.document_key,
+        change_kind: entry.change_kind,
+        attempts: entry.attempts,
+        last_error: entry.last_error,
+        created_at: entry.created_at,
     }
 }
 
@@ -261,6 +358,9 @@ pub fn spawn_worker(
     let wake = processor.queue().wake_signal();
 
     let task = runtime.spawn(async move {
+        if let Err(error) = processor.log_failed().await {
+            tracing::warn!(%error, "failed to read failed Automerge sync queue entries");
+        }
         let mut last_cleanup: Option<tokio::time::Instant> = None;
         loop {
             if last_cleanup.is_none_or(|at| at.elapsed() >= CLEANUP_INTERVAL) {

@@ -114,7 +114,12 @@ export global Actions {
     callback select-settings-category(SettingsCategory /* category */);
     callback search-settings(string /* query */, string /* basic_haystack */,
                              string /* datetime_haystack */, string /* appearance_haystack */,
-                             string /* account_haystack */);
+                             string /* account_haystack */, string /* data_sync_haystack */);
+    // Re-reads the Automerge sync queue into the data sync settings.
+    callback refresh-sync-status();
+    // Puts failed sync changes back in the queue, keeping the apply order intact.
+    callback requeue-failed-sync-change(string /* queue row id */);
+    callback requeue-all-failed-sync-changes();
     // Switches the UI language and persists the choice.
     callback update-language(string /* locale tag */);
     callback update-week-start(string /* week_start */);

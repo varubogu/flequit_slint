@@ -2,6 +2,7 @@
 //!
 //! Service層からアクセスするためのリポジトリ統合管理クラス
 
+mod sync_diagnostics;
 mod transaction;
 
 use crate::automerge_sync::{
@@ -12,7 +13,6 @@ use async_trait::async_trait;
 use flequit_core::ports::infrastructure_repositories::{
     InfrastructureRepositoriesTrait, TagRepositoryExt,
 };
-use flequit_infrastructure_automerge::infrastructure::local_automerge_repositories::LocalAutomergeRepositories;
 use flequit_infrastructure_sqlite::infrastructure::local_sqlite_repositories::LocalSqliteRepositories;
 use flequit_infrastructure_sqlite::infrastructure::user_preferences::tag_bookmark::TagBookmarkLocalSqliteRepository;
 use flequit_model::types::id_types::{ProjectId, TagId};
@@ -209,6 +209,15 @@ impl InfrastructureRepositories {
         self.unified_manager.start_automerge_sync(runtime)
     }
 
+    /// Automerge-Repo を止め、変更のあるドキュメントのファイル保存を待つ。
+    ///
+    /// アプリ終了時、同期キューのワーカーが止まった後に呼ぶ（止めた後に Automerge へ
+    /// 書き込むと Automerge-Repo が panic する）。`timeout` 内に保存が終われば `true`。
+    /// Automerge ストレージが無効なら何もせず `true`。
+    pub fn stop_automerge_repo(&self, timeout: std::time::Duration) -> bool {
+        self.unified_manager.stop_automerge_repo(timeout)
+    }
+
     /// Automerge 同期キューを反映する処理（テスト・診断用）
     pub fn automerge_sync(&self) -> Option<&Arc<AutomergeSyncProcessor>> {
         self.unified_manager.automerge_sync()
@@ -239,7 +248,6 @@ impl InfrastructureRepositoriesTrait for InfrastructureRepositories {
     type SubtaskRecurrencesRepository = SubTaskRecurrenceUnifiedRepository;
     type TagBookmarksRepository = TagBookmarkUnifiedRepository;
     type SqliteRepositories = LocalSqliteRepositories;
-    type AutomergeRepositories = LocalAutomergeRepositories;
 
     fn accounts(&self) -> &Self::AccountsRepository {
         &self.accounts
@@ -317,10 +325,6 @@ impl InfrastructureRepositoriesTrait for InfrastructureRepositories {
 
     fn sqlite_repositories(&self) -> Option<&Arc<RwLock<Self::SqliteRepositories>>> {
         self.unified_manager.sqlite_repositories()
-    }
-
-    fn automerge_repositories(&self) -> Option<&Arc<RwLock<Self::AutomergeRepositories>>> {
-        self.unified_manager.automerge_repositories()
     }
 }
 

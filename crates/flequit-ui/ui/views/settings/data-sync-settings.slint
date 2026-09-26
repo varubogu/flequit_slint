@@ -1,0 +1,182 @@
+import { Theme } from "../../globals/theme.slint";
+import { Layout } from "../../globals/layout.slint";
+import { Actions } from "../../globals/actions.slint";
+import { SettingsState } from "../../globals/settings.slint";
+import { FailedSyncChangeItem } from "../../globals/types.slint";
+import { DialogButton } from "../../components/dialog-button.slint";
+import { FieldLabel, SectionTitle } from "settings-controls.slint";
+
+component CountRow inherits Rectangle {
+    in property <string> label;
+    in property <int> count;
+    in property <bool> alert: false;
+
+    height: Layout.touch-target;
+    border-radius: Theme.radius-sm;
+    background: Theme.surface;
+    HorizontalLayout {
+        padding-left: Theme.space-md;
+        padding-right: Theme.space-md;
+        spacing: Theme.space-md;
+        Text {
+            text: root.label;
+            color: Theme.text;
+            font-size: Theme.font-size-base;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+            overflow: elide;
+        }
+        Text {
+            text: root.count;
+            color: root.alert && root.count > 0 ? Theme.danger : Theme.text;
+            font-size: Theme.font-size-base;
+            font-weight: 600;
+            vertical-alignment: center;
+        }
+    }
+}
+
+component FailedChangeRow inherits Rectangle {
+    in property <FailedSyncChangeItem> change;
+    in property <bool> busy;
+
+    border-radius: Theme.radius-md;
+    background: Theme.surface;
+    VerticalLayout {
+        padding: Theme.space-md;
+        spacing: Theme.space-sm;
+        HorizontalLayout {
+            spacing: Theme.space-md;
+            VerticalLayout {
+                spacing: Theme.space-xs;
+                horizontal-stretch: 1;
+                Text {
+                    text: root.change.kind;
+                    color: Theme.text;
+                    font-size: Theme.font-size-base;
+                    font-weight: 600;
+                    overflow: elide;
+                }
+                Text {
+                    text: @tr("Settings" => "Recorded {0} · attempts: {1}", root.change.created-at, root.change.attempts);
+                    color: Theme.text-muted;
+                    font-size: Theme.font-size-sm;
+                    overflow: elide;
+                }
+                Text {
+                    text: root.change.document;
+                    color: Theme.text-muted;
+                    font-size: Theme.font-size-sm;
+                    overflow: elide;
+                }
+            }
+            DialogButton {
+                label: @tr("Settings" => "Retry");
+                enabled: !root.busy;
+                accessible-label: @tr("Settings" => "Retry {0}", root.change.kind);
+                clicked => { Actions.requeue-failed-sync-change(root.change.id); }
+            }
+        }
+        if root.change.error != "": Text {
+            text: root.change.error;
+            color: Theme.danger;
+            font-size: Theme.font-size-sm;
+            wrap: word-wrap;
+        }
+    }
+}
+
+// Diagnostics for the Automerge sync queue: how much is still waiting, and the
+// changes that were given up on, which can be put back in the queue.
+export component DataSyncSettings inherits Rectangle {
+    background: Theme.background;
+    // Every time the section is shown, so the numbers are never stale.
+    init => { Actions.refresh-sync-status(); }
+
+    VerticalLayout {
+        padding: Layout.content-padding;
+        spacing: Theme.space-xl;
+        alignment: start;
+        SectionTitle { text: @tr("Settings" => "Data sync"); }
+        Text {
+            text: @tr("Settings" => "Changes are saved on this device first and then added to the sync history in the background.");
+            color: Theme.text-muted;
+            font-size: Theme.font-size-base;
+            wrap: word-wrap;
+        }
+
+        if !SettingsState.sync-available && !SettingsState.sync-load-failed: Text {
+            text: @tr("Settings" => "The sync history is not used with the current storage settings.");
+            color: Theme.text-muted;
+            font-size: Theme.font-size-base;
+            wrap: word-wrap;
+        }
+
+        if SettingsState.sync-load-failed: Text {
+            text: @tr("Settings" => "Could not read the sync status.");
+            color: Theme.danger;
+            font-size: Theme.font-size-base;
+            wrap: word-wrap;
+        }
+
+        if SettingsState.sync-available: VerticalLayout {
+            spacing: Theme.space-sm;
+            CountRow {
+                label: @tr("Settings" => "Waiting to be added to the sync history");
+                count: SettingsState.sync-pending-count;
+            }
+            CountRow {
+                label: @tr("Settings" => "Could not be added to the sync history");
+                count: SettingsState.sync-failed-count;
+                alert: true;
+            }
+        }
+
+        if SettingsState.sync-available: HorizontalLayout {
+            spacing: Theme.space-md;
+            alignment: start;
+            DialogButton {
+                label: @tr("Settings" => "Refresh");
+                enabled: !SettingsState.sync-loading;
+                clicked => { Actions.refresh-sync-status(); }
+            }
+            DialogButton {
+                label: @tr("Settings" => "Retry all");
+                primary: true;
+                enabled: !SettingsState.sync-loading && SettingsState.sync-failed-count > 0;
+                clicked => { Actions.requeue-all-failed-sync-changes(); }
+            }
+        }
+
+        if SettingsState.sync-has-requeue-result: VerticalLayout {
+            spacing: Theme.space-xs;
+            Text {
+                text: @tr("Settings" => "Queued again: {0}", SettingsState.sync-requeued-count);
+                color: Theme.text;
+                font-size: Theme.font-size-base;
+                wrap: word-wrap;
+            }
+            if SettingsState.sync-superseded-count > 0: Text {
+                text: @tr("Settings" => "Not queued because newer changes to the same data were already added: {0}", SettingsState.sync-superseded-count);
+                color: Theme.text-muted;
+                font-size: Theme.font-size-base;
+                wrap: word-wrap;
+            }
+        }
+
+        if SettingsState.sync-available && SettingsState.sync-failed-changes.length > 0: VerticalLayout {
+            spacing: Theme.space-sm;
+            FieldLabel { text: @tr("Settings" => "Changes that could not be added"); }
+            for change in SettingsState.sync-failed-changes: FailedChangeRow {
+                change: change;
+                busy: SettingsState.sync-loading;
+            }
+            if SettingsState.sync-failed-count > SettingsState.sync-failed-changes.length: Text {
+                text: @tr("Settings" => "Showing the oldest {0} of {1}.", SettingsState.sync-failed-changes.length, SettingsState.sync-failed-count);
+                color: Theme.text-muted;
+                font-size: Theme.font-size-sm;
+                wrap: word-wrap;
+            }
+        }
+    }
+}

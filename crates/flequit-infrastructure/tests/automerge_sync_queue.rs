@@ -8,7 +8,8 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use flequit_core::ports::infrastructure_repositories::{
-    TagBookmarkRepositoryPort, TransactionalDeletionPort, TransactionalRestorePort,
+    SyncDiagnosticsPort, SyncQueueSummary, SyncRequeueReport, TagBookmarkRepositoryPort,
+    TransactionalDeletionPort, TransactionalRestorePort,
 };
 use flequit_infrastructure::automerge_sync::{AutomergeChange, ProjectChange, TrashChange};
 use flequit_infrastructure::{InfrastructureRepositories, UnifiedConfig};
@@ -29,7 +30,12 @@ type TestResult = Result<(), Box<dyn Error>>;
 async fn setup(case: &str) -> Result<InfrastructureRepositories, Box<dyn Error>> {
     let dir = TestPathGenerator::generate_test_dir(file!(), case);
     std::fs::create_dir_all(&dir)?;
-    let automerge_dir = TestPathGenerator::create_automerge_dir(&dir)?;
+    setup_in(&dir).await
+}
+
+/// `dir` のストレージを開く。同じ `dir` で開き直すと前回の内容が読める
+async fn setup_in(dir: &std::path::Path) -> Result<InfrastructureRepositories, Box<dyn Error>> {
+    let automerge_dir = TestPathGenerator::create_automerge_dir(dir)?;
     let config = UnifiedConfig::new(true, true, true)
         .with_storage_paths(dir.join("flequit.sqlite"), automerge_dir);
     InfrastructureRepositories::setup_with_sqlite_and_automerge(config).await
@@ -423,5 +429,174 @@ async fn restoring_a_task_first_applies_the_queued_deletion() -> TestResult {
         [f.task.id]
     );
     assert_eq!(count(&repositories, SyncQueueStatus::Pending).await, 0);
+    Ok(())
+}
+
+/// 未処理の行の id を古い順に返す
+async fn pending_ids(
+    repositories: &InfrastructureRepositories,
+) -> Result<Vec<i64>, Box<dyn Error>> {
+    Ok(repositories
+        .automerge_sync()
+        .unwrap()
+        .queue()
+        .repository()
+        .find_pending_after(0, 100)
+        .await?
+        .iter()
+        .map(|entry| entry.id)
+        .collect())
+}
+
+#[tokio::test]
+async fn cleanup_keeps_the_newest_processed_row_of_each_document() -> TestResult {
+    let repositories = setup("cleanup_keeps_the_newest").await?;
+    let first = ProjectId::new();
+    let second = ProjectId::new();
+    enqueue(
+        &repositories,
+        vec![task_save(first), task_save(first), task_save(second)],
+    )
+    .await?;
+    let ids = pending_ids(&repositories).await?;
+    let processor = repositories.automerge_sync().unwrap();
+    processor.process_pending().await?;
+    let now = Utc::now();
+    let repository = processor.queue().repository();
+    for &id in &ids {
+        repository
+            .mark_processed(id, now - chrono::Duration::days(31))
+            .await?;
+    }
+
+    let deleted = processor.cleanup_processed(now).await?;
+
+    // 各ドキュメントの最新の行は、failed の行を戻してよいかの判断に使うため残す
+    assert_eq!(deleted, 1);
+    assert!(repository.find_by_id(ids[0]).await?.is_none());
+    assert!(repository.find_by_id(ids[1]).await?.is_some());
+    assert!(repository.find_by_id(ids[2]).await?.is_some());
+    Ok(())
+}
+
+#[tokio::test]
+async fn a_failed_change_is_requeued_only_when_nothing_newer_was_applied() -> TestResult {
+    let repositories = setup("a_failed_change_is_requeued").await?;
+    let alone = ProjectId::new();
+    let overtaken = ProjectId::new();
+    enqueue(
+        &repositories,
+        vec![task_save(alone), task_save(overtaken), task_save(overtaken)],
+    )
+    .await?;
+    let ids = pending_ids(&repositories).await?;
+    let processor = repositories.automerge_sync().unwrap();
+    let repository = processor.queue().repository();
+    repository.mark_failed(ids[0], "disk full").await?;
+    repository.mark_failed(ids[1], "disk full").await?;
+    processor.process_pending().await?;
+
+    assert_eq!(
+        repositories.sync_queue_summary().await?,
+        Some(SyncQueueSummary {
+            pending: 0,
+            failed: 2
+        })
+    );
+    let failed = repositories.failed_sync_changes(10).await?;
+    assert_eq!(
+        failed.iter().map(|change| change.id).collect::<Vec<_>>(),
+        [ids[0], ids[1]]
+    );
+    assert_eq!(failed[0].last_error.as_deref(), Some("disk full"));
+    assert_eq!(failed[0].change_kind, "task.save");
+
+    // 後の行が反映済みの行を戻すと、Automerge を古い内容へ巻き戻してしまう
+    let report = repositories
+        .requeue_failed_sync_changes(&[ids[0], ids[1], ids[2], 9_999])
+        .await?;
+
+    assert_eq!(
+        report,
+        SyncRequeueReport {
+            requeued: vec![ids[0]],
+            superseded: vec![ids[1]],
+            not_failed: vec![ids[2], 9_999],
+        }
+    );
+    let requeued = repository.find_by_id(ids[0]).await?.unwrap();
+    assert_eq!(
+        (requeued.status.as_str(), requeued.attempts),
+        ("pending", 0)
+    );
+    assert_eq!(requeued.last_error.as_deref(), Some("disk full"));
+    let report = processor.process_pending().await?;
+    assert_eq!(report.processed, 1);
+    assert_eq!(
+        repositories.sync_queue_summary().await?,
+        Some(SyncQueueSummary {
+            pending: 0,
+            failed: 1
+        })
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn a_superseded_change_stays_failed_after_cleanup() -> TestResult {
+    let repositories = setup("a_superseded_change_stays_failed").await?;
+    let project_id = ProjectId::new();
+    enqueue(
+        &repositories,
+        vec![task_save(project_id), task_save(project_id)],
+    )
+    .await?;
+    let ids = pending_ids(&repositories).await?;
+    let processor = repositories.automerge_sync().unwrap();
+    let repository = processor.queue().repository();
+    repository.mark_failed(ids[0], "disk full").await?;
+    processor.process_pending().await?;
+    let now = Utc::now();
+    repository
+        .mark_processed(ids[1], now - chrono::Duration::days(31))
+        .await?;
+
+    processor.cleanup_processed(now).await?;
+    let report = repositories.requeue_failed_sync_changes(&[ids[0]]).await?;
+
+    assert_eq!(report.superseded, [ids[0]]);
+    Ok(())
+}
+
+#[tokio::test]
+async fn stopping_the_automerge_repo_leaves_the_applied_changes_on_disk() -> TestResult {
+    let dir = TestPathGenerator::generate_test_dir(file!(), "stopping_the_automerge_repo");
+    std::fs::create_dir_all(&dir)?;
+    let f = fixture();
+    let project_id = f.project.id;
+    {
+        let repositories = setup_in(&dir).await?;
+        save_fixture(&repositories, &f).await?;
+        repositories
+            .automerge_sync()
+            .unwrap()
+            .process_pending()
+            .await?;
+
+        assert!(repositories.stop_automerge_repo(Duration::from_secs(10)));
+    }
+
+    let reopened = setup_in(&dir).await?;
+    let tasks = reopened
+        .automerge_sync()
+        .unwrap()
+        .targets()
+        .projects()
+        .get_tasks(&project_id)
+        .await?;
+    assert_eq!(
+        tasks.iter().map(|task| task.id).collect::<Vec<_>>(),
+        [f.task.id]
+    );
     Ok(())
 }

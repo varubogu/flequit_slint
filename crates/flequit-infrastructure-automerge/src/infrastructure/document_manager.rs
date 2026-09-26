@@ -86,6 +86,43 @@ impl DocumentType {
     }
 }
 
+/// Automerge-Repo を止めるための操作口
+///
+/// [`DocumentManager`] はリポジトリ間で `Mutex` 越しに共有されるため、終了処理が
+/// ロックを待たずに止められるよう、起動時に取り出して持っておく。
+#[derive(Debug, Clone)]
+pub struct RepoStopHandle {
+    repo_handle: RepoHandle,
+}
+
+impl RepoStopHandle {
+    /// 変更のあるドキュメントをファイルへ保存し終えるまで待ってから止める。
+    ///
+    /// Automerge-Repo は変更をバックグラウンドのスレッドで保存し、完了を通知しない。
+    /// 止めるとそのスレッドが残りの保存を済ませてから終わるので、終了前に呼ぶと
+    /// 直前の変更がファイルに残る。
+    ///
+    /// 止めた後にドキュメントへ書き込むと Automerge-Repo が panic するため、
+    /// 書き込む処理がすべて終わってから呼ぶこと。保存は別スレッドで待ち、
+    /// `timeout` を過ぎたら待つのをやめて `false` を返す（保存はそのスレッドで続く）。
+    pub fn stop(self, timeout: std::time::Duration) -> bool {
+        let (done, finished) = std::sync::mpsc::channel();
+        let spawned = std::thread::Builder::new()
+            .name("automerge-repo-stop".to_string())
+            .spawn(move || {
+                if let Err(error) = self.repo_handle.stop() {
+                    tracing::warn!(?error, "failed to stop the Automerge repo");
+                }
+                let _ = done.send(());
+            });
+        if let Err(error) = spawned {
+            tracing::warn!(%error, "could not start a thread to stop the Automerge repo");
+            return false;
+        }
+        finished.recv_timeout(timeout).is_ok()
+    }
+}
+
 /// Automerge-Repoドキュメントの管理を行うマネージャー
 #[derive(Debug)]
 pub struct DocumentManager {
@@ -121,6 +158,13 @@ impl DocumentManager {
             documents: HashMap::new(),
             file_storage,
         })
+    }
+
+    /// Automerge-Repo を止めるための操作口（アプリ終了時に使う）
+    pub fn stop_handle(&self) -> RepoStopHandle {
+        RepoStopHandle {
+            repo_handle: self.repo_handle.clone(),
+        }
     }
 
     /// ドキュメントファイルのフルパスを取得（将来の機能で使用予定）

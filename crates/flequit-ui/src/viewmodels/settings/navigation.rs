@@ -20,6 +20,8 @@ pub(super) fn bind(window: &AppWindow) {
             settings.set_show_date_time(true);
             settings.set_show_appearance(true);
             settings.set_show_account(true);
+            settings.set_show_data_sync(true);
+            settings.set_sync_has_requeue_result(false);
         }
     });
 
@@ -40,17 +42,20 @@ pub(super) fn bind(window: &AppWindow) {
     });
 
     let weak = window.as_weak();
-    actions.on_search_settings(move |query, basic, date_time, appearance, account| {
-        if let Some(window) = weak.upgrade() {
-            let settings = window.global::<UiSettingsState>();
-            let query = query.trim().to_lowercase();
-            settings.set_search_query(query.clone().into());
-            settings.set_show_basic(matches_search(&query, &basic));
-            settings.set_show_date_time(matches_search(&query, &date_time));
-            settings.set_show_appearance(matches_search(&query, &appearance));
-            settings.set_show_account(matches_search(&query, &account));
-        }
-    });
+    actions.on_search_settings(
+        move |query, basic, date_time, appearance, account, data_sync| {
+            if let Some(window) = weak.upgrade() {
+                let settings = window.global::<UiSettingsState>();
+                let query = query.trim().to_lowercase();
+                settings.set_search_query(query.clone().into());
+                settings.set_show_basic(matches_search(&query, &basic));
+                settings.set_show_date_time(matches_search(&query, &date_time));
+                settings.set_show_appearance(matches_search(&query, &appearance));
+                settings.set_show_account(matches_search(&query, &account));
+                settings.set_show_data_sync(matches_search(&query, &data_sync));
+            }
+        },
+    );
 }
 
 fn matches_search(query: &str, haystack: &SharedString) -> bool {
