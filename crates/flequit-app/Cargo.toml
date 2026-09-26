@@ -33,7 +33,10 @@ flequit-platform.workspace = true
 flequit-settings.workspace = true
 flequit-ui.workspace = true
 
-slint.workspace = true
+# `unstable-winit-030` exposes the window-attributes hook that turns off the
+# window transparency Slint requests by default (see `select_backend`). It is
+# tied to Slint's minor version: recheck it when upgrading Slint.
+slint = { workspace = true, features = ["unstable-winit-030"] }
 thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true

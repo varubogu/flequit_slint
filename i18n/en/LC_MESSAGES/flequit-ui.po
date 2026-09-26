@@ -2178,3 +2178,23 @@ msgstr "Data sync Sync history Failed changes Retry Diagnostics"
 msgctxt "Settings"
 msgid "Sync history status and failed changes"
 msgstr "Sync history status and failed changes"
+
+#: crates/flequit-ui/ui/components/toast.slint:72
+msgctxt "Toast"
+msgid "Dismiss"
+msgstr "Dismiss"
+
+#: crates/flequit-ui/ui/main.slint:355
+msgctxt "Toast"
+msgid "Task deleted"
+msgstr "Task deleted"
+
+#: crates/flequit-ui/ui/main.slint:356
+msgctxt "Toast"
+msgid "Deleted \"{0}\""
+msgstr "Deleted \"{0}\""
+
+#: crates/flequit-ui/ui/main.slint:357
+msgctxt "Toast"
+msgid "Undo"
+msgstr "Undo"

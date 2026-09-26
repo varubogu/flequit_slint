@@ -60,6 +60,28 @@ pub enum BootstrapError {
     Ui(#[from] slint::PlatformError),
 }
 
+/// Installs the winit backend with an opaque window.
+///
+/// Slint asks winit for a transparent window so that a `Window` with a
+/// translucent `background` can show what lies behind it. Flequit never draws
+/// one, and on macOS the transparency also reaches the title bar, which then
+/// shows the desktop through it and leaves the window buttons hard to see.
+///
+/// `SLINT_BACKEND` is still honoured; the hook only applies when winit is the
+/// backend in use.
+#[cfg(not(feature = "android"))]
+fn select_backend() -> Result<(), slint::PlatformError> {
+    slint::BackendSelector::new()
+        .with_winit_window_attributes_hook(|attributes| attributes.with_transparent(false))
+        .select()
+}
+
+/// Android installs its own backend in `android_main` before the bootstrap runs.
+#[cfg(feature = "android")]
+fn select_backend() -> Result<(), slint::PlatformError> {
+    Ok(())
+}
+
 /// Starts the application and blocks until the window closes.
 ///
 /// The Tokio runtime is created here and kept alive for the whole session; the
@@ -89,6 +111,7 @@ pub fn run() -> Result<(), BootstrapError> {
         runtime.handle(),
     );
 
+    select_backend()?;
     let window = AppWindow::new()?;
     let view_model = AppViewModel::new_with_settings(
         Arc::clone(&repositories),
@@ -110,6 +133,8 @@ pub fn run() -> Result<(), BootstrapError> {
     window.run()?;
 
     tracing::info!("shutting down");
+    // Before the sync worker stops, so the deletion reaches Automerge this session.
+    runtime.block_on(view_model.flush_pending_deletion());
     let worker_stopped = match automerge_sync {
         Some(automerge_sync) => {
             runtime.block_on(automerge_sync.shutdown(AUTOMERGE_SYNC_SHUTDOWN_TIMEOUT))

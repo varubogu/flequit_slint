@@ -113,6 +113,12 @@ export component TaskListView inherits Rectangle {
                 AppState.active-pane = Pane.detail;
                 AppState.focus-detail-request += 1;
                 return accept;
+            } else if ((event.text == Key.Delete || event.text == Key.Backspace)
+                && AppState.has-selected-task && !AppState.has-selected-subtask) {
+                // Text fields consume both keys themselves, so this only fires
+                // with the list focused. The toast offers the way back.
+                Actions.delete-task(AppState.selected-task-id);
+                return accept;
             } else if (event.text == " " && AppState.selected-task-id != "") {
                 Actions.toggle-task-completed(AppState.selected-task-id);
                 return accept;

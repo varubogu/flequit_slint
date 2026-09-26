@@ -67,6 +67,7 @@ use crate::viewmodels::reload_gate::ReloadGate;
 use crate::viewmodels::search::{NameIndex, QueryEdit as SearchEdit, SearchSession, UserEntry};
 use crate::viewmodels::settings::{SearchMemory, SettingsStore, SettingsViewModel, UserSettings};
 
+mod deletion;
 mod query;
 mod sync_diagnostics;
 use crate::viewmodels::tag_editor;
@@ -206,6 +207,10 @@ struct SharedState {
     /// still untouched. Session state: after a restart the pair is just two
     /// ordinary tasks.
     successors: HashMap<TaskId, Successor>,
+    /// A deleted task still in storage while the toast offers to undo it.
+    pending_deletion: Option<deletion::PendingDeletion>,
+    /// Numbers deletions, so a timer can tell whether its own is still pending.
+    deletion_token: u64,
 }
 
 /// The occurrence a completed repeating task handed its series on to.
@@ -1797,74 +1802,14 @@ where
             });
         }
 
-        {
-            let weak = window.as_weak();
-            let state = Arc::clone(&self.state);
-            let repositories = Arc::clone(&self.repositories);
-            let platform = Arc::clone(&self.platform);
-            let runtime = self.runtime.clone();
-            let timezone = self.timezone;
-            actions.on_delete_task(move |task_id| {
-                let (project_id, user_id, reminders) = {
-                    let state = state.lock().expect("shared state poisoned");
-                    let task = state.task_with_project(&task_id);
-                    (
-                        task.map(|(project, _)| project.id),
-                        state.current_user,
-                        task.map(|(_, task)| task.reminders.clone()).unwrap_or_default(),
-                    )
-                };
-                let (Some(project_id), Some(user_id)) = (project_id, user_id) else {
-                    tracing::error!(%task_id, "cannot delete a task: unknown project or user");
-                    report_error(&weak, "task.delete-failed");
-                    return;
-                };
-                let Ok(parsed_id) = TaskId::try_from_str(task_id.as_str()) else {
-                    report_error(&weak, "input.malformed-id");
-                    return;
-                };
-
-                let weak = weak.clone();
-                let state = Arc::clone(&state);
-                let repositories = Arc::clone(&repositories);
-                let platform = Arc::clone(&platform);
-                runtime.spawn(async move {
-                    let result = task_facades::delete_task(
-                        repositories.as_ref(),
-                        &project_id,
-                        &parsed_id,
-                        &user_id,
-                        &Utc::now(),
-                    )
-                    .await;
-
-                    match result {
-                        Ok(_) => {
-                            for reminder in reminders {
-                                let id = NotificationId::scheduled(&task_id, &reminder);
-                                if let Err(error) = platform.cancel_notification(&id).await {
-                                    tracing::warn!(%error, %task_id, "failed to cancel deleted task reminder");
-                                }
-                            }
-                            let deleted_id = task_id.clone();
-                            if let Err(error) = weak.upgrade_in_event_loop(move |window| {
-                                if window.global::<AppState>().get_selected_task_id() == deleted_id {
-                                    clear_selection(&window);
-                                }
-                            }) {
-                                tracing::error!(%error, "could not clear the deleted task selection");
-                            }
-                            reload_projects(&weak, &state, &repositories, timezone).await;
-                        }
-                        Err(error) => {
-                            let ui_error = UiError::from(error);
-                            tracing::error!(%ui_error, %task_id, "failed to delete task");
-                            report_error(&weak, ui_error.code());
-                        }
-                    }
-                });
-            });
-        }
+        deletion::bind(
+            window,
+            &self.state,
+            &self.repositories,
+            &self.platform,
+            &self.runtime,
+            self.timezone,
+        );
     }
 
     // -- Ordering -----------------------------------------------------------
@@ -3214,6 +3159,7 @@ where
             weak: window.as_weak(),
             state: Arc::clone(&self.state),
             repositories: Arc::clone(&self.repositories),
+            platform: Arc::clone(&self.platform),
             runtime: self.runtime.clone(),
             timezone: self.timezone,
         });
@@ -3226,6 +3172,14 @@ where
                 None
             }
         }
+    }
+
+    /// Deletes the task whose deletion is still offering undo.
+    ///
+    /// Run after the event loop has ended: the undo offer goes with the window,
+    /// and the task must not survive the session it was deleted in.
+    pub fn flush_pending_deletion(&self) -> impl Future<Output = ()> + Send + 'static {
+        deletion::flush(&self.state, &self.repositories, &self.platform)
     }
 
     /// Loads projects and tasks, then publishes them to the UI.
@@ -3316,6 +3270,7 @@ struct LifecycleReactor<R> {
     weak: Weak<AppWindow>,
     state: Arc<Mutex<SharedState>>,
     repositories: Arc<R>,
+    platform: Arc<dyn Platform>,
     runtime: Handle,
     timezone: DisplayTimezone,
 }
@@ -3326,9 +3281,20 @@ where
 {
     fn on_event(&self, event: LifecycleEvent) {
         match event {
-            // Nothing to flush: every mutation is persisted as it happens, which
-            // is what makes the app survive the OS killing it while suspended.
-            LifecycleEvent::Suspend => tracing::info!("suspending"),
+            // Every mutation is persisted as it happens, which is what makes the
+            // app survive the OS killing it while suspended. The one exception
+            // is a deletion still offering undo, so it is settled now.
+            LifecycleEvent::Suspend => {
+                tracing::info!("suspending");
+                if let Some(window) = self.weak.upgrade() {
+                    window.global::<AppState>().set_undo_delete_visible(false);
+                }
+                self.runtime.spawn(deletion::flush(
+                    &self.state,
+                    &self.repositories,
+                    &self.platform,
+                ));
+            }
             LifecycleEvent::Resume => {
                 // The database may have been changed by a share extension, or
                 // simply be hours stale, so the tree is re-read rather than
@@ -3535,6 +3501,7 @@ where
                     let mut guard = state.lock().expect("shared state poisoned");
                     guard.trees = trees;
                     ordering::normalize(&mut guard.trees);
+                    deletion::hide_pending(&mut guard);
                     guard.tags_by_project = tags_by_project;
                     guard.tag_names = tag_names;
                     guard.tag_bookmarks = tag_bookmarks;

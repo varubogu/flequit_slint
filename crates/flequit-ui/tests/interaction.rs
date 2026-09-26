@@ -2628,6 +2628,8 @@ fn the_shell_responds_to_user_actions() {
     a_long_task_list_only_instantiates_visible_rows();
     the_detail_pane_follows_the_selection_after_an_edit();
     the_subtask_detail_pane_follows_the_selection_after_an_edit();
+    delete_keys_in_the_task_list_reach_the_delete_handler();
+    the_undo_toast_reaches_its_handlers();
 }
 
 /// The colour tokens once ignored `Theme.mode`: nothing derived `Theme.dark`
@@ -2775,4 +2777,75 @@ fn the_subtask_detail_pane_follows_the_selection_after_an_edit() {
         Some("Pick up cheese"),
         "the subtask pane still shows the previously edited subtask"
     );
+}
+
+/// Delete and Backspace delete the selected task, but only while the list has
+/// the focus and no subtask is selected: a subtask looks selected to the user,
+/// and deleting its parent from under it would be a surprise.
+fn delete_keys_in_the_task_list_reach_the_delete_handler() {
+    let window = window_with_content();
+    let deleted = Rc::new(RefCell::new(Vec::<String>::new()));
+    {
+        let deleted = Rc::clone(&deleted);
+        window
+            .global::<Actions>()
+            .on_delete_task(move |id| deleted.borrow_mut().push(id.to_string()));
+    }
+    window
+        .window()
+        .dispatch_event(slint::platform::WindowEvent::WindowActiveChanged(true));
+    let state = window.global::<AppState>();
+    state.set_selected_task_id("t1".into());
+    state.set_has_selected_task(true);
+    state.set_focus_list_request(state.get_focus_list_request() + 1);
+    settle();
+
+    press_key(&window, slint::platform::Key::Delete.into());
+    press_key(&window, slint::platform::Key::Backspace.into());
+    assert_eq!(deleted.borrow().as_slice(), ["t1", "t1"]);
+    deleted.borrow_mut().clear();
+
+    state.set_has_selected_subtask(true);
+    settle();
+    press_key(&window, slint::platform::Key::Delete.into());
+    assert!(
+        deleted.borrow().is_empty(),
+        "Delete removed the parent task while a subtask was selected"
+    );
+}
+
+fn the_undo_toast_reaches_its_handlers() {
+    let window = window_with_content();
+    let undone = Rc::new(RefCell::new(0));
+    let dismissed = Rc::new(RefCell::new(0));
+    {
+        let undone = Rc::clone(&undone);
+        let dismissed = Rc::clone(&dismissed);
+        let actions = window.global::<Actions>();
+        actions.on_undo_delete_task(move || *undone.borrow_mut() += 1);
+        actions.on_dismiss_undo_delete(move || *dismissed.borrow_mut() += 1);
+    }
+
+    assert!(
+        !accessible_labels(&window)
+            .iter()
+            .any(|label| label == "Undo"),
+        "the undo toast is showing without a deletion"
+    );
+
+    let state = window.global::<AppState>();
+    state.set_undo_delete_title("Buy milk".into());
+    state.set_undo_delete_visible(true);
+    settle();
+
+    assert!(
+        accessible_labels(&window)
+            .iter()
+            .any(|label| label == "Deleted \"Buy milk\""),
+        "the toast does not name the deleted task"
+    );
+    assert!(activate(&window, "Undo"));
+    assert!(activate(&window, "Dismiss"));
+    assert_eq!(*undone.borrow(), 1);
+    assert_eq!(*dismissed.borrow(), 1);
 }

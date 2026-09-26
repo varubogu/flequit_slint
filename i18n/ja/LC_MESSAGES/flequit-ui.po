@@ -2176,3 +2176,23 @@ msgstr "データ同期 同期履歴 失敗した変更 再試行 診断"
 msgctxt "Settings"
 msgid "Sync history status and failed changes"
 msgstr "同期履歴の状態と失敗した変更"
+
+#: crates/flequit-ui/ui/components/toast.slint:72
+msgctxt "Toast"
+msgid "Dismiss"
+msgstr "閉じる"
+
+#: crates/flequit-ui/ui/main.slint:355
+msgctxt "Toast"
+msgid "Task deleted"
+msgstr "タスクを削除しました"
+
+#: crates/flequit-ui/ui/main.slint:356
+msgctxt "Toast"
+msgid "Deleted \"{0}\""
+msgstr "「{0}」を削除しました"
+
+#: crates/flequit-ui/ui/main.slint:357
+msgctxt "Toast"
+msgid "Undo"
+msgstr "元に戻す"

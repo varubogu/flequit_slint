@@ -23,6 +23,7 @@ import { ErrorBanner } from "components/error-banner.slint";
 import { IconButton } from "components/icon-button.slint";
 import { IconName } from "components/icon.slint";
 import { SettingsDialog } from "views/settings/settings-dialog.slint";
+import { Toast } from "components/toast.slint";
 
 // Re-export globals so Rust can reach them through the generated bindings.
 export { Theme, Layout, AppState, Actions, Capabilities, I18n, SettingsState }
@@ -341,6 +342,21 @@ export component AppWindow inherits Window {
                 collapse-toggled => { AppState.sidebar-open = false; }
             }
         }
+    }
+
+    // --- Undo toast ---
+    // Below the dialogs: it belongs to the content, not to whatever is open.
+    if AppState.undo-delete-visible: Toast {
+        width: min(root.width - 2 * Theme.space-lg - Layout.safe-area-left - Layout.safe-area-right,
+                   480px);
+        x: (root.width - self.width) / 2;
+        y: root.height - self.height - Theme.space-lg - Layout.safe-area-bottom;
+        message: AppState.undo-delete-title == ""
+            ? @tr("Toast" => "Task deleted")
+            : @tr("Toast" => "Deleted \"{0}\"", AppState.undo-delete-title);
+        action-label: @tr("Toast" => "Undo");
+        action-clicked => { Actions.undo-delete-task(); }
+        dismissed => { Actions.dismiss-undo-delete(); }
     }
 
     // --- Project and list editor ---

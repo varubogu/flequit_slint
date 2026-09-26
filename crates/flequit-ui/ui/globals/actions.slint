@@ -52,7 +52,12 @@ export global Actions {
     callback update-task-start(string /* task_id */, int /* year */, int /* month */,
                                int /* day */, int /* hour */, int /* minute */);
     callback clear-task-start(string /* task_id */);
+    // Hides the task and offers to undo; storage follows once the offer ends.
     callback delete-task(string /* task_id */);
+    // Brings back the task whose deletion the toast is offering to undo.
+    callback undo-delete-task();
+    // Closes the undo toast, deleting the task from storage right away.
+    callback dismiss-undo-delete();
     // Moves a task to `target_index` in the currently visible order.
     callback reorder-task(string /* task_id */, int /* target_index */);
     // Moves a task to the end of another list in the same project.
