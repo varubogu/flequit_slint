@@ -1,5 +1,6 @@
 //! TaskAssignment用Automergeリポジトリ
 
+use crate::infrastructure::collection::{Collection, relation_key};
 use crate::infrastructure::document::Document;
 
 use super::super::document_manager::{DocumentManager, DocumentType};
@@ -15,7 +16,7 @@ use std::{path::PathBuf, sync::Arc};
 use tokio::sync::Mutex;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct TaskAssignmentRelation {
+pub(crate) struct TaskAssignmentRelation {
     task_id: String,
     user_id: String,
     created_at: chrono::DateTime<Utc>,
@@ -23,6 +24,12 @@ struct TaskAssignmentRelation {
     updated_by: String,
     deleted: bool,
 }
+
+/// プロジェクトドキュメント内のタスクとユーザーの割り当て（キーは `{task_id}:{user_id}`）
+pub(crate) const TASK_ASSIGNMENTS: Collection<TaskAssignmentRelation> =
+    Collection::new("task_assignments", |relation| {
+        relation_key(&relation.task_id, &relation.user_id)
+    });
 
 #[derive(Debug)]
 pub struct TaskAssignmentLocalAutomergeRepository {
@@ -64,20 +71,13 @@ impl TaskAssignmentLocalAutomergeRepository {
         project_id: &ProjectId,
         task_id: &TaskId,
     ) -> Result<Vec<UserId>, RepositoryError> {
-        let document = self.get_or_create_document(project_id).await?;
-        let assignments: Option<Vec<TaskAssignmentRelation>> =
-            document.load_data("task_assignments").await?;
-
-        if let Some(assignments) = assignments {
-            let user_ids = assignments
-                .into_iter()
-                .filter(|a| a.task_id == task_id.to_string())
-                .map(|a| UserId::from(a.user_id))
-                .collect();
-            Ok(user_ids)
-        } else {
-            Ok(vec![])
-        }
+        let task_id = task_id.to_string();
+        let assignments = self.load_all(project_id).await?;
+        Ok(assignments
+            .into_iter()
+            .filter(|a| a.task_id == task_id)
+            .map(|a| UserId::from(a.user_id))
+            .collect())
     }
 
     /// 指定ユーザーに関連するタスクIDリストを取得
@@ -86,23 +86,16 @@ impl TaskAssignmentLocalAutomergeRepository {
         project_id: &ProjectId,
         user_id: &UserId,
     ) -> Result<Vec<TaskId>, RepositoryError> {
-        let document = self.get_or_create_document(project_id).await?;
-        let assignments: Option<Vec<TaskAssignmentRelation>> =
-            document.load_data("task_assignments").await?;
-
-        if let Some(assignments) = assignments {
-            let task_ids = assignments
-                .into_iter()
-                .filter(|a| a.user_id == user_id.to_string())
-                .map(|a| TaskId::from(a.task_id))
-                .collect();
-            Ok(task_ids)
-        } else {
-            Ok(vec![])
-        }
+        let user_id = user_id.to_string();
+        let assignments = self.load_all(project_id).await?;
+        Ok(assignments
+            .into_iter()
+            .filter(|a| a.user_id == user_id)
+            .map(|a| TaskId::from(a.task_id))
+            .collect())
     }
 
-    /// タスクとユーザーの割り当てを追加
+    /// タスクとユーザーの割り当てを追加（既にあれば何もしない）
     pub async fn add_assignment(
         &self,
         project_id: &ProjectId,
@@ -110,35 +103,14 @@ impl TaskAssignmentLocalAutomergeRepository {
         user_id: &UserId,
     ) -> Result<(), RepositoryError> {
         let document = self.get_or_create_document(project_id).await?;
-
-        // 既存の割り当てリストを取得
-        let mut assignments: Vec<TaskAssignmentRelation> = document
-            .load_data("task_assignments")
-            .await?
-            .unwrap_or_default();
-
-        // 既存の割り当てが存在するかチェック
-        let task_id_str = task_id.to_string();
-        let user_id_str = user_id.to_string();
-        let exists = assignments
-            .iter()
-            .any(|a| a.task_id == task_id_str && a.user_id == user_id_str);
-
-        if !exists {
-            // 割り当てが存在しない場合のみ追加
-            let user_id_str = user_id.to_string();
-            assignments.push(TaskAssignmentRelation {
-                task_id: task_id.to_string(),
-                user_id: user_id_str.clone(),
-                created_at: Utc::now(),
-                updated_at: Utc::now(),
-                updated_by: user_id_str,
-                deleted: false,
-            });
-
-            document.save_data("task_assignments", &assignments).await?;
+        let key = relation_key(&task_id.to_string(), &user_id.to_string());
+        let existing: Option<TaskAssignmentRelation> =
+            document.load_entry(&TASK_ASSIGNMENTS, &key).await?;
+        if existing.is_none() {
+            document
+                .put_entry(&TASK_ASSIGNMENTS, &new_assignment(task_id, user_id))
+                .await?;
         }
-
         Ok(())
     }
 
@@ -150,19 +122,8 @@ impl TaskAssignmentLocalAutomergeRepository {
         user_id: &UserId,
     ) -> Result<(), RepositoryError> {
         let document = self.get_or_create_document(project_id).await?;
-
-        // 既存の割り当てリストを取得
-        let mut assignments: Vec<TaskAssignmentRelation> = document
-            .load_data("task_assignments")
-            .await?
-            .unwrap_or_default();
-
-        // 指定された割り当てを削除
-        let user_id_str = user_id.to_string();
-        assignments.retain(|a| !(a.task_id == task_id.to_string() && a.user_id == user_id_str));
-
-        document.save_data("task_assignments", &assignments).await?;
-
+        let key = relation_key(&task_id.to_string(), &user_id.to_string());
+        document.delete_entry(&TASK_ASSIGNMENTS, &key).await?;
         Ok(())
     }
 
@@ -173,18 +134,10 @@ impl TaskAssignmentLocalAutomergeRepository {
         task_id: &TaskId,
     ) -> Result<(), RepositoryError> {
         let document = self.get_or_create_document(project_id).await?;
-
-        // 既存の割り当てリストを取得
-        let mut assignments: Vec<TaskAssignmentRelation> = document
-            .load_data("task_assignments")
-            .await?
-            .unwrap_or_default();
-
-        // 指定されたタスクの全ての割り当てを削除
-        assignments.retain(|a| a.task_id != task_id.to_string());
-
-        document.save_data("task_assignments", &assignments).await?;
-
+        let task_id = task_id.to_string();
+        document
+            .delete_entries_where(&TASK_ASSIGNMENTS, |a| a.task_id == task_id)
+            .await?;
         Ok(())
     }
 
@@ -195,21 +148,17 @@ impl TaskAssignmentLocalAutomergeRepository {
         user_id: &UserId,
     ) -> Result<(), RepositoryError> {
         let document = self.get_or_create_document(project_id).await?;
-
-        // 既存の割り当てリストを取得
-        let mut assignments: Vec<TaskAssignmentRelation> = document
-            .load_data("task_assignments")
-            .await?
-            .unwrap_or_default();
-
-        // 指定されたユーザーの全ての割り当てを削除
-        assignments.retain(|a| a.user_id != user_id.to_string());
-
-        document.save_data("task_assignments", &assignments).await?;
+        let user_id = user_id.to_string();
+        document
+            .delete_entries_where(&TASK_ASSIGNMENTS, |a| a.user_id == user_id)
+            .await?;
         Ok(())
     }
 
-    /// タスクのユーザー割り当てを一括更新（既存をすべて削除して新しい割り当てを追加）
+    /// タスクのユーザー割り当てを `user_ids` にする
+    ///
+    /// 外れたユーザーの割り当てだけを消し、新しいユーザーの割り当てだけを追加する。
+    /// 続けて割り当てられているユーザーの割り当ては触らない。
     pub async fn update_task_assignments(
         &self,
         project_id: &ProjectId,
@@ -217,32 +166,49 @@ impl TaskAssignmentLocalAutomergeRepository {
         user_ids: &[UserId],
     ) -> Result<(), RepositoryError> {
         let document = self.get_or_create_document(project_id).await?;
-
-        // 既存の割り当てリストを取得
-        let mut assignments: Vec<TaskAssignmentRelation> = document
-            .load_data("task_assignments")
+        let task_id_str = task_id.to_string();
+        let wanted: Vec<String> = user_ids.iter().map(ToString::to_string).collect();
+        let current: Vec<String> = self
+            .load_all(project_id)
             .await?
-            .unwrap_or_default();
+            .into_iter()
+            .filter(|a| a.task_id == task_id_str)
+            .map(|a| a.user_id)
+            .collect();
 
-        // 既存の割り当てを削除
-        assignments.retain(|a| a.task_id != task_id.to_string());
+        let removed: Vec<String> = current
+            .iter()
+            .filter(|user_id| !wanted.contains(user_id))
+            .map(|user_id| relation_key(&task_id_str, user_id))
+            .collect();
+        document.delete_entries(&TASK_ASSIGNMENTS, &removed).await?;
 
-        // 新しい割り当てを追加
-        for user_id in user_ids {
-            let user_id_str = user_id.to_string();
-            assignments.push(TaskAssignmentRelation {
-                task_id: task_id.to_string(),
-                user_id: user_id_str.clone(),
-                created_at: Utc::now(),
-                updated_at: Utc::now(),
-                updated_by: user_id_str,
-                deleted: false,
-            });
-        }
-
-        document.save_data("task_assignments", &assignments).await?;
-
+        let added: Vec<TaskAssignmentRelation> = user_ids
+            .iter()
+            .filter(|user_id| !current.contains(&user_id.to_string()))
+            .map(|user_id| new_assignment(task_id, user_id))
+            .collect();
+        document.put_entries(&TASK_ASSIGNMENTS, &added).await?;
         Ok(())
+    }
+
+    async fn load_all(
+        &self,
+        project_id: &ProjectId,
+    ) -> Result<Vec<TaskAssignmentRelation>, RepositoryError> {
+        let document = self.get_or_create_document(project_id).await?;
+        Ok(document.load_collection(&TASK_ASSIGNMENTS).await?)
+    }
+}
+
+fn new_assignment(task_id: &TaskId, user_id: &UserId) -> TaskAssignmentRelation {
+    TaskAssignmentRelation {
+        task_id: task_id.to_string(),
+        user_id: user_id.to_string(),
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+        updated_by: user_id.to_string(),
+        deleted: false,
     }
 }
 
@@ -332,54 +298,28 @@ impl ProjectRelationRepository<TaskAssignment, TaskId, UserId>
         child_id: &UserId,
     ) -> Result<Option<TaskAssignment>, RepositoryError> {
         let document = self.get_or_create_document(project_id).await?;
-        let assignments: Option<Vec<TaskAssignmentRelation>> =
-            document.load_data("task_assignments").await?;
-
-        if let Some(assignments) = assignments {
-            if let Some(assignment_relation) = assignments
-                .iter()
-                .find(|a| a.task_id == parent_id.to_string() && a.user_id == child_id.to_string())
-            {
-                let assignment = TaskAssignment {
-                    task_id: *parent_id,
-                    user_id: *child_id,
-                    created_at: assignment_relation.created_at,
-                    updated_at: assignment_relation.updated_at,
-                    updated_by: UserId::from(assignment_relation.updated_by.clone()),
-                    deleted: assignment_relation.deleted,
-                };
-                Ok(Some(assignment))
-            } else {
-                Ok(None)
-            }
-        } else {
-            Ok(None)
-        }
+        let key = relation_key(&parent_id.to_string(), &child_id.to_string());
+        let assignment: Option<TaskAssignmentRelation> =
+            document.load_entry(&TASK_ASSIGNMENTS, &key).await?;
+        Ok(assignment.map(to_task_assignment))
     }
 
     async fn find_all(
         &self,
         project_id: &ProjectId,
     ) -> Result<Vec<TaskAssignment>, RepositoryError> {
-        let document = self.get_or_create_document(project_id).await?;
-        let assignments: Option<Vec<TaskAssignmentRelation>> =
-            document.load_data("task_assignments").await?;
+        let assignments = self.load_all(project_id).await?;
+        Ok(assignments.into_iter().map(to_task_assignment).collect())
+    }
+}
 
-        if let Some(assignment_relations) = assignments {
-            let task_assignments = assignment_relations
-                .into_iter()
-                .map(|rel| TaskAssignment {
-                    task_id: TaskId::from(rel.task_id.clone()),
-                    user_id: UserId::from(rel.user_id.clone()),
-                    created_at: rel.created_at,
-                    updated_at: rel.updated_at,
-                    updated_by: UserId::from(rel.updated_by),
-                    deleted: rel.deleted,
-                })
-                .collect();
-            Ok(task_assignments)
-        } else {
-            Ok(vec![])
-        }
+fn to_task_assignment(relation: TaskAssignmentRelation) -> TaskAssignment {
+    TaskAssignment {
+        task_id: TaskId::from(relation.task_id),
+        user_id: UserId::from(relation.user_id),
+        created_at: relation.created_at,
+        updated_at: relation.updated_at,
+        updated_by: UserId::from(relation.updated_by),
+        deleted: relation.deleted,
     }
 }

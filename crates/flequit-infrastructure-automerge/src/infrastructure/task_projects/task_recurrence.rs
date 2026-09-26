@@ -1,6 +1,7 @@
 //! タスク繰り返しルール用Automergeリポジトリ
 
 use super::super::document_manager::{DocumentManager, DocumentType};
+use crate::infrastructure::collection::Collection;
 use crate::infrastructure::document::Document;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -17,7 +18,7 @@ use std::{path::PathBuf, sync::Arc};
 use tokio::sync::Mutex;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct TaskRecurrenceRelation {
+pub(crate) struct TaskRecurrenceRelation {
     task_id: String,
     recurrence_rule_id: String,
     created_at: chrono::DateTime<Utc>,
@@ -25,6 +26,10 @@ struct TaskRecurrenceRelation {
     updated_by: String,
     deleted: bool,
 }
+
+/// プロジェクトドキュメント内のタスクと繰り返しルールの関連（キーはタスク ID。1 タスクに 1 ルール）
+pub(crate) const TASK_RECURRENCES: Collection<TaskRecurrenceRelation> =
+    Collection::new("task_recurrences", |relation| relation.task_id.clone());
 
 #[derive(Debug)]
 pub struct TaskRecurrenceLocalAutomergeRepository {
@@ -63,21 +68,18 @@ impl TaskRecurrenceLocalAutomergeRepository {
         project_id: &ProjectId,
     ) -> Result<Vec<TaskRecurrenceRelation>, RepositoryError> {
         let document = self.get_or_create_document(project_id).await?;
-        let list: Option<Vec<TaskRecurrenceRelation>> =
-            document.load_data("task_recurrences").await?;
-        Ok(list.unwrap_or_default())
+        Ok(document.load_collection(&TASK_RECURRENCES).await?)
     }
 
-    async fn save_all(
+    async fn load(
         &self,
         project_id: &ProjectId,
-        list: &[TaskRecurrenceRelation],
-    ) -> Result<(), RepositoryError> {
+        task_id: &TaskId,
+    ) -> Result<Option<TaskRecurrenceRelation>, RepositoryError> {
         let document = self.get_or_create_document(project_id).await?;
-        document
-            .save_data("task_recurrences", &list)
-            .await
-            .map_err(|e| RepositoryError::AutomergeError(e.to_string()))
+        Ok(document
+            .load_entry(&TASK_RECURRENCES, &task_id.to_string())
+            .await?)
     }
 }
 
@@ -142,22 +144,17 @@ impl ProjectRelationRepository<TaskRecurrence, TaskId, RecurrenceRuleId>
         _user_id: &UserId,
         _timestamp: &DateTime<Utc>,
     ) -> Result<(), RepositoryError> {
-        // タスクごとに1つのルールのみ許可（既存を置き換え）
-        let mut list = self.load_all(project_id).await?;
-        let task_id_str = parent_id.to_string();
-        let rule_id_str = child_id.to_string();
-
-        list.retain(|x| x.task_id != task_id_str);
-        list.push(TaskRecurrenceRelation {
-            task_id: task_id_str,
-            recurrence_rule_id: rule_id_str,
+        // タスクごとに1つのルールのみ許可（キーがタスク ID なので既存を置き換える）
+        let relation = TaskRecurrenceRelation {
+            task_id: parent_id.to_string(),
+            recurrence_rule_id: child_id.to_string(),
             created_at: Utc::now(),
             updated_at: Utc::now(),
             updated_by: UserId::from("system").to_string(),
             deleted: false,
-        });
-
-        self.save_all(project_id, &list).await
+        };
+        let document = self.get_or_create_document(project_id).await?;
+        Ok(document.put_entry(&TASK_RECURRENCES, &relation).await?)
     }
 
     async fn remove(
@@ -166,11 +163,14 @@ impl ProjectRelationRepository<TaskRecurrence, TaskId, RecurrenceRuleId>
         parent_id: &TaskId,
         child_id: &RecurrenceRuleId,
     ) -> Result<(), RepositoryError> {
-        let mut list = self.load_all(project_id).await?;
-        let t = parent_id.to_string();
-        let r = child_id.to_string();
-        list.retain(|x| !(x.task_id == t && x.recurrence_rule_id == r));
-        self.save_all(project_id, &list).await
+        let (t, r) = (parent_id.to_string(), child_id.to_string());
+        let document = self.get_or_create_document(project_id).await?;
+        document
+            .delete_entries_where(&TASK_RECURRENCES, |x| {
+                x.task_id == t && x.recurrence_rule_id == r
+            })
+            .await?;
+        Ok(())
     }
 
     async fn remove_all(
@@ -178,10 +178,11 @@ impl ProjectRelationRepository<TaskRecurrence, TaskId, RecurrenceRuleId>
         project_id: &ProjectId,
         parent_id: &TaskId,
     ) -> Result<(), RepositoryError> {
-        let mut list = self.load_all(project_id).await?;
-        let t = parent_id.to_string();
-        list.retain(|x| x.task_id != t);
-        self.save_all(project_id, &list).await
+        let document = self.get_or_create_document(project_id).await?;
+        document
+            .delete_entry(&TASK_RECURRENCES, &parent_id.to_string())
+            .await?;
+        Ok(())
     }
 
     async fn find_relations(
@@ -189,20 +190,8 @@ impl ProjectRelationRepository<TaskRecurrence, TaskId, RecurrenceRuleId>
         project_id: &ProjectId,
         parent_id: &TaskId,
     ) -> Result<Vec<TaskRecurrence>, RepositoryError> {
-        let list = self.load_all(project_id).await?;
-        let t = parent_id.to_string();
-        let mut out = Vec::new();
-        for v in list.into_iter().filter(|x| x.task_id == t) {
-            out.push(TaskRecurrence {
-                task_id: *parent_id,
-                recurrence_rule_id: RecurrenceRuleId::from(v.recurrence_rule_id),
-                created_at: v.created_at,
-                updated_at: v.updated_at,
-                updated_by: UserId::from(v.updated_by),
-                deleted: v.deleted,
-            });
-        }
-        Ok(out)
+        let found = self.load(project_id, parent_id).await?;
+        Ok(found.into_iter().map(to_task_recurrence).collect())
     }
 
     async fn exists(
@@ -210,9 +199,7 @@ impl ProjectRelationRepository<TaskRecurrence, TaskId, RecurrenceRuleId>
         project_id: &ProjectId,
         parent_id: &TaskId,
     ) -> Result<bool, RepositoryError> {
-        let list = self.load_all(project_id).await?;
-        let t = parent_id.to_string();
-        Ok(list.into_iter().any(|x| x.task_id == t))
+        Ok(self.load(project_id, parent_id).await?.is_some())
     }
 
     async fn count(
@@ -220,9 +207,7 @@ impl ProjectRelationRepository<TaskRecurrence, TaskId, RecurrenceRuleId>
         project_id: &ProjectId,
         parent_id: &TaskId,
     ) -> Result<u64, RepositoryError> {
-        let list = self.load_all(project_id).await?;
-        let t = parent_id.to_string();
-        Ok(list.into_iter().filter(|x| x.task_id == t).count() as u64)
+        Ok(u64::from(self.load(project_id, parent_id).await?.is_some()))
     }
 
     async fn find_all(
@@ -230,17 +215,7 @@ impl ProjectRelationRepository<TaskRecurrence, TaskId, RecurrenceRuleId>
         project_id: &ProjectId,
     ) -> Result<Vec<TaskRecurrence>, RepositoryError> {
         let list = self.load_all(project_id).await?;
-        Ok(list
-            .into_iter()
-            .map(|v| TaskRecurrence {
-                task_id: TaskId::from(v.task_id),
-                recurrence_rule_id: RecurrenceRuleId::from(v.recurrence_rule_id),
-                created_at: v.created_at,
-                updated_at: v.updated_at,
-                updated_by: UserId::from(v.updated_by),
-                deleted: v.deleted,
-            })
-            .collect())
+        Ok(list.into_iter().map(to_task_recurrence).collect())
     }
 
     async fn find_relation(
@@ -249,22 +224,21 @@ impl ProjectRelationRepository<TaskRecurrence, TaskId, RecurrenceRuleId>
         parent_id: &TaskId,
         child_id: &RecurrenceRuleId,
     ) -> Result<Option<TaskRecurrence>, RepositoryError> {
-        let list = self.load_all(project_id).await?;
-        let t = parent_id.to_string();
         let r = child_id.to_string();
-        if let Some(found) = list
-            .into_iter()
-            .find(|x| x.task_id == t && x.recurrence_rule_id == r)
-        {
-            return Ok(Some(TaskRecurrence {
-                task_id: *parent_id,
-                recurrence_rule_id: *child_id,
-                created_at: found.created_at,
-                updated_at: found.updated_at,
-                updated_by: UserId::from(found.updated_by),
-                deleted: found.deleted,
-            }));
-        }
-        Ok(None)
+        let found = self.load(project_id, parent_id).await?;
+        Ok(found
+            .filter(|x| x.recurrence_rule_id == r)
+            .map(to_task_recurrence))
+    }
+}
+
+fn to_task_recurrence(relation: TaskRecurrenceRelation) -> TaskRecurrence {
+    TaskRecurrence {
+        task_id: TaskId::from(relation.task_id),
+        recurrence_rule_id: RecurrenceRuleId::from(relation.recurrence_rule_id),
+        created_at: relation.created_at,
+        updated_at: relation.updated_at,
+        updated_by: UserId::from(relation.updated_by),
+        deleted: relation.deleted,
     }
 }

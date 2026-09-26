@@ -1,6 +1,12 @@
+use crate::infrastructure::collection::Collection;
 use crate::infrastructure::document::Document;
 
 use super::super::document_manager::{DocumentManager, DocumentType};
+use super::member::MEMBERS;
+use super::subtask::SUBTASKS;
+use super::tag::TAGS;
+use super::task::TASKS;
+use super::task_list::TASK_LISTS;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use flequit_model::models::task_projects::member::Member;
@@ -13,6 +19,7 @@ use flequit_model::types::project_types::ProjectStatus;
 use flequit_repository::base_repository_trait::Repository;
 use flequit_repository::repositories::task_projects::project_repository_trait::ProjectRepositoryTrait;
 use flequit_types::errors::repository_error::RepositoryError;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -124,57 +131,35 @@ impl ProjectLocalAutomergeRepository {
         project_id: &ProjectId,
     ) -> Result<Option<ProjectDocument>, RepositoryError> {
         let document = self.get_or_create_document(project_id).await?;
+        let Some(project) = load_project(&document).await? else {
+            return Ok(None);
+        };
 
-        // 基本プロジェクト情報の読み込み
-        let id: Option<String> = document.load_data("id").await?;
-        let name: Option<String> = document.load_data("name").await?;
-        let description: Option<Option<String>> = document.load_data("description").await?;
-        let color: Option<Option<String>> = document.load_data("color").await?;
-        let order_index: Option<i32> = document.load_data("order_index").await?;
-        let is_archived: Option<bool> = document.load_data("is_archived").await?;
-        let status: Option<Option<ProjectStatus>> = document.load_data("status").await?;
-        let owner_id: Option<Option<UserId>> = document.load_data("owner_id").await?;
-        let created_at: Option<DateTime<Utc>> = document.load_data("created_at").await?;
-        let updated_at: Option<DateTime<Utc>> = document.load_data("updated_at").await?;
-        let updated_by: Option<UserId> = document.load_data("updated_by").await?;
-        let deleted: Option<bool> = document.load_data("deleted").await?;
-
-        // プロジェクト内エンティティの読み込み
-        let task_lists: Option<Vec<TaskList>> = document.load_data("task_lists").await?;
-        let tasks: Option<Vec<Task>> = document.load_data("tasks").await?;
-        let subtasks: Option<Vec<SubTask>> = document.load_data("subtasks").await?;
-        let tags: Option<Vec<Tag>> = document.load_data("tags").await?;
-        let members: Option<Vec<Member>> = document.load_data("members").await?;
-
-        // 必須フィールドが存在する場合のみProjectDocumentを構築
-        if let (Some(id), Some(name), Some(created_at), Some(updated_at)) =
-            (id, name, created_at, updated_at)
-        {
-            Ok(Some(ProjectDocument {
-                id: id.clone(),
-                name,
-                description: description.unwrap_or(None),
-                color: color.unwrap_or(None),
-                order_index: order_index.unwrap_or(0),
-                is_archived: is_archived.unwrap_or(false),
-                status: status.unwrap_or(None),
-                owner_id: owner_id.unwrap_or(None),
-                created_at,
-                updated_at,
-                updated_by: updated_by.unwrap_or_else(|| UserId::from(id)),
-                deleted: deleted.unwrap_or(false),
-                task_lists: task_lists.unwrap_or_default(),
-                tasks: tasks.unwrap_or_default(),
-                subtasks: subtasks.unwrap_or_default(),
-                tags: tags.unwrap_or_default(),
-                members: members.unwrap_or_default(),
-            }))
-        } else {
-            Ok(None)
-        }
+        Ok(Some(ProjectDocument {
+            id: project.id.to_string(),
+            name: project.name,
+            description: project.description,
+            color: project.color,
+            order_index: project.order_index,
+            is_archived: project.is_archived,
+            status: project.status,
+            owner_id: project.owner_id,
+            created_at: project.created_at,
+            updated_at: project.updated_at,
+            updated_by: project.updated_by,
+            deleted: project.deleted,
+            task_lists: document.load_collection(&TASK_LISTS).await?,
+            tasks: document.load_collection(&TASKS).await?,
+            subtasks: document.load_collection(&SUBTASKS).await?,
+            tags: document.load_collection(&TAGS).await?,
+            members: document.load_collection(&MEMBERS).await?,
+        }))
     }
 
-    /// プロジェクトドキュメント全体を保存
+    /// プロジェクトドキュメント全体を `project_document` の内容にする
+    ///
+    /// 変わった値だけを書き、`project_document` に無いエンティティは消す。スナップショットからの
+    /// 復元用。個々のエンティティの変更には、そのエンティティだけを書くメソッドを使うこと。
     pub async fn save_project_document(
         &self,
         project_id: &ProjectId,
@@ -182,139 +167,148 @@ impl ProjectLocalAutomergeRepository {
     ) -> Result<(), RepositoryError> {
         let document = self.get_or_create_document(project_id).await?;
 
-        // 基本プロジェクト情報を個別に保存
-        document.save_data("id", &project_document.id).await?;
-        document.save_data("name", &project_document.name).await?;
-        document
-            .save_data("description", &project_document.description)
-            .await?;
-        document.save_data("color", &project_document.color).await?;
-        document
-            .save_data("order_index", &project_document.order_index)
-            .await?;
-        document
-            .save_data("is_archived", &project_document.is_archived)
-            .await?;
-        document
-            .save_data("status", &project_document.status)
-            .await?;
-        document
-            .save_data("owner_id", &project_document.owner_id)
-            .await?;
-        document
-            .save_data("created_at", &project_document.created_at)
-            .await?;
-        document
-            .save_data("updated_at", &project_document.updated_at)
-            .await?;
-        document
-            .save_data("updated_by", &project_document.updated_by)
-            .await?;
-        document
-            .save_data("deleted", &project_document.deleted)
-            .await?;
+        let project = Project {
+            id: ProjectId::from(project_document.id.clone()),
+            name: project_document.name.clone(),
+            description: project_document.description.clone(),
+            color: project_document.color.clone(),
+            order_index: project_document.order_index,
+            is_archived: project_document.is_archived,
+            status: project_document.status.clone(),
+            owner_id: project_document.owner_id,
+            created_at: project_document.created_at,
+            updated_at: project_document.updated_at,
+            updated_by: project_document.updated_by,
+            deleted: project_document.deleted,
+        };
+        save_project(&document, &project).await?;
 
-        // プロジェクト内エンティティを個別に保存
         document
-            .save_data("task_lists", &project_document.task_lists)
+            .replace_collection(&TASK_LISTS, &project_document.task_lists)
             .await?;
-        document.save_data("tasks", &project_document.tasks).await?;
         document
-            .save_data("subtasks", &project_document.subtasks)
+            .replace_collection(&TASKS, &project_document.tasks)
             .await?;
-        document.save_data("tags", &project_document.tags).await?;
         document
-            .save_data("members", &project_document.members)
+            .replace_collection(&SUBTASKS, &project_document.subtasks)
+            .await?;
+        document
+            .replace_collection(&TAGS, &project_document.tags)
+            .await?;
+        document
+            .replace_collection(&MEMBERS, &project_document.members)
             .await?;
 
         Ok(())
     }
 
     /// 空のプロジェクトドキュメントを作成
+    ///
+    /// 基本情報だけを書く。エンティティの集合は最初のエンティティを保存したときに作られる。
     pub async fn create_empty_project_document(
         &self,
         project: &Project,
     ) -> Result<(), RepositoryError> {
-        let empty_document = ProjectDocument {
-            id: project.id.to_string(),
-            name: project.name.clone(),
-            description: project.description.clone(),
-            color: project.color.clone(),
-            order_index: project.order_index,
-            is_archived: project.is_archived,
-            status: project.status.clone(),
-            owner_id: project.owner_id,
-            created_at: project.created_at,
-            updated_at: project.updated_at,
-            updated_by: project.updated_by,
-            deleted: project.deleted,
-            task_lists: Vec::new(),
-            tasks: Vec::new(),
-            subtasks: Vec::new(),
-            tags: Vec::new(),
-            members: Vec::new(),
-        };
-
-        self.save_project_document(&project.id, &empty_document)
-            .await
+        let document = self.get_or_create_document(&project.id).await?;
+        save_project(&document, project).await
     }
 
     /// IDでプロジェクトを取得（プロジェクトドキュメントから基本情報のみ）
     pub async fn get_project(&self, project_id: &str) -> Result<Option<Project>, RepositoryError> {
-        if let Some(document) = self
-            .get_project_document(&ProjectId::from(project_id))
-            .await?
-        {
-            Ok(Some(Project {
-                id: ProjectId::from(document.id),
-                name: document.name,
-                description: document.description,
-                color: document.color,
-                order_index: document.order_index,
-                is_archived: document.is_archived,
-                status: document.status,
-                owner_id: document.owner_id,
-                created_at: document.created_at,
-                updated_at: document.updated_at,
-                updated_by: document.updated_by,
-                deleted: document.deleted,
-            }))
-        } else {
-            Ok(None)
-        }
+        let document = self
+            .get_or_create_document(&ProjectId::from(project_id))
+            .await?;
+        load_project(&document).await
     }
 
     /// プロジェクトを作成または更新（基本情報のみ）
+    ///
+    /// ドキュメント内のエンティティには触れない。
     pub async fn set_project(&self, project: &Project) -> Result<(), RepositoryError> {
-        tracing::info!("set_project - 開始: {:?}", project.id);
+        let document = self.get_or_create_document(&project.id).await?;
+        let project = match load_project(&document).await? {
+            // 作成時の値（ID・作成日時）は残す
+            Some(existing) => Project {
+                id: existing.id,
+                created_at: existing.created_at,
+                ..project.clone()
+            },
+            None => project.clone(),
+        };
+        save_project(&document, &project).await
+    }
 
-        // プロジェクトドキュメントが存在するか確認
-        if let Some(mut document) = self.get_project_document(&project.id).await? {
-            tracing::info!(
-                "set_project - 既存プロジェクトドキュメントを更新: {:?}",
-                project.id
-            );
-            // 基本情報のみ更新（エンティティは保持）
-            document.name = project.name.clone();
-            document.description = project.description.clone();
-            document.color = project.color.clone();
-            document.order_index = project.order_index;
-            document.is_archived = project.is_archived;
-            document.status = project.status.clone();
-            document.owner_id = project.owner_id;
-            document.updated_at = project.updated_at;
-            document.updated_by = project.updated_by;
-            document.deleted = project.deleted;
-
-            self.save_project_document(&project.id, &document).await
-        } else {
-            tracing::info!(
-                "set_project - 新規プロジェクトドキュメント作成: {:?}",
-                project.id
-            );
-            // 新規プロジェクトドキュメントを作成
-            self.create_empty_project_document(project).await
+    /// 基本情報のあるプロジェクトドキュメントを返す。無ければ `NotFound`
+    async fn existing_document(&self, project_id: &ProjectId) -> Result<Document, RepositoryError> {
+        let document = self.get_or_create_document(project_id).await?;
+        if load_project(&document).await?.is_none() {
+            return Err(RepositoryError::NotFound(format!(
+                "Project not found: {}",
+                project_id
+            )));
         }
+        Ok(document)
+    }
+
+    /// エンティティを追加し、プロジェクトの更新日時を進める
+    async fn add_entity<T: Serialize + DeserializeOwned>(
+        &self,
+        project_id: &ProjectId,
+        collection: &Collection<T>,
+        entity: &T,
+    ) -> Result<(), RepositoryError> {
+        let document = self.existing_document(project_id).await?;
+        document.put_entry(collection, entity).await?;
+        document.save_data("updated_at", &Utc::now()).await?;
+        Ok(())
+    }
+
+    /// 集合の全エンティティに `update` を適用し、変えたもの（`update` が真を返したもの）だけを書く
+    async fn update_all<T: Serialize + DeserializeOwned>(
+        &self,
+        project_id: &ProjectId,
+        collection: &Collection<T>,
+        mut update: impl FnMut(&mut T) -> bool,
+    ) -> Result<(), RepositoryError> {
+        let document = self.existing_document(project_id).await?;
+        let mut entities = document.load_collection(collection).await?;
+        entities.retain_mut(|entity| update(entity));
+        document.put_entries(collection, &entities).await?;
+        Ok(())
+    }
+
+    /// `key` のエンティティに `update` を適用して書く。エンティティが無ければ `not_found()`
+    async fn update_one<T: Serialize + DeserializeOwned>(
+        &self,
+        project_id: &ProjectId,
+        collection: &Collection<T>,
+        key: &str,
+        not_found: impl FnOnce() -> RepositoryError,
+        update: impl FnOnce(&mut T) -> Result<(), RepositoryError>,
+    ) -> Result<(), RepositoryError> {
+        let document = self.existing_document(project_id).await?;
+        let mut entity = document
+            .load_entry(collection, key)
+            .await?
+            .ok_or_else(not_found)?;
+        update(&mut entity)?;
+        document.put_entry(collection, &entity).await?;
+        Ok(())
+    }
+
+    /// 削除済みの `key` のエンティティを返す。プロジェクトやエンティティが無い、または削除済みでなければ `None`
+    async fn find_deleted<T: DeserializeOwned + Trackable>(
+        &self,
+        project_id: &ProjectId,
+        collection: &Collection<T>,
+        key: &str,
+    ) -> Result<Option<T>, RepositoryError> {
+        let document = self.get_or_create_document(project_id).await?;
+        if load_project(&document).await?.is_none() {
+            return Ok(None);
+        }
+        let entity: Option<T> = document.load_entry(collection, key).await?;
+        Ok(entity.filter(|entity| entity.is_deleted()))
     }
 
     /// タスクリストを追加
@@ -323,21 +317,7 @@ impl ProjectLocalAutomergeRepository {
         project_id: &ProjectId,
         task_list: &TaskList,
     ) -> Result<(), RepositoryError> {
-        // プロジェクトドキュメントを取得または作成
-        let mut document = if let Some(doc) = self.get_project_document(project_id).await? {
-            doc
-        } else {
-            return Err(RepositoryError::NotFound(format!(
-                "Project not found: {}",
-                project_id
-            )));
-        };
-
-        // タスクリストを追加
-        document.task_lists.push(task_list.clone());
-        document.updated_at = Utc::now();
-
-        self.save_project_document(project_id, &document).await
+        self.add_entity(project_id, &TASK_LISTS, task_list).await
     }
 
     /// タスクを追加
@@ -346,21 +326,7 @@ impl ProjectLocalAutomergeRepository {
         project_id: &ProjectId,
         task: &Task,
     ) -> Result<(), RepositoryError> {
-        // プロジェクトドキュメントを取得または作成
-        let mut document = if let Some(doc) = self.get_project_document(project_id).await? {
-            doc
-        } else {
-            return Err(RepositoryError::NotFound(format!(
-                "Project not found: {}",
-                project_id
-            )));
-        };
-
-        // タスクを追加
-        document.tasks.push(task.clone());
-        document.updated_at = Utc::now();
-
-        self.save_project_document(project_id, &document).await
+        self.add_entity(project_id, &TASKS, task).await
     }
 
     /// サブタスクを追加
@@ -369,40 +335,12 @@ impl ProjectLocalAutomergeRepository {
         project_id: &ProjectId,
         subtask: &SubTask,
     ) -> Result<(), RepositoryError> {
-        // プロジェクトドキュメントを取得または作成
-        let mut document = if let Some(doc) = self.get_project_document(project_id).await? {
-            doc
-        } else {
-            return Err(RepositoryError::NotFound(format!(
-                "Project not found: {}",
-                project_id
-            )));
-        };
-
-        // サブタスクを追加
-        document.subtasks.push(subtask.clone());
-        document.updated_at = Utc::now();
-
-        self.save_project_document(project_id, &document).await
+        self.add_entity(project_id, &SUBTASKS, subtask).await
     }
 
     /// タグを追加
     pub async fn add_tag(&self, project_id: &ProjectId, tag: &Tag) -> Result<(), RepositoryError> {
-        // プロジェクトドキュメントを取得または作成
-        let mut document = if let Some(doc) = self.get_project_document(project_id).await? {
-            doc
-        } else {
-            return Err(RepositoryError::NotFound(format!(
-                "Project not found: {}",
-                project_id
-            )));
-        };
-
-        // タグを追加
-        document.tags.push(tag.clone());
-        document.updated_at = Utc::now();
-
-        self.save_project_document(project_id, &document).await
+        self.add_entity(project_id, &TAGS, tag).await
     }
 
     /// メンバーを追加
@@ -411,21 +349,7 @@ impl ProjectLocalAutomergeRepository {
         project_id: &ProjectId,
         member: &Member,
     ) -> Result<(), RepositoryError> {
-        // プロジェクトドキュメントを取得または作成
-        let mut document = if let Some(doc) = self.get_project_document(project_id).await? {
-            doc
-        } else {
-            return Err(RepositoryError::NotFound(format!(
-                "Project not found: {}",
-                project_id
-            )));
-        };
-
-        // メンバーを追加
-        document.members.push(member.clone());
-        document.updated_at = Utc::now();
-
-        self.save_project_document(project_id, &document).await
+        self.add_entity(project_id, &MEMBERS, member).await
     }
 
     /// プロジェクト内の全タスクを取得
@@ -558,18 +482,11 @@ impl ProjectLocalAutomergeRepository {
         user_id: &UserId,
         timestamp: &DateTime<Utc>,
     ) -> Result<(), RepositoryError> {
-        let mut document = self
-            .get_project_document(project_id)
-            .await?
-            .ok_or_else(|| {
-                RepositoryError::NotFound(format!("Project not found: {}", project_id))
-            })?;
-
-        for task in &mut document.tasks {
+        self.update_all(project_id, &TASKS, |task| {
             task.mark_deleted(*user_id, *timestamp);
-        }
-
-        self.save_project_document(project_id, &document).await
+            true
+        })
+        .await
     }
 
     /// プロジェクト内のすべてのタグを論理削除
@@ -579,18 +496,11 @@ impl ProjectLocalAutomergeRepository {
         user_id: &UserId,
         timestamp: &DateTime<Utc>,
     ) -> Result<(), RepositoryError> {
-        let mut document = self
-            .get_project_document(project_id)
-            .await?
-            .ok_or_else(|| {
-                RepositoryError::NotFound(format!("Project not found: {}", project_id))
-            })?;
-
-        for tag in &mut document.tags {
+        self.update_all(project_id, &TAGS, |tag| {
             tag.mark_deleted(*user_id, *timestamp);
-        }
-
-        self.save_project_document(project_id, &document).await
+            true
+        })
+        .await
     }
 
     /// プロジェクト内のすべてのタスクリストを論理削除
@@ -600,18 +510,11 @@ impl ProjectLocalAutomergeRepository {
         user_id: &UserId,
         timestamp: &DateTime<Utc>,
     ) -> Result<(), RepositoryError> {
-        let mut document = self
-            .get_project_document(project_id)
-            .await?
-            .ok_or_else(|| {
-                RepositoryError::NotFound(format!("Project not found: {}", project_id))
-            })?;
-
-        for task_list in &mut document.task_lists {
+        self.update_all(project_id, &TASK_LISTS, |task_list| {
             task_list.mark_deleted(*user_id, *timestamp);
-        }
-
-        self.save_project_document(project_id, &document).await
+            true
+        })
+        .await
     }
 
     // ========== スナップショット機能（Phase 2） ==========
@@ -818,20 +721,10 @@ impl ProjectLocalAutomergeRepository {
         user_id: &UserId,
         timestamp: &DateTime<Utc>,
     ) -> Result<(), RepositoryError> {
-        let mut document = self
-            .get_project_document(project_id)
-            .await?
-            .ok_or_else(|| {
-                RepositoryError::NotFound(format!("Project not found: {}", project_id))
-            })?;
-
-        for task in &mut document.tasks {
-            if task.is_deleted() {
-                task.mark_restored(*user_id, *timestamp);
-            }
-        }
-
-        self.save_project_document(project_id, &document).await
+        self.update_all(project_id, &TASKS, |task| {
+            restore_if_deleted(task, user_id, timestamp)
+        })
+        .await
     }
 
     /// プロジェクト内のすべてのタグを復元
@@ -841,20 +734,10 @@ impl ProjectLocalAutomergeRepository {
         user_id: &UserId,
         timestamp: &DateTime<Utc>,
     ) -> Result<(), RepositoryError> {
-        let mut document = self
-            .get_project_document(project_id)
-            .await?
-            .ok_or_else(|| {
-                RepositoryError::NotFound(format!("Project not found: {}", project_id))
-            })?;
-
-        for tag in &mut document.tags {
-            if tag.is_deleted() {
-                tag.mark_restored(*user_id, *timestamp);
-            }
-        }
-
-        self.save_project_document(project_id, &document).await
+        self.update_all(project_id, &TAGS, |tag| {
+            restore_if_deleted(tag, user_id, timestamp)
+        })
+        .await
     }
 
     /// プロジェクト内のすべてのタスクリストを復元
@@ -864,20 +747,10 @@ impl ProjectLocalAutomergeRepository {
         user_id: &UserId,
         timestamp: &DateTime<Utc>,
     ) -> Result<(), RepositoryError> {
-        let mut document = self
-            .get_project_document(project_id)
-            .await?
-            .ok_or_else(|| {
-                RepositoryError::NotFound(format!("Project not found: {}", project_id))
-            })?;
-
-        for task_list in &mut document.task_lists {
-            if task_list.is_deleted() {
-                task_list.mark_restored(*user_id, *timestamp);
-            }
-        }
-
-        self.save_project_document(project_id, &document).await
+        self.update_all(project_id, &TASK_LISTS, |task_list| {
+            restore_if_deleted(task_list, user_id, timestamp)
+        })
+        .await
     }
 
     /// 個別タスクの論理削除
@@ -888,21 +761,17 @@ impl ProjectLocalAutomergeRepository {
         user_id: &UserId,
         timestamp: &DateTime<Utc>,
     ) -> Result<(), RepositoryError> {
-        let mut document = self
-            .get_project_document(project_id)
-            .await?
-            .ok_or_else(|| {
-                RepositoryError::NotFound(format!("Project not found: {}", project_id))
-            })?;
-
-        let task = document
-            .tasks
-            .iter_mut()
-            .find(|t| t.id == *task_id)
-            .ok_or_else(|| RepositoryError::NotFound(format!("Task not found: {}", task_id)))?;
-        task.mark_deleted(*user_id, *timestamp);
-
-        self.save_project_document(project_id, &document).await
+        self.update_one(
+            project_id,
+            &TASKS,
+            &task_id.to_string(),
+            || RepositoryError::NotFound(format!("Task not found: {}", task_id)),
+            |task: &mut Task| {
+                task.mark_deleted(*user_id, *timestamp);
+                Ok(())
+            },
+        )
+        .await
     }
 
     /// 個別タグの論理削除
@@ -913,21 +782,17 @@ impl ProjectLocalAutomergeRepository {
         user_id: &UserId,
         timestamp: &DateTime<Utc>,
     ) -> Result<(), RepositoryError> {
-        let mut document = self
-            .get_project_document(project_id)
-            .await?
-            .ok_or_else(|| {
-                RepositoryError::NotFound(format!("Project not found: {}", project_id))
-            })?;
-
-        let tag = document
-            .tags
-            .iter_mut()
-            .find(|t| t.id == *tag_id)
-            .ok_or_else(|| RepositoryError::NotFound(format!("Tag not found: {}", tag_id)))?;
-        tag.mark_deleted(*user_id, *timestamp);
-
-        self.save_project_document(project_id, &document).await
+        self.update_one(
+            project_id,
+            &TAGS,
+            &tag_id.to_string(),
+            || RepositoryError::NotFound(format!("Tag not found: {}", tag_id)),
+            |tag: &mut Tag| {
+                tag.mark_deleted(*user_id, *timestamp);
+                Ok(())
+            },
+        )
+        .await
     }
 
     /// 個別タスクリストの論理削除
@@ -938,23 +803,17 @@ impl ProjectLocalAutomergeRepository {
         user_id: &UserId,
         timestamp: &DateTime<Utc>,
     ) -> Result<(), RepositoryError> {
-        let mut document = self
-            .get_project_document(project_id)
-            .await?
-            .ok_or_else(|| {
-                RepositoryError::NotFound(format!("Project not found: {}", project_id))
-            })?;
-
-        let task_list = document
-            .task_lists
-            .iter_mut()
-            .find(|tl| tl.id == *task_list_id)
-            .ok_or_else(|| {
-                RepositoryError::NotFound(format!("TaskList not found: {}", task_list_id))
-            })?;
-        task_list.mark_deleted(*user_id, *timestamp);
-
-        self.save_project_document(project_id, &document).await
+        self.update_one(
+            project_id,
+            &TASK_LISTS,
+            &task_list_id.to_string(),
+            || RepositoryError::NotFound(format!("TaskList not found: {}", task_list_id)),
+            |task_list: &mut TaskList| {
+                task_list.mark_deleted(*user_id, *timestamp);
+                Ok(())
+            },
+        )
+        .await
     }
 
     /// 個別タスクの復元
@@ -965,27 +824,16 @@ impl ProjectLocalAutomergeRepository {
         user_id: &UserId,
         timestamp: &DateTime<Utc>,
     ) -> Result<(), RepositoryError> {
-        let mut document = self
-            .get_project_document(project_id)
-            .await?
-            .ok_or_else(|| {
-                RepositoryError::NotFound(format!("Project not found: {}", project_id))
-            })?;
-
-        let task = document
-            .tasks
-            .iter_mut()
-            .find(|t| t.id == *task_id)
-            .ok_or_else(|| RepositoryError::NotFound(format!("Task not found: {}", task_id)))?;
-        if !task.is_deleted() {
-            return Err(RepositoryError::InvalidOperation(format!(
-                "Task is not deleted: {}",
-                task_id
-            )));
-        }
-        task.mark_restored(*user_id, *timestamp);
-
-        self.save_project_document(project_id, &document).await
+        self.update_one(
+            project_id,
+            &TASKS,
+            &task_id.to_string(),
+            || RepositoryError::NotFound(format!("Task not found: {}", task_id)),
+            |task: &mut Task| {
+                restore_deleted(task, "Task", &task_id.to_string(), user_id, timestamp)
+            },
+        )
+        .await
     }
 
     /// 個別タグの復元
@@ -996,27 +844,14 @@ impl ProjectLocalAutomergeRepository {
         user_id: &UserId,
         timestamp: &DateTime<Utc>,
     ) -> Result<(), RepositoryError> {
-        let mut document = self
-            .get_project_document(project_id)
-            .await?
-            .ok_or_else(|| {
-                RepositoryError::NotFound(format!("Project not found: {}", project_id))
-            })?;
-
-        let tag = document
-            .tags
-            .iter_mut()
-            .find(|t| t.id == *tag_id)
-            .ok_or_else(|| RepositoryError::NotFound(format!("Tag not found: {}", tag_id)))?;
-        if !tag.is_deleted() {
-            return Err(RepositoryError::InvalidOperation(format!(
-                "Tag is not deleted: {}",
-                tag_id
-            )));
-        }
-        tag.mark_restored(*user_id, *timestamp);
-
-        self.save_project_document(project_id, &document).await
+        self.update_one(
+            project_id,
+            &TAGS,
+            &tag_id.to_string(),
+            || RepositoryError::NotFound(format!("Tag not found: {}", tag_id)),
+            |tag: &mut Tag| restore_deleted(tag, "Tag", &tag_id.to_string(), user_id, timestamp),
+        )
+        .await
     }
 
     /// 個別タスクリストの復元
@@ -1027,29 +862,22 @@ impl ProjectLocalAutomergeRepository {
         user_id: &UserId,
         timestamp: &DateTime<Utc>,
     ) -> Result<(), RepositoryError> {
-        let mut document = self
-            .get_project_document(project_id)
-            .await?
-            .ok_or_else(|| {
-                RepositoryError::NotFound(format!("Project not found: {}", project_id))
-            })?;
-
-        let task_list = document
-            .task_lists
-            .iter_mut()
-            .find(|tl| tl.id == *task_list_id)
-            .ok_or_else(|| {
-                RepositoryError::NotFound(format!("TaskList not found: {}", task_list_id))
-            })?;
-        if !task_list.is_deleted() {
-            return Err(RepositoryError::InvalidOperation(format!(
-                "TaskList is not deleted: {}",
-                task_list_id
-            )));
-        }
-        task_list.mark_restored(*user_id, *timestamp);
-
-        self.save_project_document(project_id, &document).await
+        self.update_one(
+            project_id,
+            &TASK_LISTS,
+            &task_list_id.to_string(),
+            || RepositoryError::NotFound(format!("TaskList not found: {}", task_list_id)),
+            |task_list: &mut TaskList| {
+                restore_deleted(
+                    task_list,
+                    "TaskList",
+                    &task_list_id.to_string(),
+                    user_id,
+                    timestamp,
+                )
+            },
+        )
+        .await
     }
 
     /// 削除済み個別タスクの取得
@@ -1058,15 +886,8 @@ impl ProjectLocalAutomergeRepository {
         project_id: &ProjectId,
         task_id: &TaskId,
     ) -> Result<Option<Task>, RepositoryError> {
-        let document = match self.get_project_document(project_id).await? {
-            Some(doc) => doc,
-            None => return Ok(None),
-        };
-
-        Ok(document
-            .tasks
-            .into_iter()
-            .find(|t| t.id == *task_id && t.is_deleted()))
+        self.find_deleted(project_id, &TASKS, &task_id.to_string())
+            .await
     }
 
     /// 削除済み個別タグの取得
@@ -1075,15 +896,8 @@ impl ProjectLocalAutomergeRepository {
         project_id: &ProjectId,
         tag_id: &TagId,
     ) -> Result<Option<Tag>, RepositoryError> {
-        let document = match self.get_project_document(project_id).await? {
-            Some(doc) => doc,
-            None => return Ok(None),
-        };
-
-        Ok(document
-            .tags
-            .into_iter()
-            .find(|t| t.id == *tag_id && t.is_deleted()))
+        self.find_deleted(project_id, &TAGS, &tag_id.to_string())
+            .await
     }
 
     /// 削除済み個別タスクリストの取得
@@ -1092,16 +906,104 @@ impl ProjectLocalAutomergeRepository {
         project_id: &ProjectId,
         task_list_id: &TaskListId,
     ) -> Result<Option<TaskList>, RepositoryError> {
-        let document = match self.get_project_document(project_id).await? {
-            Some(doc) => doc,
-            None => return Ok(None),
-        };
-
-        Ok(document
-            .task_lists
-            .into_iter()
-            .find(|tl| tl.id == *task_list_id && tl.is_deleted()))
+        self.find_deleted(project_id, &TASK_LISTS, &task_list_id.to_string())
+            .await
     }
+}
+
+/// ドキュメント直下のプロジェクト基本情報を読む。必須の値（ID・名前・作成日時・更新日時）が無ければ `None`
+async fn load_project(document: &Document) -> Result<Option<Project>, RepositoryError> {
+    let id: Option<String> = document.load_data("id").await?;
+    let name: Option<String> = document.load_data("name").await?;
+    let description: Option<Option<String>> = document.load_data("description").await?;
+    let color: Option<Option<String>> = document.load_data("color").await?;
+    let order_index: Option<i32> = document.load_data("order_index").await?;
+    let is_archived: Option<bool> = document.load_data("is_archived").await?;
+    let status: Option<Option<ProjectStatus>> = document.load_data("status").await?;
+    let owner_id: Option<Option<UserId>> = document.load_data("owner_id").await?;
+    let created_at: Option<DateTime<Utc>> = document.load_data("created_at").await?;
+    let updated_at: Option<DateTime<Utc>> = document.load_data("updated_at").await?;
+    let updated_by: Option<UserId> = document.load_data("updated_by").await?;
+    let deleted: Option<bool> = document.load_data("deleted").await?;
+
+    let (Some(id), Some(name), Some(created_at), Some(updated_at)) =
+        (id, name, created_at, updated_at)
+    else {
+        return Ok(None);
+    };
+    Ok(Some(Project {
+        id: ProjectId::from(id.clone()),
+        name,
+        description: description.unwrap_or(None),
+        color: color.unwrap_or(None),
+        order_index: order_index.unwrap_or(0),
+        is_archived: is_archived.unwrap_or(false),
+        status: status.unwrap_or(None),
+        owner_id: owner_id.unwrap_or(None),
+        created_at,
+        updated_at,
+        updated_by: updated_by.unwrap_or_else(|| UserId::from(id)),
+        deleted: deleted.unwrap_or(false),
+    }))
+}
+
+/// ドキュメント直下にプロジェクト基本情報を書く。変わった値だけが書かれる
+async fn save_project(document: &Document, project: &Project) -> Result<(), RepositoryError> {
+    document.save_data("id", &project.id.to_string()).await?;
+    document.save_data("name", &project.name).await?;
+    document
+        .save_data("description", &project.description)
+        .await?;
+    document.save_data("color", &project.color).await?;
+    document
+        .save_data("order_index", &project.order_index)
+        .await?;
+    document
+        .save_data("is_archived", &project.is_archived)
+        .await?;
+    document.save_data("status", &project.status).await?;
+    document.save_data("owner_id", &project.owner_id).await?;
+    document
+        .save_data("created_at", &project.created_at)
+        .await?;
+    document
+        .save_data("updated_at", &project.updated_at)
+        .await?;
+    document
+        .save_data("updated_by", &project.updated_by)
+        .await?;
+    document.save_data("deleted", &project.deleted).await?;
+    Ok(())
+}
+
+/// 削除済みなら復元して真を返す
+fn restore_if_deleted<T: Trackable>(
+    entity: &mut T,
+    user_id: &UserId,
+    timestamp: &DateTime<Utc>,
+) -> bool {
+    if !entity.is_deleted() {
+        return false;
+    }
+    entity.mark_restored(*user_id, *timestamp);
+    true
+}
+
+/// 削除済みのエンティティを復元する。削除済みでなければ `InvalidOperation`
+fn restore_deleted<T: Trackable>(
+    entity: &mut T,
+    kind: &str,
+    id: &str,
+    user_id: &UserId,
+    timestamp: &DateTime<Utc>,
+) -> Result<(), RepositoryError> {
+    if !entity.is_deleted() {
+        return Err(RepositoryError::InvalidOperation(format!(
+            "{kind} is not deleted: {id}"
+        )));
+    }
+    entity.mark_restored(*user_id, *timestamp);
+    Ok(())
 }
 
 #[async_trait]

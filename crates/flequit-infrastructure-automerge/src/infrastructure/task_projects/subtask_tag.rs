@@ -1,5 +1,6 @@
 //! SubtaskTag用Automergeリポジトリ
 
+use crate::infrastructure::collection::{Collection, relation_key};
 use crate::infrastructure::document::Document;
 
 use super::super::document_manager::{DocumentManager, DocumentType};
@@ -15,7 +16,7 @@ use std::{path::PathBuf, sync::Arc};
 use tokio::sync::Mutex;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct SubtaskTagRelation {
+pub(crate) struct SubtaskTagRelation {
     subtask_id: String,
     tag_id: String,
     created_at: chrono::DateTime<Utc>,
@@ -23,6 +24,12 @@ struct SubtaskTagRelation {
     updated_by: String,
     deleted: bool,
 }
+
+/// プロジェクトドキュメント内のサブタスクとタグの関連（キーは `{subtask_id}:{tag_id}`）
+pub(crate) const SUBTASK_TAGS: Collection<SubtaskTagRelation> =
+    Collection::new("subtask_tags", |relation| {
+        relation_key(&relation.subtask_id, &relation.tag_id)
+    });
 
 #[derive(Debug)]
 pub struct SubtaskTagLocalAutomergeRepository {
@@ -64,19 +71,13 @@ impl SubtaskTagLocalAutomergeRepository {
         project_id: &ProjectId,
         subtask_id: &SubTaskId,
     ) -> Result<Vec<TagId>, RepositoryError> {
-        let document = self.get_or_create_document(project_id).await?;
-        let relations: Option<Vec<SubtaskTagRelation>> = document.load_data("subtask_tags").await?;
-
-        if let Some(relations) = relations {
-            let tag_ids = relations
-                .into_iter()
-                .filter(|r| r.subtask_id == subtask_id.to_string())
-                .map(|r| TagId::from(r.tag_id))
-                .collect();
-            Ok(tag_ids)
-        } else {
-            Ok(vec![])
-        }
+        let subtask_id = subtask_id.to_string();
+        let relations = self.load_all(project_id).await?;
+        Ok(relations
+            .into_iter()
+            .filter(|r| r.subtask_id == subtask_id)
+            .map(|r| TagId::from(r.tag_id))
+            .collect())
     }
 
     /// 指定タグに関連するサブタスクIDリストを取得
@@ -85,22 +86,16 @@ impl SubtaskTagLocalAutomergeRepository {
         project_id: &ProjectId,
         tag_id: &TagId,
     ) -> Result<Vec<SubTaskId>, RepositoryError> {
-        let document = self.get_or_create_document(project_id).await?;
-        let relations: Option<Vec<SubtaskTagRelation>> = document.load_data("subtask_tags").await?;
-
-        if let Some(relations) = relations {
-            let subtask_ids = relations
-                .into_iter()
-                .filter(|r| r.tag_id == tag_id.to_string())
-                .map(|r| SubTaskId::from(r.subtask_id))
-                .collect();
-            Ok(subtask_ids)
-        } else {
-            Ok(vec![])
-        }
+        let tag_id = tag_id.to_string();
+        let relations = self.load_all(project_id).await?;
+        Ok(relations
+            .into_iter()
+            .filter(|r| r.tag_id == tag_id)
+            .map(|r| SubTaskId::from(r.subtask_id))
+            .collect())
     }
 
-    /// サブタスクとタグの関連付けを追加
+    /// サブタスクとタグの関連付けを追加（既にあれば何もしない）
     pub async fn add_relation(
         &self,
         project_id: &ProjectId,
@@ -108,32 +103,13 @@ impl SubtaskTagLocalAutomergeRepository {
         tag_id: &TagId,
     ) -> Result<(), RepositoryError> {
         let document = self.get_or_create_document(project_id).await?;
-
-        // 既存の関連リストを取得
-        let mut relations: Vec<SubtaskTagRelation> = document
-            .load_data("subtask_tags")
-            .await?
-            .unwrap_or_default();
-
-        // 既存の関連が存在するかチェック
-        let exists = relations
-            .iter()
-            .any(|r| r.subtask_id == subtask_id.to_string() && r.tag_id == tag_id.to_string());
-
-        if !exists {
-            // 関連が存在しない場合のみ追加
-            relations.push(SubtaskTagRelation {
-                subtask_id: subtask_id.to_string(),
-                tag_id: tag_id.to_string(),
-                created_at: Utc::now(),
-                updated_at: Utc::now(),
-                updated_by: UserId::from("system").to_string(),
-                deleted: false,
-            });
-
-            document.save_data("subtask_tags", &relations).await?;
+        let key = relation_key(&subtask_id.to_string(), &tag_id.to_string());
+        let existing: Option<SubtaskTagRelation> = document.load_entry(&SUBTASK_TAGS, &key).await?;
+        if existing.is_none() {
+            document
+                .put_entry(&SUBTASK_TAGS, &new_relation(subtask_id, tag_id))
+                .await?;
         }
-
         Ok(())
     }
 
@@ -145,19 +121,8 @@ impl SubtaskTagLocalAutomergeRepository {
         tag_id: &TagId,
     ) -> Result<(), RepositoryError> {
         let document = self.get_or_create_document(project_id).await?;
-        // 既存の関連リストを取得
-        let mut relations: Vec<SubtaskTagRelation> = document
-            .load_data("subtask_tags")
-            .await?
-            .unwrap_or_default();
-
-        // 指定された関連を削除
-        relations.retain(|r| {
-            !(r.subtask_id == subtask_id.to_string() && r.tag_id == tag_id.to_string())
-        });
-
-        document.save_data("subtask_tags", &relations).await?;
-
+        let key = relation_key(&subtask_id.to_string(), &tag_id.to_string());
+        document.delete_entry(&SUBTASK_TAGS, &key).await?;
         Ok(())
     }
 
@@ -168,17 +133,10 @@ impl SubtaskTagLocalAutomergeRepository {
         subtask_id: &SubTaskId,
     ) -> Result<(), RepositoryError> {
         let document = self.get_or_create_document(project_id).await?;
-        // 既存の関連リストを取得
-        let mut relations: Vec<SubtaskTagRelation> = document
-            .load_data("subtask_tags")
-            .await?
-            .unwrap_or_default();
-
-        // 指定されたサブタスクの全ての関連を削除
-        relations.retain(|r| r.subtask_id != subtask_id.to_string());
-
-        document.save_data("subtask_tags", &relations).await?;
-
+        let subtask_id = subtask_id.to_string();
+        document
+            .delete_entries_where(&SUBTASK_TAGS, |r| r.subtask_id == subtask_id)
+            .await?;
         Ok(())
     }
 
@@ -189,22 +147,16 @@ impl SubtaskTagLocalAutomergeRepository {
         tag_id: &TagId,
     ) -> Result<(), RepositoryError> {
         let document = self.get_or_create_document(project_id).await?;
-
-        // 既存の関連リストを取得
-        let mut relations: Vec<SubtaskTagRelation> = document
-            .load_data("subtask_tags")
-            .await?
-            .unwrap_or_default();
-
-        // 指定されたタグの全ての関連を削除
-        relations.retain(|r| r.tag_id != tag_id.to_string());
-
-        document.save_data("subtask_tags", &relations).await?;
-
+        let tag_id = tag_id.to_string();
+        document
+            .delete_entries_where(&SUBTASK_TAGS, |r| r.tag_id == tag_id)
+            .await?;
         Ok(())
     }
 
-    /// サブタスクのタグ関連付けを一括更新（既存をすべて削除して新しい関連を追加）
+    /// サブタスクのタグ関連付けを `tag_ids` にする
+    ///
+    /// 外れたタグの関連だけを消し、新しいタグの関連だけを追加する。続けて付いているタグの関連は触らない。
     pub async fn update_subtask_tag_relations(
         &self,
         project_id: &ProjectId,
@@ -212,31 +164,49 @@ impl SubtaskTagLocalAutomergeRepository {
         tag_ids: &[TagId],
     ) -> Result<(), RepositoryError> {
         let document = self.get_or_create_document(project_id).await?;
-
-        // 既存の関連リストを取得
-        let mut relations: Vec<SubtaskTagRelation> = document
-            .load_data("subtask_tags")
+        let subtask_id_str = subtask_id.to_string();
+        let wanted: Vec<String> = tag_ids.iter().map(ToString::to_string).collect();
+        let current: Vec<String> = self
+            .load_all(project_id)
             .await?
-            .unwrap_or_default();
+            .into_iter()
+            .filter(|r| r.subtask_id == subtask_id_str)
+            .map(|r| r.tag_id)
+            .collect();
 
-        // 既存の関連付けを削除
-        relations.retain(|r| r.subtask_id != subtask_id.to_string());
+        let removed: Vec<String> = current
+            .iter()
+            .filter(|tag_id| !wanted.contains(tag_id))
+            .map(|tag_id| relation_key(&subtask_id_str, tag_id))
+            .collect();
+        document.delete_entries(&SUBTASK_TAGS, &removed).await?;
 
-        // 新しい関連付けを追加
-        for tag_id in tag_ids {
-            relations.push(SubtaskTagRelation {
-                subtask_id: subtask_id.to_string(),
-                tag_id: tag_id.to_string(),
-                created_at: Utc::now(),
-                updated_at: Utc::now(),
-                updated_by: UserId::from("system").to_string(),
-                deleted: false,
-            });
-        }
-
-        document.save_data("subtask_tags", &relations).await?;
-
+        let added: Vec<SubtaskTagRelation> = tag_ids
+            .iter()
+            .filter(|tag_id| !current.contains(&tag_id.to_string()))
+            .map(|tag_id| new_relation(subtask_id, tag_id))
+            .collect();
+        document.put_entries(&SUBTASK_TAGS, &added).await?;
         Ok(())
+    }
+
+    async fn load_all(
+        &self,
+        project_id: &ProjectId,
+    ) -> Result<Vec<SubtaskTagRelation>, RepositoryError> {
+        let document = self.get_or_create_document(project_id).await?;
+        Ok(document.load_collection(&SUBTASK_TAGS).await?)
+    }
+}
+
+fn new_relation(subtask_id: &SubTaskId, tag_id: &TagId) -> SubtaskTagRelation {
+    SubtaskTagRelation {
+        subtask_id: subtask_id.to_string(),
+        tag_id: tag_id.to_string(),
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+        deleted: false,
+        updated_by: UserId::from("system").to_string(),
     }
 }
 
@@ -331,49 +301,24 @@ impl ProjectRelationRepository<SubTaskTag, SubTaskId, TagId>
         child_id: &TagId,
     ) -> Result<Option<SubTaskTag>, RepositoryError> {
         let document = self.get_or_create_document(project_id).await?;
-        let relations: Option<Vec<SubtaskTagRelation>> = document.load_data("subtask_tags").await?;
-
-        if let Some(relations) = relations {
-            if let Some(subtask_tag_relation) = relations
-                .iter()
-                .find(|r| r.subtask_id == parent_id.to_string() && r.tag_id == child_id.to_string())
-            {
-                let subtask_tag = SubTaskTag {
-                    subtask_id: *parent_id,
-                    tag_id: *child_id,
-                    created_at: subtask_tag_relation.created_at,
-                    updated_at: subtask_tag_relation.updated_at,
-                    updated_by: UserId::from(subtask_tag_relation.updated_by.clone()),
-                    deleted: subtask_tag_relation.deleted,
-                };
-                Ok(Some(subtask_tag))
-            } else {
-                Ok(None)
-            }
-        } else {
-            Ok(None)
-        }
+        let key = relation_key(&parent_id.to_string(), &child_id.to_string());
+        let relation: Option<SubtaskTagRelation> = document.load_entry(&SUBTASK_TAGS, &key).await?;
+        Ok(relation.map(to_subtask_tag))
     }
 
     async fn find_all(&self, project_id: &ProjectId) -> Result<Vec<SubTaskTag>, RepositoryError> {
-        let document = self.get_or_create_document(project_id).await?;
-        let relations: Option<Vec<SubtaskTagRelation>> = document.load_data("subtask_tags").await?;
+        let relations = self.load_all(project_id).await?;
+        Ok(relations.into_iter().map(to_subtask_tag).collect())
+    }
+}
 
-        if let Some(subtask_tag_relations) = relations {
-            let subtask_tags = subtask_tag_relations
-                .into_iter()
-                .map(|rel| SubTaskTag {
-                    subtask_id: SubTaskId::from(rel.subtask_id.clone()),
-                    tag_id: TagId::from(rel.tag_id.clone()),
-                    created_at: rel.created_at,
-                    updated_at: rel.updated_at,
-                    updated_by: UserId::from(rel.updated_by),
-                    deleted: rel.deleted,
-                })
-                .collect();
-            Ok(subtask_tags)
-        } else {
-            Ok(vec![])
-        }
+fn to_subtask_tag(relation: SubtaskTagRelation) -> SubTaskTag {
+    SubTaskTag {
+        subtask_id: SubTaskId::from(relation.subtask_id),
+        tag_id: TagId::from(relation.tag_id),
+        created_at: relation.created_at,
+        updated_at: relation.updated_at,
+        updated_by: UserId::from(relation.updated_by),
+        deleted: relation.deleted,
     }
 }

@@ -1,6 +1,7 @@
 //! プロジェクト一覧管理用Automergeリポジトリ
 
 use super::super::document_manager::{DocumentManager, DocumentType};
+use crate::infrastructure::collection::Collection;
 use crate::infrastructure::document::Document;
 use flequit_model::models::task_projects::project::Project;
 use flequit_model::traits::Trackable;
@@ -9,6 +10,10 @@ use flequit_types::errors::repository_error::RepositoryError;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+
+/// Settings ドキュメント内のプロジェクト一覧（キーはプロジェクト ID）
+pub(crate) const PROJECTS: Collection<Project> =
+    Collection::new("projects", |project| project.id.to_string());
 
 /// プロジェクト一覧管理のためのAutomergeリポジトリ
 ///
@@ -41,12 +46,7 @@ impl ProjectListLocalAutomergeRepository {
     /// 全プロジェクト一覧を取得（削除済み含む、内部処理用）
     async fn list_all_projects_raw(&self) -> Result<Vec<Project>, RepositoryError> {
         let document = self.get_or_create_settings_document().await?;
-        let projects = document.load_data::<Vec<Project>>("projects").await?;
-        if let Some(projects) = projects {
-            Ok(projects)
-        } else {
-            Ok(Vec::new())
-        }
+        Ok(document.load_collection(&PROJECTS).await?)
     }
 
     /// アクティブなプロジェクト一覧を取得（deleted=falseのみ）
@@ -57,52 +57,18 @@ impl ProjectListLocalAutomergeRepository {
 
     /// プロジェクトをプロジェクト一覧に追加または更新
     pub async fn add_or_update_project(&self, project: &Project) -> Result<(), RepositoryError> {
-        tracing::info!("add_or_update_project - 開始: {:?}", project.id);
-
-        let mut projects = self.list_all_projects_raw().await?;
-        tracing::info!(
-            "add_or_update_project - 現在のプロジェクト数: {}",
-            projects.len()
-        );
-
-        // 既存のプロジェクトを更新、または新規追加
-        if let Some(existing) = projects.iter_mut().find(|p| p.id == project.id) {
-            tracing::info!(
-                "add_or_update_project - 既存プロジェクト更新: {:?}",
-                project.id
-            );
-            *existing = project.clone();
-        } else {
-            tracing::info!(
-                "add_or_update_project - 新規プロジェクト追加: {:?}",
-                project.id
-            );
-            projects.push(project.clone());
-        }
-
         let document = self.get_or_create_settings_document().await?;
-        tracing::info!("add_or_update_project - Settings文書取得完了");
-
-        let result = document.save_data("projects", &projects).await;
-        match result {
-            Ok(_) => {
-                tracing::info!("add_or_update_project - Settings文書保存完了");
-                Ok(())
-            }
-            Err(e) => {
-                tracing::error!("add_or_update_project - Settings文書保存エラー: {:?}", e);
-                Err(RepositoryError::AutomergeError(e.to_string()))
-            }
-        }
+        Ok(document.put_entry(&PROJECTS, project).await?)
     }
 
-    /// IDでプロジェクトを取得（一覧から）
+    /// IDでプロジェクトを取得（一覧から、削除済みは除く）
     pub async fn get_project_from_list(
         &self,
         project_id: &str,
     ) -> Result<Option<Project>, RepositoryError> {
-        let projects = self.list_projects().await?;
-        Ok(projects.into_iter().find(|p| p.id == project_id.into()))
+        let document = self.get_or_create_settings_document().await?;
+        let project: Option<Project> = document.load_entry(&PROJECTS, project_id).await?;
+        Ok(project.filter(|p| !p.is_deleted()))
     }
 
     /// プロジェクトをプロジェクト一覧から削除
@@ -110,17 +76,8 @@ impl ProjectListLocalAutomergeRepository {
         &self,
         project_id: &str,
     ) -> Result<bool, RepositoryError> {
-        let mut projects = self.list_all_projects_raw().await?;
-        let initial_len = projects.len();
-        projects.retain(|p| p.id != project_id.into());
-
-        if projects.len() != initial_len {
-            let document = self.get_or_create_settings_document().await?;
-            document.save_data("projects", &projects).await?;
-            Ok(true)
-        } else {
-            Ok(false)
-        }
+        let document = self.get_or_create_settings_document().await?;
+        Ok(document.delete_entry(&PROJECTS, project_id).await?)
     }
 
     /// プロジェクト数を取得

@@ -1,3 +1,4 @@
+use crate::infrastructure::collection::Collection;
 use crate::infrastructure::document::Document;
 
 use super::super::document_manager::{DocumentManager, DocumentType};
@@ -10,6 +11,10 @@ use flequit_repository::repositories::task_projects::weekday_condition_repositor
 use flequit_types::errors::repository_error::RepositoryError;
 use std::path::PathBuf;
 use std::sync::Arc;
+
+/// プロジェクトドキュメント内の曜日条件（キーは曜日条件 ID）
+pub(crate) const WEEKDAY_CONDITIONS: Collection<WeekdayCondition> =
+    Collection::new("weekday_conditions", |condition| condition.id.to_string());
 
 /// Automerge実装の曜日条件リポジトリ
 ///
@@ -65,14 +70,7 @@ impl WeekdayConditionLocalAutomergeRepository {
         project_id: &ProjectId,
     ) -> Result<Vec<WeekdayCondition>, RepositoryError> {
         let document = self.get_or_create_document(project_id).await?;
-        let weekday_conditions = document
-            .load_data::<Vec<WeekdayCondition>>("weekday_conditions")
-            .await?;
-        if let Some(weekday_conditions) = weekday_conditions {
-            Ok(weekday_conditions)
-        } else {
-            Ok(Vec::new())
-        }
+        Ok(document.load_collection(&WEEKDAY_CONDITIONS).await?)
     }
 
     /// IDで曜日条件を取得
@@ -81,10 +79,10 @@ impl WeekdayConditionLocalAutomergeRepository {
         project_id: &ProjectId,
         condition_id: &str,
     ) -> Result<Option<WeekdayCondition>, RepositoryError> {
-        let weekday_conditions = self.list_weekday_conditions(project_id).await?;
-        Ok(weekday_conditions
-            .into_iter()
-            .find(|w| w.id == condition_id.into()))
+        let document = self.get_or_create_document(project_id).await?;
+        Ok(document
+            .load_entry(&WEEKDAY_CONDITIONS, condition_id)
+            .await?)
     }
 
     /// 曜日条件を作成または更新
@@ -93,49 +91,10 @@ impl WeekdayConditionLocalAutomergeRepository {
         project_id: &ProjectId,
         weekday_condition: &WeekdayCondition,
     ) -> Result<(), RepositoryError> {
-        tracing::info!("set_weekday_condition - 開始: {:?}", weekday_condition.id);
-        let mut weekday_conditions = self.list_weekday_conditions(project_id).await?;
-        tracing::info!(
-            "set_weekday_condition - 現在の曜日条件数: {}",
-            weekday_conditions.len()
-        );
-
-        // 既存の曜日条件を更新、または新規追加
-        if let Some(existing) = weekday_conditions
-            .iter_mut()
-            .find(|w| w.id == weekday_condition.id)
-        {
-            tracing::info!(
-                "set_weekday_condition - 既存曜日条件を更新: {:?}",
-                weekday_condition.id
-            );
-            *existing = weekday_condition.clone();
-        } else {
-            tracing::info!(
-                "set_weekday_condition - 新規曜日条件追加: {:?}",
-                weekday_condition.id
-            );
-            weekday_conditions.push(weekday_condition.clone());
-        }
-
         let document = self.get_or_create_document(project_id).await?;
-        tracing::info!("set_weekday_condition - Document取得完了");
-        let result = document
-            .save_data("weekday_conditions", &weekday_conditions)
-            .await;
-        match result {
-            Ok(_) => {
-                tracing::info!("set_weekday_condition - Automergeドキュメント保存完了");
-                Ok(())
-            }
-            Err(e) => {
-                tracing::error!(
-                    "set_weekday_condition - Automergeドキュメント保存エラー: {:?}",
-                    e
-                );
-                Err(RepositoryError::AutomergeError(e.to_string()))
-            }
-        }
+        Ok(document
+            .put_entry(&WEEKDAY_CONDITIONS, weekday_condition)
+            .await?)
     }
 
     /// 曜日条件を削除
@@ -144,19 +103,10 @@ impl WeekdayConditionLocalAutomergeRepository {
         project_id: &ProjectId,
         condition_id: &str,
     ) -> Result<bool, RepositoryError> {
-        let mut weekday_conditions = self.list_weekday_conditions(project_id).await?;
-        let initial_len = weekday_conditions.len();
-        weekday_conditions.retain(|w| w.id != condition_id.into());
-
-        if weekday_conditions.len() != initial_len {
-            let document = self.get_or_create_document(project_id).await?;
-            document
-                .save_data("weekday_conditions", &weekday_conditions)
-                .await?;
-            Ok(true)
-        } else {
-            Ok(false)
-        }
+        let document = self.get_or_create_document(project_id).await?;
+        Ok(document
+            .delete_entry(&WEEKDAY_CONDITIONS, condition_id)
+            .await?)
     }
 }
 

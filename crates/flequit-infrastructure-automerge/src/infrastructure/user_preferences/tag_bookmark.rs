@@ -105,14 +105,14 @@ impl TagBookmarkLocalAutomergeRepository {
 
         let mut manager = self.document_manager.lock().await;
 
-        // プロジェクトのブックマークMapを取得
-        let bookmarks_map: Option<std::collections::HashMap<String, TagBookmark>> = manager
+        // プロジェクトのブックマークMapを取得（以前の削除が残した null は読み飛ばす）
+        let bookmarks_map: Option<std::collections::HashMap<String, Option<TagBookmark>>> = manager
             .load_data_at_nested_path(&DocumentType::User, &path_refs)
             .await
             .map_err(|e| RepositoryError::AutomergeError(e.to_string()))?;
 
         if let Some(map) = bookmarks_map {
-            let mut bookmarks: Vec<TagBookmark> = map.into_values().collect();
+            let mut bookmarks: Vec<TagBookmark> = map.into_values().flatten().collect();
             // order_indexでソート
             bookmarks.sort_by_key(|a| a.order_index);
             Ok(bookmarks)
@@ -131,9 +131,12 @@ impl TagBookmarkLocalAutomergeRepository {
 
         let mut manager = self.document_manager.lock().await;
 
-        // 全プロジェクトのブックマークMapを取得
+        // 全プロジェクトのブックマークMapを取得（以前の削除が残した null は読み飛ばす）
         let projects_map: Option<
-            std::collections::HashMap<String, std::collections::HashMap<String, TagBookmark>>,
+            std::collections::HashMap<
+                String,
+                std::collections::HashMap<String, Option<TagBookmark>>,
+            >,
         > = manager
             .load_data_at_nested_path(&DocumentType::User, &path_refs)
             .await
@@ -142,7 +145,7 @@ impl TagBookmarkLocalAutomergeRepository {
         if let Some(projects) = projects_map {
             let mut all_bookmarks = Vec::new();
             for (_project_id, bookmarks_map) in projects {
-                all_bookmarks.extend(bookmarks_map.into_values());
+                all_bookmarks.extend(bookmarks_map.into_values().flatten());
             }
             // order_indexでソート
             all_bookmarks.sort_by_key(|a| a.order_index);
@@ -169,12 +172,11 @@ impl TagBookmarkLocalAutomergeRepository {
         let path_refs: Vec<&str> = path.iter().map(|s| s.as_str()).collect();
 
         let mut manager = self.document_manager.lock().await;
-
-        // nullを保存することで削除を表現
         manager
-            .save_data_at_nested_path::<Option<TagBookmark>>(&DocumentType::User, &path_refs, &None)
+            .delete_data_at_nested_path(&DocumentType::User, &path_refs)
             .await
-            .map_err(|e| RepositoryError::AutomergeError(e.to_string()))
+            .map_err(|e| RepositoryError::AutomergeError(e.to_string()))?;
+        Ok(())
     }
 
     /// 最大order_indexを取得

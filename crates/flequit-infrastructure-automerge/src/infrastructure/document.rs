@@ -1,11 +1,14 @@
 use std::path::{Path, PathBuf};
 
-use crate::errors::automerge_error::AutomergeError;
-use crate::infrastructure::document_manager::DocumentType;
 use automerge::transaction::Transactable;
-use automerge::{ObjType, ReadDoc, ScalarValue};
+use automerge::{ObjType, ReadDoc};
 use automerge_repo::DocHandle;
 use flequit_model::types::id_types::ProjectId;
+
+use crate::errors::automerge_error::AutomergeError;
+use crate::infrastructure::document_manager::DocumentType;
+use crate::infrastructure::json::read::{read_map, read_value};
+use crate::infrastructure::json::reconcile::reconcile_prop;
 
 #[derive(Debug, Clone)]
 pub struct Document {
@@ -51,6 +54,9 @@ impl Document {
     }
 
     /// 指定されたパスにデータを保存
+    ///
+    /// 既存の値との差分だけを書く（[`reconcile_prop`]）。途中のパスが無ければ Map を作る。
+    /// エンティティの集合は配列で保存せず [`crate::infrastructure::collection::Collection`] を使うこと。
     pub async fn save_data_at_path<T: serde::Serialize>(
         &self,
         path: &[&str],
@@ -65,24 +71,16 @@ impl Document {
         doc.handle.with_doc_mut(|doc| {
             let mut tx = doc.transaction();
 
-            if path.is_empty() {
+            let Some((key, parents)) = path.split_last() else {
                 return Err(AutomergeError::InvalidOperation(
                     "Empty path not allowed".to_string(),
                 ));
-            }
-
-            if path.len() == 1 {
-                // 単一キーの場合は従来通り
-                self.put_json_value(&mut tx, &automerge::ROOT, path[0], &json_value)
-                    .map_err(|e| AutomergeError::AutomergeError(e.to_string()))?;
-            } else {
-                // パス指定の場合は段階的にオブジェクトを辿る
-                let target_obj = self
-                    .get_or_create_nested_object(&mut tx, &automerge::ROOT, &path[..path.len() - 1])
-                    .map_err(|e| AutomergeError::AutomergeError(e.to_string()))?;
-                self.put_json_value(&mut tx, &target_obj, path[path.len() - 1], &json_value)
-                    .map_err(|e| AutomergeError::AutomergeError(e.to_string()))?;
-            }
+            };
+            let target_obj = self
+                .get_or_create_nested_object(&mut tx, &automerge::ROOT, parents)
+                .map_err(|e| AutomergeError::AutomergeError(e.to_string()))?;
+            reconcile_prop(&mut tx, &target_obj, key, &json_value)
+                .map_err(|e| AutomergeError::AutomergeError(e.to_string()))?;
 
             tx.commit();
 
@@ -99,6 +97,33 @@ impl Document {
             }
 
             Ok(())
+        })
+    }
+
+    /// 指定されたパスの値を消す。消す値があったかどうかを返す
+    ///
+    /// 途中のパスが無い場合は何もしない。
+    pub async fn delete_data_at_path(&self, path: &[&str]) -> Result<bool, AutomergeError> {
+        let Some((key, parents)) = path.split_last() else {
+            return Err(AutomergeError::InvalidOperation(
+                "Empty path not allowed".to_string(),
+            ));
+        };
+        self.handle.with_doc_mut(|doc| {
+            let mut tx = doc.transaction();
+            let mut parent = automerge::ROOT;
+            for segment in parents {
+                match tx.get(&parent, *segment)? {
+                    Some((automerge::Value::Object(ObjType::Map), obj)) => parent = obj,
+                    _ => return Ok(false),
+                }
+            }
+            if tx.get(&parent, *key)?.is_none() {
+                return Ok(false);
+            }
+            tx.delete(&parent, *key)?;
+            tx.commit();
+            Ok(true)
         })
     }
 
@@ -166,8 +191,7 @@ impl Document {
                     Ok(Some((value, obj_id))) => {
                         if i == path.len() - 1 {
                             // 最後のキーに到達した場合、値を返す
-                            let json_value =
-                                self.value_to_json_value_with_objid(doc, &value, &obj_id);
+                            let json_value = read_value(doc, &value, &obj_id);
                             if json_value == serde_json::Value::Null {
                                 return Ok(None);
                             }
@@ -237,11 +261,11 @@ impl Document {
             let root_value = match doc.get(&automerge::ROOT, "dummy_root_key") {
                 Ok(Some((value, obj_id))) => {
                     // ダミーキーで取得した場合の処理
-                    self.value_to_json_value_with_objid(doc, &value, &obj_id)
+                    read_value(doc, &value, &obj_id)
                 }
                 _ => {
                     // ルートオブジェクト全体を読み取る
-                    self.read_map_object(doc, &automerge::ROOT)
+                    read_map(doc, &automerge::ROOT)
                 }
             };
             Ok(root_value)
@@ -308,7 +332,7 @@ impl Document {
                     temp_doc
                 };
 
-                let root_value = self.read_map_object(&doc_at_change, &automerge::ROOT);
+                let root_value = read_map(&doc_at_change, &automerge::ROOT);
 
                 history.push(serde_json::json!({
                     "change_index": change_index,
@@ -321,7 +345,7 @@ impl Document {
             }
 
             // 最新状態も追加
-            let current_state = self.read_map_object(doc, &automerge::ROOT);
+            let current_state = read_map(doc, &automerge::ROOT);
             history.push(serde_json::json!({
                 "change_index": "current",
                 "change_hash": "HEAD",
@@ -425,187 +449,6 @@ impl Document {
         }
 
         Ok(current_obj)
-    }
-
-    /// JSON ValueをAutomergeに変換するヘルパー
-    fn put_json_value(
-        &self,
-        tx: &mut automerge::transaction::Transaction,
-        obj: &automerge::ObjId,
-        key: &str,
-        value: &serde_json::Value,
-    ) -> Result<(), automerge::AutomergeError> {
-        match value {
-            serde_json::Value::Null => {
-                tx.put(obj, key, ScalarValue::Null)?;
-                Ok(())
-            }
-            serde_json::Value::Bool(b) => {
-                tx.put(obj, key, *b)?;
-                Ok(())
-            }
-            serde_json::Value::Number(n) => {
-                if let Some(i) = n.as_i64() {
-                    tx.put(obj, key, i)?;
-                } else if let Some(f) = n.as_f64() {
-                    tx.put(obj, key, f)?;
-                } else {
-                    return Err(automerge::AutomergeError::InvalidOp(ObjType::Map));
-                }
-                Ok(())
-            }
-            serde_json::Value::String(s) => {
-                tx.put(obj, key, s.as_str())?;
-                Ok(())
-            }
-            serde_json::Value::Array(arr) => {
-                let list_id = tx.put_object(obj, key, ObjType::List)?;
-                for (i, item) in arr.iter().enumerate() {
-                    self.put_json_value_at_index(tx, &list_id, i, item)?;
-                }
-                Ok(())
-            }
-            serde_json::Value::Object(map) => {
-                let map_id = tx.put_object(obj, key, ObjType::Map)?;
-                for (k, v) in map.iter() {
-                    self.put_json_value(tx, &map_id, k, v)?;
-                }
-                Ok(())
-            }
-        }
-    }
-
-    /// 配列インデックスに値を設定するヘルパー
-    fn put_json_value_at_index(
-        &self,
-        tx: &mut automerge::transaction::Transaction,
-        list_obj: &automerge::ObjId,
-        index: usize,
-        value: &serde_json::Value,
-    ) -> Result<(), automerge::AutomergeError> {
-        match value {
-            serde_json::Value::Null => {
-                tx.insert(list_obj, index, ScalarValue::Null)?;
-            }
-            serde_json::Value::Bool(b) => {
-                tx.insert(list_obj, index, *b)?;
-            }
-            serde_json::Value::Number(n) => {
-                if let Some(i) = n.as_i64() {
-                    tx.insert(list_obj, index, i)?;
-                } else if let Some(f) = n.as_f64() {
-                    tx.insert(list_obj, index, f)?;
-                } else {
-                    return Err(automerge::AutomergeError::InvalidOp(ObjType::Map));
-                }
-            }
-            serde_json::Value::String(s) => {
-                tx.insert(list_obj, index, s.as_str())?;
-            }
-            serde_json::Value::Array(arr) => {
-                let nested_list_id = tx.insert_object(list_obj, index, ObjType::List)?;
-                for (i, item) in arr.iter().enumerate() {
-                    self.put_json_value_at_index(tx, &nested_list_id, i, item)?;
-                }
-            }
-            serde_json::Value::Object(map) => {
-                let nested_map_id = tx.insert_object(list_obj, index, ObjType::Map)?;
-                for (k, v) in map.iter() {
-                    self.put_json_value(tx, &nested_map_id, k, v)?;
-                }
-            }
-        }
-        Ok(())
-    }
-
-    /// ValueをJSON Valueに変換するヘルパー（オブジェクトID付き版）
-    fn value_to_json_value_with_objid<D: ReadDoc>(
-        &self,
-        doc: &D,
-        value: &automerge::Value,
-        obj_id: &automerge::ObjId,
-    ) -> serde_json::Value {
-        match value {
-            automerge::Value::Scalar(scalar) => self.scalar_to_json_value(scalar),
-            automerge::Value::Object(obj_type) => match obj_type {
-                automerge::ObjType::Map | automerge::ObjType::Table => {
-                    self.read_map_object(doc, obj_id)
-                }
-                automerge::ObjType::List => self.read_list_object(doc, obj_id),
-                automerge::ObjType::Text => self.read_text_object(doc, obj_id),
-            },
-        }
-    }
-
-    /// Mapオブジェクトからデータを読み取る
-    fn read_map_object<D: ReadDoc>(&self, doc: &D, obj_id: &automerge::ObjId) -> serde_json::Value {
-        let mut map = serde_json::Map::new();
-
-        // Mapのすべてのキーと値を取得
-        for key in doc.keys(obj_id.clone()) {
-            if let Ok(Some((value, nested_obj_id))) = doc.get(obj_id, &key) {
-                let json_value = self.value_to_json_value_with_objid(doc, &value, &nested_obj_id);
-                map.insert(key, json_value);
-            }
-        }
-
-        serde_json::Value::Object(map)
-    }
-
-    /// Listオブジェクトからデータを読み取る
-    fn read_list_object<D: ReadDoc>(
-        &self,
-        doc: &D,
-        obj_id: &automerge::ObjId,
-    ) -> serde_json::Value {
-        let mut array = Vec::new();
-
-        // Listの長さを取得
-        let length = doc.length(obj_id.clone());
-
-        // 各インデックスの値を取得
-        for i in 0..length {
-            if let Ok(Some((value, nested_obj_id))) = doc.get(obj_id, i) {
-                let json_value = self.value_to_json_value_with_objid(doc, &value, &nested_obj_id);
-                array.push(json_value);
-            }
-        }
-
-        serde_json::Value::Array(array)
-    }
-
-    /// Textオブジェクトからデータを読み取る
-    fn read_text_object<D: ReadDoc>(
-        &self,
-        doc: &D,
-        obj_id: &automerge::ObjId,
-    ) -> serde_json::Value {
-        // Textオブジェクトをstringとして読み取る
-        match doc.text(obj_id.clone()) {
-            Ok(text) => serde_json::Value::String(text),
-            Err(_) => serde_json::Value::String("".to_string()),
-        }
-    }
-
-    /// ScalarValueをJSON Valueに変換するヘルパー
-    fn scalar_to_json_value(&self, value: &ScalarValue) -> serde_json::Value {
-        match value {
-            ScalarValue::Null => serde_json::Value::Null,
-            ScalarValue::Boolean(b) => serde_json::Value::Bool(*b),
-            ScalarValue::Int(i) => serde_json::Value::Number((*i).into()),
-            ScalarValue::F64(f) => serde_json::Value::Number(
-                serde_json::Number::from_f64(*f).unwrap_or_else(|| serde_json::Number::from(0)),
-            ),
-            ScalarValue::Str(s) => serde_json::Value::String(s.to_string()),
-            ScalarValue::Bytes(b) => {
-                // バイト列は文字列として表現
-                serde_json::Value::String(format!("bytes[{}]", b.len()))
-            }
-            ScalarValue::Timestamp(ts) => serde_json::Value::Number((*ts).into()),
-            ScalarValue::Counter(_c) => serde_json::Value::Number(0.into()), // Counterの値は直接取得できないため0とする
-            ScalarValue::Uint(u) => serde_json::Value::Number((*u).into()),
-            ScalarValue::Unknown { .. } => serde_json::Value::Null, // 未知の型はNullとする
-        }
     }
 
     /// ドキュメント全体をロード（互換性メソッド）

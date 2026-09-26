@@ -32,6 +32,12 @@ impl From<String> for AutomergeError {
     }
 }
 
+impl From<automerge::AutomergeError> for AutomergeError {
+    fn from(err: automerge::AutomergeError) -> Self {
+        AutomergeError::AutomergeError(err.to_string())
+    }
+}
+
 impl From<serde_json::Error> for AutomergeError {
     fn from(err: serde_json::Error) -> Self {
         AutomergeError::SerializationError(err.to_string())

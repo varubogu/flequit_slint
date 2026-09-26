@@ -234,6 +234,8 @@ impl DocumentManager {
     }
 
     /// ネストしたパスでデータを保存
+    ///
+    /// パスの先の値だけを差分で書く。途中のパスが無ければ Map を作る。
     pub async fn save_data_at_nested_path<T: serde::Serialize>(
         &mut self,
         doc_type: &DocumentType,
@@ -247,47 +249,23 @@ impl DocumentManager {
         }
 
         let doc = self.get_or_create(doc_type).await?;
+        doc.save_data_at_path(path, data).await
+    }
 
-        // まず基本キー（パスの最初の要素）で既存データを取得
-        let base_key = path[0];
-        let mut base_data: serde_json::Value = doc
-            .load_data(base_key)
-            .await?
-            .unwrap_or(serde_json::json!({}));
-
-        // ネストしたパスに値を設定
-        let mut current = &mut base_data;
-        for &segment in &path[1..path.len() - 1] {
-            if !current.is_object() {
-                *current = serde_json::json!({});
-            }
-            current = current
-                .as_object_mut()
-                .unwrap()
-                .entry(segment)
-                .or_insert(serde_json::json!({}));
+    /// ネストしたパスの値を消す。消す値があったかどうかを返す
+    pub async fn delete_data_at_nested_path(
+        &mut self,
+        doc_type: &DocumentType,
+        path: &[&str],
+    ) -> Result<bool, AutomergeError> {
+        if path.is_empty() {
+            return Err(AutomergeError::InvalidPath(
+                "Empty path provided".to_string(),
+            ));
         }
 
-        // 最終的な値を設定
-        if path.len() > 1 {
-            let final_key = path[path.len() - 1];
-            if !current.is_object() {
-                *current = serde_json::json!({});
-            }
-            let serialized_data = serde_json::to_value(data)
-                .map_err(|e| AutomergeError::SerializationError(e.to_string()))?;
-            current
-                .as_object_mut()
-                .unwrap()
-                .insert(final_key.to_string(), serialized_data);
-        } else {
-            // パスの長さが1の場合は直接設定
-            base_data = serde_json::to_value(data)
-                .map_err(|e| AutomergeError::SerializationError(e.to_string()))?;
-        }
-
-        // 更新されたデータを保存
-        doc.save_data(base_key, &base_data).await
+        let doc = self.get_or_create(doc_type).await?;
+        doc.delete_data_at_path(path).await
     }
 
     /// ネストしたパスからデータを読み込み

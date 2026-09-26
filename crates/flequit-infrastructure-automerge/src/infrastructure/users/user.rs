@@ -1,3 +1,4 @@
+use crate::infrastructure::collection::Collection;
 use crate::infrastructure::document::Document;
 
 use super::super::document_manager::{DocumentManager, DocumentType};
@@ -13,6 +14,9 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 /// User用のAutomerge-Repoリポジトリ
+/// User ドキュメント内のユーザー（キーはユーザー ID）
+pub(crate) const USERS: Collection<User> = Collection::new("users", |user| user.id.to_string());
+
 #[derive(Debug)]
 pub struct UserLocalAutomergeRepository {
     document: Document,
@@ -41,54 +45,22 @@ impl UserLocalAutomergeRepository {
 
     /// 全ユーザーリストを取得
     pub async fn list_users(&self) -> Result<Vec<User>, RepositoryError> {
-        let users = { self.document.load_data::<Vec<User>>("users").await? };
-        if let Some(users) = users {
-            Ok(users)
-        } else {
-            Ok(Vec::new())
-        }
+        Ok(self.document.load_collection(&USERS).await?)
     }
 
     /// IDでユーザーを取得
     pub async fn get_user(&self, user_id: &str) -> Result<Option<User>, RepositoryError> {
-        let users = self.list_users().await?;
-        Ok(users.into_iter().find(|user| user.id == user_id.into()))
+        Ok(self.document.load_entry(&USERS, user_id).await?)
     }
 
     /// ユーザーを作成または更新
     pub async fn set_user(&self, user: &User) -> Result<(), RepositoryError> {
-        let mut users = self.list_users().await?;
-
-        // 既存のユーザーを更新、または新規追加
-        if let Some(existing) = users.iter_mut().find(|u| u.id == user.id) {
-            *existing = user.clone();
-        } else {
-            users.push(user.clone());
-        }
-
-        {
-            let doc = &self.document;
-            doc.save_data("users", &users)
-                .await
-                .map_err(|e| RepositoryError::AutomergeError(e.to_string()))
-        }
+        Ok(self.document.put_entry(&USERS, user).await?)
     }
 
     /// ユーザーを削除
     pub async fn delete_user(&self, user_id: &str) -> Result<bool, RepositoryError> {
-        let mut users = self.list_users().await?;
-        let initial_len = users.len();
-        users.retain(|user| user.id != user_id.into());
-
-        if users.len() != initial_len {
-            {
-                let doc = &self.document;
-                doc.save_data("users", &users).await?;
-            };
-            Ok(true)
-        } else {
-            Ok(false)
-        }
+        Ok(self.document.delete_entry(&USERS, user_id).await?)
     }
 
     /// メールアドレスでユーザーを検索
@@ -161,11 +133,8 @@ impl UserLocalAutomergeRepository {
         let users: Vec<User> = serde_json::from_str(&backup_content)
             .map_err(|e| RepositoryError::SerializationError(e.to_string()))?;
 
-        // 既存のユーザーデータを削除して復元
-        {
-            let doc = &self.document;
-            doc.save_data("users", &users).await?;
-        }
+        // バックアップに無いユーザーは消し、ある分はその内容にする
+        self.document.replace_collection(&USERS, &users).await?;
 
         Ok(())
     }

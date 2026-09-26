@@ -1,3 +1,4 @@
+use crate::infrastructure::collection::Collection;
 use crate::infrastructure::document::Document;
 
 use super::super::document_manager::{DocumentManager, DocumentType};
@@ -11,6 +12,10 @@ use flequit_types::errors::repository_error::RepositoryError;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+
+/// プロジェクトドキュメント内のサブタスク（キーはサブタスク ID）
+pub(crate) const SUBTASKS: Collection<SubTask> =
+    Collection::new("subtasks", |subtask| subtask.id.to_string());
 
 /// Automerge実装のサブタスクリポジトリ
 ///
@@ -73,12 +78,7 @@ impl SubTaskLocalAutomergeRepository {
         project_id: &ProjectId,
     ) -> Result<Vec<SubTask>, RepositoryError> {
         let document = self.get_or_create_document(project_id).await?;
-        let subtasks = document.load_data::<Vec<SubTask>>("subtasks").await?;
-        if let Some(subtasks) = subtasks {
-            Ok(subtasks)
-        } else {
-            Ok(Vec::new())
-        }
+        Ok(document.load_collection(&SUBTASKS).await?)
     }
 
     /// IDでサブタスクを取得
@@ -87,8 +87,8 @@ impl SubTaskLocalAutomergeRepository {
         project_id: &ProjectId,
         subtask_id: &str,
     ) -> Result<Option<SubTask>, RepositoryError> {
-        let subtasks = self.list_subtasks(project_id).await?;
-        Ok(subtasks.into_iter().find(|st| st.id == subtask_id.into()))
+        let document = self.get_or_create_document(project_id).await?;
+        Ok(document.load_entry(&SUBTASKS, subtask_id).await?)
     }
 
     /// サブタスクを作成または更新
@@ -97,32 +97,8 @@ impl SubTaskLocalAutomergeRepository {
         project_id: &ProjectId,
         subtask: &SubTask,
     ) -> Result<(), RepositoryError> {
-        tracing::info!("set_subtask - 開始: {:?}", subtask.id);
-        let mut subtasks = self.list_subtasks(project_id).await?;
-        tracing::info!("set_subtask - 現在のサブタスク数: {}", subtasks.len());
-
-        // 既存のサブタスクを更新、または新規追加
-        if let Some(existing) = subtasks.iter_mut().find(|st| st.id == subtask.id) {
-            tracing::info!("set_subtask - 既存サブタスクを更新: {:?}", subtask.id);
-            *existing = subtask.clone();
-        } else {
-            tracing::info!("set_subtask - 新規サブタスク追加: {:?}", subtask.id);
-            subtasks.push(subtask.clone());
-        }
-
         let document = self.get_or_create_document(project_id).await?;
-        tracing::info!("set_subtask - Document取得完了");
-        let result = document.save_data("subtasks", &subtasks).await;
-        match result {
-            Ok(_) => {
-                tracing::info!("set_subtask - Automergeドキュメント保存完了");
-                Ok(())
-            }
-            Err(e) => {
-                tracing::error!("set_subtask - Automergeドキュメント保存エラー: {:?}", e);
-                Err(RepositoryError::AutomergeError(e.to_string()))
-            }
-        }
+        Ok(document.put_entry(&SUBTASKS, subtask).await?)
     }
 
     /// サブタスクを削除
@@ -131,17 +107,8 @@ impl SubTaskLocalAutomergeRepository {
         project_id: &ProjectId,
         subtask_id: &str,
     ) -> Result<bool, RepositoryError> {
-        let mut subtasks = self.list_subtasks(project_id).await?;
-        let initial_len = subtasks.len();
-        subtasks.retain(|st| st.id != subtask_id.into());
-
-        if subtasks.len() != initial_len {
-            let document = self.get_or_create_document(project_id).await?;
-            document.save_data("subtasks", &subtasks).await?;
-            Ok(true)
-        } else {
-            Ok(false)
-        }
+        let document = self.get_or_create_document(project_id).await?;
+        Ok(document.delete_entry(&SUBTASKS, subtask_id).await?)
     }
 }
 

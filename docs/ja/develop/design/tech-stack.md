@@ -40,6 +40,9 @@ WebView / IPC を持たず、UI からドメインロジックまでを 1 つの
 - **データベース**: SQLite（Sea-ORM、local-first）
   - モバイルでは `libsqlite3-sys` の `bundled` feature でクロスコンパイルする
 - **CRDT**: Automerge（pure Rust のため全プラットフォームで同一コード）
+  - 開発ビルドでも `automerge` と `hexane` は最適化し、debug assertions を切る
+    （ルートの `Cargo.toml` の `[profile.dev.package.*]`）。最適化なしでは内部検証が
+    操作ごとにドキュメント全体を走査し、タスク 17 件の保存に約 60 秒かかった
 - **非同期ランタイム**: Tokio
 - **ロギング**: `tracing` + `tracing-subscriber`
   - Android は `tracing-android`、iOS は OSLog へ出力先を切り替える

@@ -94,3 +94,16 @@ strip = true
 # Slint's generated code is large; keep incremental builds usable.
 opt-level = 0
 debug = 1
+
+# Automerge is unusable unoptimised: with debug assertions on, every lookup also
+# runs a linear scan of the whole document to cross-check the fast path, and
+# its column storage lives in `hexane`. Saving 17 tasks took ~60 s this way and
+# ~15 ms with both crates optimised. The assertions only check Automerge's own
+# invariants, not ours.
+[profile.dev.package.automerge]
+opt-level = 3
+debug-assertions = false
+
+[profile.dev.package.hexane]
+opt-level = 3
+debug-assertions = false

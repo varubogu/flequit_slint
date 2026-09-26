@@ -1,3 +1,4 @@
+use crate::infrastructure::collection::Collection;
 use crate::infrastructure::document::Document;
 
 use super::super::document_manager::{DocumentManager, DocumentType};
@@ -10,6 +11,10 @@ use flequit_repository::repositories::task_projects::member_repository_trait::Me
 use flequit_types::errors::repository_error::RepositoryError;
 use std::path::PathBuf;
 use std::sync::Arc;
+
+/// プロジェクトドキュメント内のメンバー（キーはユーザー ID。1 ユーザーにつき 1 件）
+pub(crate) const MEMBERS: Collection<Member> =
+    Collection::new("members", |member| member.user_id.to_string());
 
 /// Automerge実装のメンバーリポジトリ
 ///
@@ -65,24 +70,17 @@ impl MemberLocalAutomergeRepository {
         project_id: &ProjectId,
     ) -> Result<Vec<Member>, RepositoryError> {
         let document = self.get_or_create_document(project_id).await?;
-        let members = document.load_data::<Vec<Member>>("members").await?;
-        if let Some(members) = members {
-            Ok(members)
-        } else {
-            Ok(Vec::new())
-        }
+        Ok(document.load_collection(&MEMBERS).await?)
     }
 
-    /// IDでメンバーを取得
+    /// ユーザーIDでメンバーを取得
     pub async fn get_member(
         &self,
         project_id: &ProjectId,
         user_id: &str,
     ) -> Result<Option<Member>, RepositoryError> {
-        let members = self.list_members(project_id).await?;
-        Ok(members
-            .into_iter()
-            .find(|m| m.user_id.to_string() == user_id))
+        let document = self.get_or_create_document(project_id).await?;
+        Ok(document.load_entry(&MEMBERS, user_id).await?)
     }
 
     /// メンバーを作成または更新
@@ -91,51 +89,18 @@ impl MemberLocalAutomergeRepository {
         project_id: &ProjectId,
         member: &Member,
     ) -> Result<(), RepositoryError> {
-        tracing::info!("set_member - 開始: {:?}", member.id);
-        let mut members = self.list_members(project_id).await?;
-        tracing::info!("set_member - 現在のメンバー数: {}", members.len());
-
-        // 既存のメンバーを更新、または新規追加
-        if let Some(existing) = members.iter_mut().find(|m| m.id == member.id) {
-            tracing::info!("set_member - 既存メンバーを更新: {:?}", member.id);
-            *existing = member.clone();
-        } else {
-            tracing::info!("set_member - 新規メンバー追加: {:?}", member.id);
-            members.push(member.clone());
-        }
-
         let document = self.get_or_create_document(project_id).await?;
-        tracing::info!("set_member - Document取得完了");
-        let result = document.save_data("members", &members).await;
-        match result {
-            Ok(_) => {
-                tracing::info!("set_member - Automergeドキュメント保存完了");
-                Ok(())
-            }
-            Err(e) => {
-                tracing::error!("set_member - Automergeドキュメント保存エラー: {:?}", e);
-                Err(RepositoryError::AutomergeError(e.to_string()))
-            }
-        }
+        Ok(document.put_entry(&MEMBERS, member).await?)
     }
 
-    /// メンバーを削除
+    /// ユーザーIDでメンバーを削除
     pub async fn delete_member(
         &self,
         project_id: &ProjectId,
         user_id: &str,
     ) -> Result<bool, RepositoryError> {
-        let mut members = self.list_members(project_id).await?;
-        let initial_len = members.len();
-        members.retain(|m| m.user_id.to_string() != user_id);
-
-        if members.len() != initial_len {
-            let document = self.get_or_create_document(project_id).await?;
-            document.save_data("members", &members).await?;
-            Ok(true)
-        } else {
-            Ok(false)
-        }
+        let document = self.get_or_create_document(project_id).await?;
+        Ok(document.delete_entry(&MEMBERS, user_id).await?)
     }
 }
 

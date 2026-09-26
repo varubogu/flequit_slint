@@ -11,8 +11,8 @@ Flequit のデータ管理は、ローカル環境での CRDT (Conflict-free Rep
 | ドキュメント | ファイル | 内容 |
 | --- | --- | --- |
 | Settings | `settings.automerge` | 設定情報 + プロジェクト一覧 + カスタム日付/日時フォーマット + ローカル設定 |
-| Account | `account.automerge` | ローカルアカウント + サーバーアカウント配列 |
-| User | `user.automerge` | ユーザー情報配列 (**追加・更新のみ、削除不可**) |
+| Account | `account.automerge` | アカウントの集合 + 現在のアカウント ID |
+| User | `user.automerge` | ユーザー情報の集合 (**追加・更新のみ、削除不可**) + ユーザー設定（タグブックマーク） |
 | Project | `project_{id}.automerge` | プロジェクト詳細 + タスクリスト + タスク + サブタスク + タグ + メンバー (1 プロジェクト = 1 ファイル) |
 
 ### ドキュメント間の関係
@@ -22,13 +22,65 @@ Flequit のデータ管理は、ローカル環境での CRDT (Conflict-free Rep
 - **Project → User**: メンバー・担当者は `User.id` で参照
 - **TaskList → Task → SubTask**: 階層的タスク管理
 
+## エンティティの集合の保存形
+
+同じ種類のエンティティの集合は、ドキュメント直下の 1 つのキーに
+**「エンティティのキー → エンティティ」の Map** として置く。Automerge が推奨する形。
+
+| ドキュメント | キー | 集合の中のキー |
+| --- | --- | --- |
+| Settings | `projects` | プロジェクト ID |
+| Account | `accounts` | アカウント ID |
+| User | `users` | ユーザー ID |
+| Project | `task_lists` / `tasks` / `subtasks` / `tags` / `recurrence_rules` / `date_conditions` / `weekday_conditions` | 各エンティティの ID |
+| Project | `members` | ユーザー ID（1 ユーザーにつき 1 件） |
+| Project | `task_tags` / `task_assignments` | `{task_id}:{tag_id}` / `{task_id}:{user_id}` |
+| Project | `subtask_tags` / `subtask_assignments` | `{subtask_id}:{tag_id}` / `{subtask_id}:{user_id}` |
+| Project | `task_recurrences` / `subtask_recurrences` | タスク ID / サブタスク ID（1 件に 1 ルール） |
+
+タグブックマークは User ドキュメントの `user_preferences/{user_id}/tag_bookmarks/{project_id}/{tag_id}`
+に置く（入れ子の Map）。プロジェクトの基本情報は Project ドキュメント直下の個別のキー
+（`id`, `name`, …）に置く。
+
+### 書き込みは差分だけ
+
+保存するときは、既存の値と比べて **変わったフィールドだけを書く**。
+
+- 同じ内容の保存は変更（change）を作らない
+- 新しい値に無いフィールドは消す
+- エンティティの中の配列（小さい値の並び）は、内容が違うときだけ丸ごと置き換える。
+  同時に編集されうる集合は配列にせず、上の Map に置く
+
+リストを丸ごと置き換える以前の形には次の問題があった。
+
+- **同時編集が消える**: 2 つの端末が別々のタスクを編集すると、両方が `tasks` に新しいリストを置き、
+  マージ後はどちらか一方のリストしか残らない。Map なら別々のエンティティ（同じエンティティの
+  別々のフィールドも）への編集が両方残る
+- **履歴が膨らむ**: 1 件の編集のたびに全エンティティ分の操作が積もる（タスク 17 件で 1 回約 440 操作・
+  約 10KB。差分なら 1 フィールドで 1 操作・約 140 バイト）
+
+集合全体を指定の内容にする置き換えは、スナップショットとバックアップからの復元だけで使う。
+読んでから書くまでの間に追加されたエンティティまで消すため、通常の保存・削除には使わない。
+
+### 以前のリスト形式
+
+以前のドキュメントは集合を配列で持っている。読み取りは配列のまま受け付け、その集合に最初に
+書き込むときに同じトランザクションの中で Map に変換する（キーが重複していれば後の要素が残る）。
+変換を 2 つの端末で同時に行うと一方の Map だけが残るが、端末間の同期はまだ無いため問題にならない。
+
+以前のタグブックマークの削除は値を `null` にしていた。読み取りでは `null` を無いものとして扱う。
+
 ## データアクセスパターン
 
-実装は `DocumentManager::load_data()` 系 API で対象ドキュメントとフィールド名を指定して取得する。
+集合は `Collection`（集合のキーとエンティティのキーの求め方）を通して読み書きする。
+`Document` の `load_collection` / `load_entry` / `put_entry` / `delete_entry` などが上の保存形と差分書き込みを担う。
+単独の値は `Document::save_data()` / `load_data()` で読み書きする（これも差分書き込み）。
 
 実装参照:
 
-- Rust: `crates/flequit-infrastructure-automerge/src/infrastructure/document_manager.rs`
+- 集合: `crates/flequit-infrastructure-automerge/src/infrastructure/collection/`
+- 差分書き込みと JSON 変換: `crates/flequit-infrastructure-automerge/src/infrastructure/json/`
+- ドキュメント管理: `crates/flequit-infrastructure-automerge/src/infrastructure/document_manager.rs`
 - UI からの呼び出し口は facade。一覧は `crates/flequit-core/src/facades/mod.rs` 参照
 
 ### Tree 系 API

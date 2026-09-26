@@ -1,3 +1,4 @@
+use crate::infrastructure::collection::Collection;
 use crate::infrastructure::document::Document;
 
 use super::super::document_manager::{DocumentManager, DocumentType};
@@ -11,6 +12,10 @@ use flequit_types::errors::repository_error::RepositoryError;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+
+/// Account ドキュメント内のアカウント（キーはアカウント ID）
+pub(crate) const ACCOUNTS: Collection<Account> =
+    Collection::new("accounts", |account| account.id.to_string());
 
 /// Account用のAutomerge-Repoリポジトリ
 #[derive(Debug)]
@@ -41,55 +46,22 @@ impl AccountLocalAutomergeRepository {
 
     /// 全アカウントリストを取得
     pub async fn list_users(&self) -> Result<Vec<Account>, RepositoryError> {
-        let accounts = { self.document.load_data::<Vec<Account>>("accounts").await? };
-        if let Some(accounts) = accounts {
-            Ok(accounts)
-        } else {
-            Ok(Vec::new())
-        }
+        Ok(self.document.load_collection(&ACCOUNTS).await?)
     }
 
     /// IDでアカウントを取得
     pub async fn get_user(&self, account_id: &str) -> Result<Option<Account>, RepositoryError> {
-        let accounts = self.list_users().await?;
-        Ok(accounts.into_iter().find(|acc| acc.id == account_id.into()))
+        Ok(self.document.load_entry(&ACCOUNTS, account_id).await?)
     }
 
     /// アカウントを作成または更新
     pub async fn set_user(&self, account: &Account) -> Result<(), RepositoryError> {
-        let mut accounts = self.list_users().await?;
-
-        // 既存のアカウントを更新、または新規追加
-        if let Some(existing) = accounts.iter_mut().find(|acc| acc.id == account.id) {
-            *existing = account.clone();
-        } else {
-            accounts.push(account.clone());
-        }
-
-        {
-            let doc = &self.document;
-            doc.save_data("accounts", &accounts)
-                .await
-                .map_err(|e| RepositoryError::AutomergeError(e.to_string()))?
-        }
-        Ok(())
+        Ok(self.document.put_entry(&ACCOUNTS, account).await?)
     }
 
     /// アカウントを削除
     pub async fn delete_account(&self, account_id: &str) -> Result<bool, RepositoryError> {
-        let mut accounts = self.list_users().await?;
-        let initial_len = accounts.len();
-        accounts.retain(|acc| acc.id != account_id.into());
-
-        if accounts.len() != initial_len {
-            {
-                let doc = &self.document;
-                doc.save_data("accounts", &accounts).await?
-            };
-            Ok(true)
-        } else {
-            Ok(false)
-        }
+        Ok(self.document.delete_entry(&ACCOUNTS, account_id).await?)
     }
 
     /// 現在選択中のアカウントIDを取得
@@ -199,8 +171,10 @@ impl AccountLocalAutomergeRepository {
             let accounts: Vec<Account> = serde_json::from_value(accounts_value.clone())
                 .map_err(|e| RepositoryError::SerializationError(e.to_string()))?;
 
-            // 既存のアカウントデータを削除して復元
-            self.document.save_data("accounts", &accounts).await?;
+            // バックアップに無いアカウントは消し、ある分はその内容にする
+            self.document
+                .replace_collection(&ACCOUNTS, &accounts)
+                .await?;
         }
 
         // 現在のアカウントIDを復元

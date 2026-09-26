@@ -106,4 +106,10 @@
   再試行待ちで同じドキュメントを 10 分以上止めないため
 - `SubtaskRecurrenceRepositoryTrait` の `save` / `delete_by_*` は Automerge 側が未対応
   （以前は Automerge 側のエラーで操作全体が失敗していた）。SQLite だけに書き、キューには入れない
+- （2026-09-22）反映が 1 件約 45 秒かかり、終了時にフリーズしていた。原因は開発ビルドで
+  Automerge が最適化なし・debug assertions ありだったことと、集合をリストで丸ごと書き直していたこと。
+  開発ビルドでも `automerge` / `hexane` を最適化し、集合を「ID → エンティティ」の Map にして
+  差分だけを書く形に改めた（`docs/ja/develop/design/data/automerge-structure.md`）。
+  旧リスト形式は読み取り時にそのまま受け付け、最初の書き込みで Map に変換する。
+  終了時は Tokio ランタイムの停止を 1 秒で打ち切る
 

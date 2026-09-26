@@ -1,3 +1,4 @@
+use crate::infrastructure::collection::Collection;
 use crate::infrastructure::document::Document;
 
 use super::super::document_manager::{DocumentManager, DocumentType};
@@ -12,6 +13,9 @@ use flequit_types::errors::repository_error::RepositoryError;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+
+/// プロジェクトドキュメント内のタグ（キーはタグ ID）
+pub(crate) const TAGS: Collection<Tag> = Collection::new("tags", |tag| tag.id.to_string());
 
 /// Automerge実装のタグリポジトリ
 ///
@@ -68,15 +72,10 @@ impl TagLocalAutomergeRepository {
             .map_err(|e| RepositoryError::AutomergeError(e.to_string()))
     }
 
-    /// 指定されたプロジェクトの全タグを取得
+    /// 指定されたプロジェクトの全タグを取得（削除済みを含む）
     async fn list_all_tags_raw(&self, project_id: &ProjectId) -> Result<Vec<Tag>, RepositoryError> {
         let document = self.get_or_create_document(project_id).await?;
-        let tags = document.load_data::<Vec<Tag>>("tags").await?;
-        if let Some(tags) = tags {
-            Ok(tags)
-        } else {
-            Ok(Vec::new())
-        }
+        Ok(document.load_collection(&TAGS).await?)
     }
 
     pub async fn list_tags(&self, project_id: &ProjectId) -> Result<Vec<Tag>, RepositoryError> {
@@ -84,44 +83,21 @@ impl TagLocalAutomergeRepository {
         Ok(tags.into_iter().filter(|t| !t.is_deleted()).collect())
     }
 
-    /// IDでタグを取得
+    /// IDでタグを取得（削除済みは除く）
     pub async fn get_tag(
         &self,
         project_id: &ProjectId,
         tag_id: &str,
     ) -> Result<Option<Tag>, RepositoryError> {
-        let tags = self.list_tags(project_id).await?;
-        Ok(tags.into_iter().find(|t| t.id == tag_id.into()))
+        let document = self.get_or_create_document(project_id).await?;
+        let tag: Option<Tag> = document.load_entry(&TAGS, tag_id).await?;
+        Ok(tag.filter(|t| !t.is_deleted()))
     }
 
     /// タグを作成または更新
     pub async fn set_tag(&self, project_id: &ProjectId, tag: &Tag) -> Result<(), RepositoryError> {
-        tracing::info!("set_tag - 開始: {:?}", tag.id);
-        let mut tags = self.list_all_tags_raw(project_id).await?;
-        tracing::info!("set_tag - 現在のタグ数: {}", tags.len());
-
-        // 既存のタグを更新、または新規追加
-        if let Some(existing) = tags.iter_mut().find(|t| t.id == tag.id) {
-            tracing::info!("set_tag - 既存タグを更新: {:?}", tag.id);
-            *existing = tag.clone();
-        } else {
-            tracing::info!("set_tag - 新規タグ追加: {:?}", tag.id);
-            tags.push(tag.clone());
-        }
-
         let document = self.get_or_create_document(project_id).await?;
-        tracing::info!("set_tag - Document取得完了");
-        let result = document.save_data("tags", &tags).await;
-        match result {
-            Ok(_) => {
-                tracing::info!("set_tag - Automergeドキュメント保存完了");
-                Ok(())
-            }
-            Err(e) => {
-                tracing::error!("set_tag - Automergeドキュメント保存エラー: {:?}", e);
-                Err(RepositoryError::AutomergeError(e.to_string()))
-            }
-        }
+        Ok(document.put_entry(&TAGS, tag).await?)
     }
 
     /// タグを削除
@@ -130,17 +106,8 @@ impl TagLocalAutomergeRepository {
         project_id: &ProjectId,
         tag_id: &str,
     ) -> Result<bool, RepositoryError> {
-        let mut tags = self.list_all_tags_raw(project_id).await?;
-        let initial_len = tags.len();
-        tags.retain(|t| t.id != tag_id.into());
-
-        if tags.len() != initial_len {
-            let document = self.get_or_create_document(project_id).await?;
-            document.save_data("tags", &tags).await?;
-            Ok(true)
-        } else {
-            Ok(false)
-        }
+        let document = self.get_or_create_document(project_id).await?;
+        Ok(document.delete_entry(&TAGS, tag_id).await?)
     }
 }
 

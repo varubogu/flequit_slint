@@ -1,3 +1,4 @@
+use crate::infrastructure::collection::Collection;
 use crate::infrastructure::document::Document;
 
 use super::super::document_manager::{DocumentManager, DocumentType};
@@ -10,6 +11,10 @@ use flequit_repository::repositories::task_projects::date_condition_repository_t
 use flequit_types::errors::repository_error::RepositoryError;
 use std::path::PathBuf;
 use std::sync::Arc;
+
+/// プロジェクトドキュメント内の日付条件（キーは日付条件 ID）
+pub(crate) const DATE_CONDITIONS: Collection<DateCondition> =
+    Collection::new("date_conditions", |condition| condition.id.to_string());
 
 /// Automerge実装の日付条件リポジトリ
 ///
@@ -65,14 +70,7 @@ impl DateConditionLocalAutomergeRepository {
         project_id: &ProjectId,
     ) -> Result<Vec<DateCondition>, RepositoryError> {
         let document = self.get_or_create_document(project_id).await?;
-        let date_conditions = document
-            .load_data::<Vec<DateCondition>>("date_conditions")
-            .await?;
-        if let Some(date_conditions) = date_conditions {
-            Ok(date_conditions)
-        } else {
-            Ok(Vec::new())
-        }
+        Ok(document.load_collection(&DATE_CONDITIONS).await?)
     }
 
     /// IDで日付条件を取得
@@ -81,10 +79,8 @@ impl DateConditionLocalAutomergeRepository {
         project_id: &ProjectId,
         condition_id: &str,
     ) -> Result<Option<DateCondition>, RepositoryError> {
-        let date_conditions = self.list_date_conditions(project_id).await?;
-        Ok(date_conditions
-            .into_iter()
-            .find(|d| d.id == condition_id.into()))
+        let document = self.get_or_create_document(project_id).await?;
+        Ok(document.load_entry(&DATE_CONDITIONS, condition_id).await?)
     }
 
     /// 日付条件を作成または更新
@@ -93,49 +89,8 @@ impl DateConditionLocalAutomergeRepository {
         project_id: &ProjectId,
         date_condition: &DateCondition,
     ) -> Result<(), RepositoryError> {
-        tracing::info!("set_date_condition - 開始: {:?}", date_condition.id);
-        let mut date_conditions = self.list_date_conditions(project_id).await?;
-        tracing::info!(
-            "set_date_condition - 現在の日付条件数: {}",
-            date_conditions.len()
-        );
-
-        // 既存の日付条件を更新、または新規追加
-        if let Some(existing) = date_conditions
-            .iter_mut()
-            .find(|d| d.id == date_condition.id)
-        {
-            tracing::info!(
-                "set_date_condition - 既存日付条件を更新: {:?}",
-                date_condition.id
-            );
-            *existing = date_condition.clone();
-        } else {
-            tracing::info!(
-                "set_date_condition - 新規日付条件追加: {:?}",
-                date_condition.id
-            );
-            date_conditions.push(date_condition.clone());
-        }
-
         let document = self.get_or_create_document(project_id).await?;
-        tracing::info!("set_date_condition - Document取得完了");
-        let result = document
-            .save_data("date_conditions", &date_conditions)
-            .await;
-        match result {
-            Ok(_) => {
-                tracing::info!("set_date_condition - Automergeドキュメント保存完了");
-                Ok(())
-            }
-            Err(e) => {
-                tracing::error!(
-                    "set_date_condition - Automergeドキュメント保存エラー: {:?}",
-                    e
-                );
-                Err(RepositoryError::AutomergeError(e.to_string()))
-            }
-        }
+        Ok(document.put_entry(&DATE_CONDITIONS, date_condition).await?)
     }
 
     /// 日付条件を削除
@@ -144,19 +99,10 @@ impl DateConditionLocalAutomergeRepository {
         project_id: &ProjectId,
         condition_id: &str,
     ) -> Result<bool, RepositoryError> {
-        let mut date_conditions = self.list_date_conditions(project_id).await?;
-        let initial_len = date_conditions.len();
-        date_conditions.retain(|d| d.id != condition_id.into());
-
-        if date_conditions.len() != initial_len {
-            let document = self.get_or_create_document(project_id).await?;
-            document
-                .save_data("date_conditions", &date_conditions)
-                .await?;
-            Ok(true)
-        } else {
-            Ok(false)
-        }
+        let document = self.get_or_create_document(project_id).await?;
+        Ok(document
+            .delete_entry(&DATE_CONDITIONS, condition_id)
+            .await?)
     }
 }
 

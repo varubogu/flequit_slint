@@ -1,3 +1,4 @@
+use crate::infrastructure::collection::Collection;
 use crate::infrastructure::document::Document;
 
 use super::super::document_manager::{DocumentManager, DocumentType};
@@ -13,6 +14,9 @@ use flequit_types::errors::repository_error::RepositoryError;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+
+/// プロジェクトドキュメント内のタスク（キーはタスク ID）
+pub(crate) const TASKS: Collection<Task> = Collection::new("tasks", |task| task.id.to_string());
 
 /// Automerge実装のタスクリポジトリ
 ///
@@ -69,18 +73,13 @@ impl TaskLocalAutomergeRepository {
             .map_err(|e| RepositoryError::AutomergeError(e.to_string()))
     }
 
-    /// 指定されたプロジェクトの全タスクを取得
+    /// 指定されたプロジェクトの全タスクを取得（削除済みを含む）
     async fn list_all_tasks_raw(
         &self,
         project_id: &ProjectId,
     ) -> Result<Vec<Task>, RepositoryError> {
         let document = self.get_or_create_document(project_id).await?;
-        let tasks = document.load_data::<Vec<Task>>("tasks").await?;
-        if let Some(tasks) = tasks {
-            Ok(tasks)
-        } else {
-            Ok(Vec::new())
-        }
+        Ok(document.load_collection(&TASKS).await?)
     }
 
     pub async fn list_tasks(&self, project_id: &ProjectId) -> Result<Vec<Task>, RepositoryError> {
@@ -88,14 +87,15 @@ impl TaskLocalAutomergeRepository {
         Ok(tasks.into_iter().filter(|t| !t.is_deleted()).collect())
     }
 
-    /// IDでタスクを取得
+    /// IDでタスクを取得（削除済みは除く）
     pub async fn get_task(
         &self,
         project_id: &ProjectId,
         task_id: &str,
     ) -> Result<Option<Task>, RepositoryError> {
-        let tasks = self.list_tasks(project_id).await?;
-        Ok(tasks.into_iter().find(|t| t.id == task_id.into()))
+        let document = self.get_or_create_document(project_id).await?;
+        let task: Option<Task> = document.load_entry(&TASKS, task_id).await?;
+        Ok(task.filter(|t| !t.is_deleted()))
     }
 
     /// タスクを作成または更新
@@ -104,32 +104,8 @@ impl TaskLocalAutomergeRepository {
         project_id: &ProjectId,
         task: &Task,
     ) -> Result<(), RepositoryError> {
-        tracing::info!("set_task - 開始: {:?}", task.id);
-        let mut tasks = self.list_all_tasks_raw(project_id).await?;
-        tracing::info!("set_task - 現在のタスク数: {}", tasks.len());
-
-        // 既存のタスクを更新、または新規追加
-        if let Some(existing) = tasks.iter_mut().find(|t| t.id == task.id) {
-            tracing::info!("set_task - 既存タスクを更新: {:?}", task.id);
-            *existing = task.clone();
-        } else {
-            tracing::info!("set_task - 新規タスク追加: {:?}", task.id);
-            tasks.push(task.clone());
-        }
-
         let document = self.get_or_create_document(project_id).await?;
-        tracing::info!("set_task - Document取得完了");
-        let result = document.save_data("tasks", &tasks).await;
-        match result {
-            Ok(_) => {
-                tracing::info!("set_task - Automergeドキュメント保存完了");
-                Ok(())
-            }
-            Err(e) => {
-                tracing::error!("set_task - Automergeドキュメント保存エラー: {:?}", e);
-                Err(RepositoryError::AutomergeError(e.to_string()))
-            }
-        }
+        Ok(document.put_entry(&TASKS, task).await?)
     }
 
     /// タスクを削除
@@ -138,17 +114,8 @@ impl TaskLocalAutomergeRepository {
         project_id: &ProjectId,
         task_id: &str,
     ) -> Result<bool, RepositoryError> {
-        let mut tasks = self.list_all_tasks_raw(project_id).await?;
-        let initial_len = tasks.len();
-        tasks.retain(|t| t.id != task_id.into());
-
-        if tasks.len() != initial_len {
-            let document = self.get_or_create_document(project_id).await?;
-            document.save_data("tasks", &tasks).await?;
-            Ok(true)
-        } else {
-            Ok(false)
-        }
+        let document = self.get_or_create_document(project_id).await?;
+        Ok(document.delete_entry(&TASKS, task_id).await?)
     }
 }
 

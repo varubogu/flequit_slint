@@ -1,5 +1,6 @@
 //! RecurrenceRule用Automergeリポジトリ
 
+use crate::infrastructure::collection::Collection;
 use crate::infrastructure::document::Document;
 
 use super::super::document_manager::{DocumentManager, DocumentType};
@@ -13,6 +14,10 @@ use flequit_types::errors::repository_error::RepositoryError;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+
+/// プロジェクトドキュメント内の繰り返しルール（キーはルール ID）
+pub(crate) const RECURRENCE_RULES: Collection<RecurrenceRule> =
+    Collection::new("recurrence_rules", |rule| rule.id.to_string());
 
 /// Automerge実装のRecurrenceRuleリポジトリ
 ///
@@ -77,15 +82,7 @@ impl RecurrenceRuleLocalAutomergeRepository {
         project_id: &ProjectId,
     ) -> Result<Vec<RecurrenceRule>, RepositoryError> {
         let document = self.get_or_create_document(project_id).await?;
-        let rules = document
-            .load_data::<Vec<RecurrenceRule>>("recurrence_rules")
-            .await
-            .map_err(|e| RepositoryError::AutomergeError(e.to_string()))?;
-        if let Some(rules) = rules {
-            Ok(rules)
-        } else {
-            Ok(Vec::new())
-        }
+        Ok(document.load_collection(&RECURRENCE_RULES).await?)
     }
 
     /// IDでRecurrenceRuleを取得
@@ -94,8 +91,10 @@ impl RecurrenceRuleLocalAutomergeRepository {
         project_id: &ProjectId,
         id: &RecurrenceRuleId,
     ) -> Result<Option<RecurrenceRule>, RepositoryError> {
-        let rules = self.list_recurrence_rules(project_id).await?;
-        Ok(rules.into_iter().find(|r| r.id == *id))
+        let document = self.get_or_create_document(project_id).await?;
+        Ok(document
+            .load_entry(&RECURRENCE_RULES, &id.to_string())
+            .await?)
     }
 
     /// RecurrenceRuleを作成または更新
@@ -104,20 +103,8 @@ impl RecurrenceRuleLocalAutomergeRepository {
         project_id: &ProjectId,
         rule: &RecurrenceRule,
     ) -> Result<(), RepositoryError> {
-        let mut rules = self.list_recurrence_rules(project_id).await?;
-
-        // 既存のルールを更新、または新規追加
-        if let Some(existing) = rules.iter_mut().find(|r| r.id == rule.id) {
-            *existing = rule.clone();
-        } else {
-            rules.push(rule.clone());
-        }
-
         let document = self.get_or_create_document(project_id).await?;
-        document
-            .save_data("recurrence_rules", &rules)
-            .await
-            .map_err(|e| RepositoryError::AutomergeError(e.to_string()))
+        Ok(document.put_entry(&RECURRENCE_RULES, rule).await?)
     }
 
     /// RecurrenceRuleを削除
@@ -126,20 +113,10 @@ impl RecurrenceRuleLocalAutomergeRepository {
         project_id: &ProjectId,
         id: &RecurrenceRuleId,
     ) -> Result<bool, RepositoryError> {
-        let mut rules = self.list_recurrence_rules(project_id).await?;
-        let initial_len = rules.len();
-        rules.retain(|r| r.id != *id);
-
-        if rules.len() != initial_len {
-            let document = self.get_or_create_document(project_id).await?;
-            document
-                .save_data("recurrence_rules", &rules)
-                .await
-                .map_err(|e| RepositoryError::AutomergeError(e.to_string()))?;
-            Ok(true)
-        } else {
-            Ok(false)
-        }
+        let document = self.get_or_create_document(project_id).await?;
+        Ok(document
+            .delete_entry(&RECURRENCE_RULES, &id.to_string())
+            .await?)
     }
 }
 
