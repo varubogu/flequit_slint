@@ -190,6 +190,11 @@ struct SharedState {
     /// Session state for now: view preferences are not persisted yet
     /// (`docs/ja/develop/design/data/user-preferences.md`).
     task_sort: TaskSort,
+    /// Whether completed tasks are left out of the task list.
+    ///
+    /// Applied on top of the query, so the current filter can be narrowed to
+    /// what is still open without rewriting it. Session state, like `task_sort`.
+    hide_completed_tasks: bool,
     /// Tag names by id, for every loaded project.
     ///
     /// Tasks carry only tag ids, and both the row labels and `#tag` searches
@@ -1829,6 +1834,18 @@ where
                 state.lock().expect("shared state poisoned").task_sort = sort;
                 let Some(window) = weak.upgrade() else { return };
                 window.global::<AppState>().set_task_sort(sort);
+                refresh_tasks(&window, &state, timezone);
+            });
+        }
+
+        {
+            let weak = window.as_weak();
+            let state = Arc::clone(&self.state);
+            let timezone = self.timezone;
+            actions.on_change_show_completed_tasks(move |show| {
+                state.lock().expect("shared state poisoned").hide_completed_tasks = !show;
+                let Some(window) = weak.upgrade() else { return };
+                window.global::<AppState>().set_show_completed_tasks(show);
                 refresh_tasks(&window, &state, timezone);
             });
         }

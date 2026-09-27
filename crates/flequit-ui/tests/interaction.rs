@@ -1766,6 +1766,24 @@ fn the_sort_bar_reaches_its_handler() {
     }
 }
 
+fn the_completed_checkbox_reaches_its_handler() {
+    let window = window_with_content();
+    let seen = Rc::new(RefCell::new(Vec::<bool>::new()));
+    {
+        let seen = Rc::clone(&seen);
+        window
+            .global::<Actions>()
+            .on_change_show_completed_tasks(move |show| seen.borrow_mut().push(show));
+    }
+
+    assert!(
+        activate(&window, "Show completed"),
+        "the completed checkbox is not reachable; visible labels: {:?}",
+        accessible_labels(&window)
+    );
+    assert_eq!(seen.borrow().as_slice(), [false]);
+}
+
 /// Reordering has to be operable without a pointer, so the drag handle also
 /// answers to the increment and decrement actions.
 fn the_drag_handle_reaches_its_handler() {
@@ -2610,6 +2628,7 @@ fn the_shell_responds_to_user_actions() {
     tag_management_is_available_without_pinned_tags();
     tag_management_and_assignment_reach_their_handlers();
     the_sort_bar_reaches_its_handler();
+    the_completed_checkbox_reaches_its_handler();
     the_drag_handle_reaches_its_handler();
     a_sidebar_list_becomes_a_drop_target();
     expanding_a_project_reaches_its_handler();

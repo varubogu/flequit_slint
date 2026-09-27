@@ -94,6 +94,9 @@ export global AppState {
     // --- Ordering ---
     // Applied by the ViewModel when it rebuilds `tasks`.
     in-out property <TaskSort> task-sort: TaskSort.manual;
+    // Completed tasks are listed unless this is cleared; applied on top of
+    // the search query by the ViewModel.
+    in-out property <bool> show-completed-tasks: true;
 
     // --- Drag and drop ---
     // Transient: views write these directly while a row is being dragged, and

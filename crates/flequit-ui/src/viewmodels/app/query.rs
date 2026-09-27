@@ -873,6 +873,9 @@ pub(super) fn refresh_tasks(
         if !task_matches && matched.is_empty() && !just_added {
             continue;
         }
+        if guard.hide_completed_tasks && row.task.status == DomainStatus::Completed && !just_added {
+            continue;
+        }
         // Listed only for its subtasks: shown receded and opened up.
         let dimmed = filtering && !task_matches && !just_added;
         let expanded = guard.task_ui.is_expanded(&row.task.id.as_str()) || dimmed;

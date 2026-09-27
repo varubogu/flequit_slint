@@ -33,6 +33,7 @@ export global Actions {
     // The UI language changed; keywords in the search box follow it.
     callback locale-changed();
     callback change-task-sort(TaskSort /* sort */);
+    callback change-show-completed-tasks(bool /* show */);
 
     // --- Task mutations ---
     callback add-task(string /* list_id */, string /* title */);

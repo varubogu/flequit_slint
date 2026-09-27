@@ -1,3 +1,4 @@
+import { CheckBox } from "std-widgets.slint";
 import { Theme } from "../../globals/theme.slint";
 import { Layout } from "../../globals/layout.slint";
 import { AppState } from "../../globals/app-state.slint";
@@ -39,7 +40,8 @@ component SortButton inherits Rectangle {
 // Ordering control above the task list.
 //
 // "Manual" is the stored order and the only one drag and drop can rearrange;
-// the others are derived views of the same tasks.
+// the others are derived views of the same tasks. The checkbox leaves
+// completed tasks out without touching the search query.
 export component TaskSortBar inherits Rectangle {
     height: Layout.touch-target + 2 * Theme.space-xs;
     background: Theme.surface;
@@ -77,6 +79,13 @@ export component TaskSortBar inherits Rectangle {
             action-label: @tr("Sort" => "Sort by {0}", self.label);
             selected: AppState.task-sort == TaskSort.title;
             clicked => { Actions.change-task-sort(TaskSort.title); }
+        }
+
+        CheckBox {
+            horizontal-stretch: 0;
+            text: @tr("Sort" => "Show completed");
+            checked: AppState.show-completed-tasks;
+            toggled => { Actions.change-show-completed-tasks(self.checked); }
         }
     }
 }

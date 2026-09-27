@@ -1075,6 +1075,11 @@ msgctxt "Sort"
 msgid "Name"
 msgstr "名前"
 
+#: crates/flequit-ui/ui/views/task-list/task-sort-bar.slint:86
+msgctxt "Sort"
+msgid "Show completed"
+msgstr "完了済みを表示"
+
 #: crates/flequit-ui/ui/views/settings/account-settings.slint:12
 msgctxt "Settings"
 msgid "Account settings"
