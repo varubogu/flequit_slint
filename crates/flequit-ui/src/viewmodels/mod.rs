@@ -14,6 +14,7 @@ pub mod reload_gate;
 pub mod search;
 pub mod settings;
 pub mod tag_editor;
+pub mod tag_suggestion;
 pub mod task_list_ui;
 
 pub use app::AppViewModel;

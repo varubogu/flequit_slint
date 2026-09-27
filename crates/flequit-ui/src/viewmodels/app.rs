@@ -54,8 +54,8 @@ use crate::adapters::task::from_status;
 use crate::adapters::{to_bookmarked_tag_item, to_project_item, to_recurrence_state, to_tag_item};
 use crate::bindings::{
     Actions, AppState, AppWindow, Capabilities as UiCapabilities, ColorOption, I18n, Pane,
-    ProjectItem, SettingsState as UiSettingsState, SubTaskItem, TaskItem, TaskPriority, TaskSort,
-    TaskStatus, Theme,
+    ProjectItem, SettingsState as UiSettingsState, SubTaskItem, TagItem, TaskItem, TaskPriority,
+    TaskSort, TaskStatus, Theme,
 };
 use crate::viewmodels::TaskListUiViewModel;
 use crate::viewmodels::ordering;
@@ -71,6 +71,7 @@ mod deletion;
 mod query;
 mod sync_diagnostics;
 use crate::viewmodels::tag_editor;
+use crate::viewmodels::tag_suggestion;
 use query::{publish_search, refresh_tasks};
 
 const HELP_URL: &str = "https://github.com/varubogu/flequit_slint";
@@ -198,6 +199,9 @@ struct SharedState {
     tags_by_project: HashMap<ProjectId, Vec<Tag>>,
     /// Sidebar pins belonging to the current user.
     tag_bookmarks: Vec<TagBookmark>,
+    /// What is in the detail pane's "add a tag" field, composing text included.
+    /// Kept so a reload can narrow the refreshed tags the same way.
+    tag_query: String,
     /// Author recorded on every write. Resolved from the current account.
     current_user: Option<UserId>,
     /// Keeps a burst of edits from running one full reload each.
@@ -2705,6 +2709,19 @@ where
     fn bind_tag_management(&self, window: &AppWindow) {
         let actions = window.global::<Actions>();
 
+        // Every keystroke in the "add a tag" field, and every change to the
+        // text the IME is composing there, narrows the suggestions.
+        {
+            let weak = window.as_weak();
+            let state = Arc::clone(&self.state);
+            actions.on_tag_query_changed(move |query| {
+                let Some(window) = weak.upgrade() else { return };
+                state.lock().expect("shared state poisoned").tag_query = query.to_string();
+                let tags: Vec<TagItem> = window.global::<AppState>().get_tags().iter().collect();
+                publish_task_tags(&window, &tags, &query);
+            });
+        }
+
         {
             let weak = window.as_weak();
             let state = Arc::clone(&self.state);
@@ -3658,12 +3675,40 @@ fn refresh_tags(window: &AppWindow, state_arc: &Arc<Mutex<SharedState>>) {
                 .map(|tag| to_bookmarked_tag_item(tag, bookmark))
         })
         .collect::<Vec<_>>();
+    let tag_query = state.tag_query.clone();
     drop(state);
 
+    publish_task_tags(window, &tags, &tag_query);
     let app_state = window.global::<AppState>();
     app_state.set_tags(ModelRc::new(VecModel::from(tags)));
     app_state.set_bookmarked_tags(ModelRc::new(VecModel::from(bookmarks)));
     query::highlight_sidebar(window, state_arc);
+}
+
+/// Splits the project's tags into the ones on the selected task and the ones
+/// suggested for the "add a tag" field.
+///
+/// The pane lists only the assigned tags, so a tag shown there always means it
+/// is set; the rest are reached by typing, narrowed by `tag_suggestion`.
+fn publish_task_tags(window: &AppWindow, tags: &[TagItem], query: &str) {
+    let (assigned, unassigned): (Vec<TagItem>, Vec<TagItem>) =
+        tags.iter().cloned().partition(|tag| tag.assigned);
+    let limit = usize::try_from(
+        window
+            .global::<UiSettingsState>()
+            .get_tag_suggestion_count(),
+    )
+    .unwrap_or(tag_suggestion::DEFAULT_LIMIT)
+    .min(tag_suggestion::MAX_LIMIT);
+    let suggestions: Vec<TagItem> =
+        tag_suggestion::suggest(&unassigned, |tag| tag.name.as_str(), query, limit)
+            .into_iter()
+            .cloned()
+            .collect();
+
+    let app_state = window.global::<AppState>();
+    app_state.set_assigned_tags(ModelRc::new(VecModel::from(assigned)));
+    app_state.set_tag_suggestions(ModelRc::new(VecModel::from(suggestions)));
 }
 
 /// Parses a project id and resolves the author required for a write.

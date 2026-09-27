@@ -68,6 +68,31 @@ export component BasicSettings inherits Rectangle {
 
         VerticalLayout {
             spacing: Theme.space-sm;
+            FieldLabel { text: @tr("Settings" => "Tag suggestions"); }
+            HorizontalLayout {
+                height: Layout.touch-target;
+                spacing: Theme.space-sm;
+                Text {
+                    text: @tr("Settings" => "Suggestions shown while adding a tag");
+                    color: Theme.text;
+                    font-size: Theme.font-size-base;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                    wrap: word-wrap;
+                }
+                SpinBox {
+                    width: 120px;
+                    value: SettingsState.tag-suggestion-count;
+                    minimum: 1;
+                    maximum: 20;
+                    accessible-label: @tr("Settings" => "Number of tag suggestions");
+                    edited(value) => { Actions.update-tag-suggestion-count(value); }
+                }
+            }
+        }
+
+        VerticalLayout {
+            spacing: Theme.space-sm;
             FieldLabel { text: @tr("Settings" => "Due filter buttons"); }
             for button in SettingsState.due-buttons: CheckBox {
                 text: button.key == "overdue" ? @tr("Settings" => "Show Overdue due filter")

@@ -1694,16 +1694,36 @@ fn tag_management_and_assignment_reach_their_handlers() {
                     .push((task_id.to_string(), name.to_string()));
             });
     }
-    state.set_tags(ModelRc::new(VecModel::from(vec![
-        tag_item("tag-home", "home", false, true),
-        tag_item("tag-work", "work", false, false),
-    ])));
+    let queries = Rc::new(RefCell::new(Vec::<String>::new()));
+    {
+        let seen = Rc::clone(&queries);
+        window
+            .global::<Actions>()
+            .on_tag_query_changed(move |query| seen.borrow_mut().push(query.to_string()));
+    }
+    // The ViewModel splits the project's tags; only the assigned ones are
+    // listed, the rest are offered as suggestions under the field.
+    state.set_assigned_tags(ModelRc::new(VecModel::from(vec![tag_item(
+        "tag-home", "home", false, true,
+    )])));
+    state.set_tag_suggestions(ModelRc::new(VecModel::from(vec![tag_item(
+        "tag-work", "work", false, false,
+    )])));
     state.set_selected_task(task_item("t1", "Buy milk"));
     state.set_selected_task_id(SharedString::from("t1"));
     state.set_has_selected_task(true);
     settle();
 
     assert!(activate(&window, "Remove tag home from Buy milk"));
+    // An unassigned tag is not on show until the field is used.
+    assert!(
+        !accessible_labels(&window)
+            .iter()
+            .any(|label| label == "Add tag work to Buy milk"),
+        "an unassigned tag is listed as if it were set"
+    );
+    set_value(&window, "New tag name", "WO");
+    assert_eq!(queries.borrow().last().map(String::as_str), Some("WO"));
     assert!(activate(&window, "Add tag work to Buy milk"));
     assert_eq!(
         assigned.borrow().as_slice(),
@@ -2232,6 +2252,7 @@ fn recurrence_presets_reach_their_handlers() {
         });
     }
 
+    scroll_settings_to(&window, "Add recurrence preset");
     assert!(
         activate(&window, "Add recurrence preset"),
         "the preset controls are not reachable: {:?}",

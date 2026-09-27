@@ -19,6 +19,8 @@ export global SettingsState {
     // --- Basic ---
     in-out property <string> week-start: "sunday";
     in-out property <bool> vim-mode: false;
+    // How many tags the detail pane suggests while one is being typed.
+    in-out property <int> tag-suggestion-count: 5;
     in-out property <[DueButtonSetting]> due-buttons;
     in-out property <[CustomDueFilterSetting]> custom-due-filters;
     // Repeat patterns the user saved; the repeat editor offers them as presets.

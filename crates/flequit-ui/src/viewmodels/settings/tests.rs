@@ -138,3 +138,23 @@ fn reminder_choices_are_sanitized_without_restoring_deleted_defaults() {
         settings.reminder_presets
     );
 }
+
+#[test]
+fn a_missing_or_out_of_range_tag_suggestion_count_falls_back_to_five() {
+    // Older settings files have no count, which reads as 0.
+    for stored in [0, -3, 21] {
+        let settings = UserSettings {
+            tag_suggestion_count: stored,
+            ..UserSettings::default()
+        }
+        .normalize();
+        assert_eq!(settings.tag_suggestion_count, 5, "stored {stored}");
+    }
+
+    let settings = UserSettings {
+        tag_suggestion_count: 12,
+        ..UserSettings::default()
+    }
+    .normalize();
+    assert_eq!(settings.tag_suggestion_count, 12);
+}

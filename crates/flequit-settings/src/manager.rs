@@ -195,6 +195,9 @@ impl SettingsManager {
         if let Some(vim_mode) = partial.vim_mode {
             target.vim_mode = vim_mode;
         }
+        if let Some(tag_suggestion_count) = partial.tag_suggestion_count {
+            target.tag_suggestion_count = tag_suggestion_count;
+        }
         if let Some(timezone) = &partial.timezone {
             target.timezone = timezone.clone();
         }

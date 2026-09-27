@@ -110,6 +110,8 @@ export global Actions {
     callback delete-tag(string /* project_id */, string /* tag_id */);
     callback add-task-tag(string /* task_id */, string /* name */);
     callback set-task-tag(string /* task_id */, string /* tag_id */, bool /* assigned */);
+    // The "add a tag" field changed, including text the IME is still composing.
+    callback tag-query-changed(string /* query */);
     callback set-tag-bookmarked(string /* project_id */, string /* tag_id */, bool /* bookmarked */);
 
     // --- Shell ---
@@ -129,6 +131,7 @@ export global Actions {
     callback update-language(string /* locale tag */);
     callback update-week-start(string /* week_start */);
     callback update-vim-mode(bool /* enabled */);
+    callback update-tag-suggestion-count(int /* count */);
     callback update-due-button(string /* key */, bool /* visible */);
     callback add-custom-due-filter(int /* value */, DueUnit /* unit */);
     callback remove-custom-due-filter(int /* value */, DueUnit /* unit */);

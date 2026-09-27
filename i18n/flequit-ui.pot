@@ -894,7 +894,7 @@ msgid "Add reminder preset"
 msgstr ""
 
 msgctxt "Settings"
-msgid "Basic Language Week start Due filters Custom due days Reminder presets Recurrence Platform features"
+msgid "Basic Language Week start Due filters Custom due days Reminder presets Recurrence Platform features Tag suggestions"
 msgstr ""
 
 msgctxt "TaskDetail"
@@ -2218,4 +2218,20 @@ msgstr ""
 #: crates/flequit-ui/ui/main.slint:357
 msgctxt "Toast"
 msgid "Undo"
+msgstr ""
+
+msgctxt "TaskDetail"
+msgid "No tags"
+msgstr ""
+
+msgctxt "Settings"
+msgid "Tag suggestions"
+msgstr ""
+
+msgctxt "Settings"
+msgid "Suggestions shown while adding a tag"
+msgstr ""
+
+msgctxt "Settings"
+msgid "Number of tag suggestions"
 msgstr ""

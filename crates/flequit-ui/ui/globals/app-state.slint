@@ -20,6 +20,11 @@ export global AppState {
     // The palette the project editor offers. Published once at startup.
     in-out property <[ColorOption]> project-colors;
     in-out property <[TagItem]> tags;
+    // The selected task's tags, the only ones the detail pane lists.
+    in-out property <[TagItem]> assigned-tags;
+    // Unassigned tags fitting what is typed into the "add a tag" field, best
+    // first, capped at `SettingsState.tag-suggestion-count`.
+    in-out property <[TagItem]> tag-suggestions;
     in-out property <[BookmarkedTagItem]> bookmarked-tags;
     // Whether archived projects are listed. Owned by the ViewModel because the
     // project model is rebuilt when it changes.

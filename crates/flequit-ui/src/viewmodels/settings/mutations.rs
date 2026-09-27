@@ -4,6 +4,7 @@ use super::locale;
 use super::model::{CustomDueFilter, CustomDueUnit, RecurrencePreset, ReminderPreset};
 use super::worker::SettingsQueue;
 use crate::bindings::{Actions, AppWindow, DueUnit};
+use crate::viewmodels::tag_suggestion;
 
 pub(super) fn bind(window: &AppWindow, queue: &SettingsQueue) {
     let actions = window.global::<Actions>();
@@ -32,6 +33,13 @@ pub(super) fn bind(window: &AppWindow, queue: &SettingsQueue) {
     let updater = queue.updater(window.as_weak());
     actions.on_update_vim_mode(move |enabled| {
         updater.update(move |settings| settings.vim_mode = enabled);
+    });
+
+    let updater = queue.updater(window.as_weak());
+    actions.on_update_tag_suggestion_count(move |count| {
+        if (1..=tag_suggestion::MAX_LIMIT as i32).contains(&count) {
+            updater.update(move |settings| settings.tag_suggestion_count = count);
+        }
     });
 
     let updater = queue.updater(window.as_weak());

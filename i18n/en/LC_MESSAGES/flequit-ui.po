@@ -872,8 +872,8 @@ msgid "Add reminder preset"
 msgstr "Add reminder preset"
 
 msgctxt "Settings"
-msgid "Basic Language Week start Due filters Custom due days Reminder presets Recurrence Platform features"
-msgstr "Basic Language Week start Due filters Custom due days Reminder presets Recurrence Platform features"
+msgid "Basic Language Week start Due filters Custom due days Reminder presets Recurrence Platform features Tag suggestions"
+msgstr "Basic Language Week start Due filters Custom due days Reminder presets Recurrence Platform features Tag suggestions"
 
 msgctxt "TaskDetail"
 msgid "30 minutes before start"
@@ -2198,3 +2198,19 @@ msgstr "Deleted \"{0}\""
 msgctxt "Toast"
 msgid "Undo"
 msgstr "Undo"
+
+msgctxt "TaskDetail"
+msgid "No tags"
+msgstr "No tags"
+
+msgctxt "Settings"
+msgid "Tag suggestions"
+msgstr "Tag suggestions"
+
+msgctxt "Settings"
+msgid "Suggestions shown while adding a tag"
+msgstr "Suggestions shown while adding a tag"
+
+msgctxt "Settings"
+msgid "Number of tag suggestions"
+msgstr "Number of tag suggestions"

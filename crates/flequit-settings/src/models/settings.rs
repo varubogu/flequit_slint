@@ -47,6 +47,11 @@ pub struct Settings {
     /// Enables Vim-style task-list navigation (j/k and g/G).
     #[serde(default, alias = "vim_mode")]
     pub vim_mode: bool,
+    /// タスク詳細のタグ入力欄に表示するサジェストの件数
+    ///
+    /// 項目が無い旧ファイルでは 0 になり、UI 側で既定値（5件）として扱う。
+    #[serde(default, alias = "tag_suggestion_count")]
+    pub tag_suggestion_count: i32,
     /// タイムゾーン
     pub timezone: String,
     /// カスタム期限フィルタ（値と単位。旧形式の日数配列も読み込める）
@@ -123,6 +128,7 @@ impl Default for Settings {
             background_color: "#FFFFFF".to_string(),
             week_start: "sunday".to_string(),
             vim_mode: false,
+            tag_suggestion_count: 5,
             timezone: "Asia/Tokyo".to_string(),
             custom_due_filters: vec![],
             custom_recurrence_presets: vec![],

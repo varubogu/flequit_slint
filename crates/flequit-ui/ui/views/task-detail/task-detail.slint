@@ -12,6 +12,7 @@ import { StatusSelect } from "../../components/status-select.slint";
 import { PrioritySelect } from "../../components/priority-select.slint";
 import { Icon, IconName } from "../../components/icon.slint";
 import { ReminderEditor } from "reminder-editor.slint";
+import { TaskTagEditor } from "task-tag-editor.slint";
 
 
 // Task detail pane.
@@ -359,112 +360,9 @@ export component TaskDetailView inherits Rectangle {
                     font-size: Theme.font-size-sm;
                 }
 
-                VerticalLayout {
-                    spacing: 2px;
-
-                    for tag in AppState.tags: Rectangle {
-                        height: Layout.touch-target;
-                        border-radius: Theme.radius-sm;
-                        background: tag.assigned ? Theme.surface-selected
-                            : tag-touch.has-hover ? Theme.surface-hover
-                            : Theme.surface;
-                        border-width: tag.assigned ? 1px : 0px;
-                        border-color: Theme.accent;
-
-                        HorizontalLayout {
-                            padding-left: Theme.space-sm;
-                            padding-right: Theme.space-sm;
-                            spacing: Theme.space-sm;
-
-                            Rectangle {
-                                width: 8px;
-                                height: 8px;
-                                border-radius: 4px;
-                                background: tag.has-color ? tag.color-brush : Theme.accent;
-                                y: (parent.height - self.height) / 2;
-                            }
-
-                            Text {
-                                text: "#" + tag.name;
-                                color: Theme.text;
-                                font-size: Theme.font-size-base;
-                                vertical-alignment: center;
-                                horizontal-stretch: 1;
-                                overflow: elide;
-                            }
-
-                            Text {
-                                text: tag.assigned ? "✓" : "+";
-                                color: tag.assigned ? Theme.accent : Theme.text-muted;
-                                font-size: Theme.font-size-base;
-                                vertical-alignment: center;
-                            }
-                        }
-
-                        tag-touch := TouchArea {
-                            clicked => { Actions.set-task-tag(root.task.id, tag.id, !tag.assigned); }
-                        }
-                        accessible-role: button;
-                        accessible-label: tag.assigned
-                            ? @tr("TaskDetail" => "Remove tag {0} from {1}", tag.name, root.task.title)
-                            : @tr("TaskDetail" => "Add tag {0} to {1}", tag.name, root.task.title);
-                        accessible-action-default => {
-                            Actions.set-task-tag(root.task.id, tag.id, !tag.assigned);
-                        }
-                    }
-
-                    Rectangle {
-                        height: Layout.touch-target;
-                        background: Theme.surface;
-                        border-radius: Theme.radius-sm;
-
-                        HorizontalLayout {
-                            spacing: Theme.space-sm;
-
-                            new-tag := LineEdit {
-                                horizontal-stretch: 1;
-                                placeholder-text: @tr("TaskDetail" => "Add a tag");
-                                accessible-label: @tr("TaskDetail" => "New tag name");
-                                accepted(value) => {
-                                    if (value != "") {
-                                        Actions.add-task-tag(root.task.id, value);
-                                        self.text = "";
-                                    }
-                                }
-                            }
-
-                            Rectangle {
-                                width: Layout.touch-target;
-                                height: Layout.touch-target;
-                                border-radius: Theme.radius-sm;
-                                background: Theme.accent;
-
-                                Icon {
-                                    name: IconName.plus;
-                                    tint: Theme.text-on-accent;
-                                    x: (parent.width - self.width) / 2;
-                                    y: (parent.height - self.height) / 2;
-                                }
-
-                                TouchArea {
-                                    clicked => {
-                                        if (new-tag.text != "") {
-                                            Actions.add-task-tag(root.task.id, new-tag.text);
-                                            new-tag.text = "";
-                                        }
-                                    }
-                                }
-                                accessible-role: button;
-                                accessible-label: @tr("TaskDetail" => "Add tag");
-                                accessible-action-default => {
-                                    if (new-tag.text != "") {
-                                        Actions.add-task-tag(root.task.id, new-tag.text);
-                                        new-tag.text = "";
-                                    }
-                                }
-                            }
-                        }
-                    }
+                TaskTagEditor {
+                    task-id: root.task.id;
+                    task-title: root.task.title;
                 }
 
                 // Subtasks

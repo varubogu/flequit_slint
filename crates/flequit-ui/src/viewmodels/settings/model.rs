@@ -2,6 +2,7 @@ use std::future::Future;
 use std::pin::Pin;
 
 use crate::bindings::{RecurrenceUnit, ReminderUnit, ThemeMode};
+use crate::viewmodels::tag_suggestion;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DateTimeFormatKind {
@@ -211,6 +212,9 @@ pub struct UserSettings {
     pub language: String,
     pub week_start: String,
     pub vim_mode: bool,
+    /// How many tags the detail pane suggests while one is being typed.
+    /// Kept within `1..=tag_suggestion::MAX_LIMIT` by `normalize`.
+    pub tag_suggestion_count: i32,
     pub timezone: String,
     pub datetime_format: DateTimeFormatPreference,
     pub datetime_formats: Vec<DateTimeFormatPreference>,
@@ -232,6 +236,9 @@ pub struct UserSettings {
     pub recent_add_targets: Vec<String>,
 }
 
+const DEFAULT_TAG_SUGGESTIONS: i32 = tag_suggestion::DEFAULT_LIMIT as i32;
+const MAX_TAG_SUGGESTIONS: i32 = tag_suggestion::MAX_LIMIT as i32;
+
 /// How many recent quick-add destinations are remembered.
 pub const RECENT_ADD_TARGETS: usize = 5;
 
@@ -241,6 +248,7 @@ impl Default for UserSettings {
             language: String::new(),
             week_start: "sunday".to_string(),
             vim_mode: false,
+            tag_suggestion_count: DEFAULT_TAG_SUGGESTIONS,
             timezone: "system".to_string(),
             datetime_format: DateTimeFormatPreference::default(),
             datetime_formats: Vec::new(),
@@ -288,6 +296,10 @@ impl UserSettings {
                     })
             })
             .collect();
+        // Missing from older settings files (read as 0) or edited out of range.
+        if !(1..=MAX_TAG_SUGGESTIONS).contains(&self.tag_suggestion_count) {
+            self.tag_suggestion_count = DEFAULT_TAG_SUGGESTIONS;
+        }
         self.custom_due_filters.retain(CustomDueFilter::is_valid);
         self.custom_due_filters.sort_unstable();
         self.custom_due_filters.dedup();

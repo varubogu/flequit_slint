@@ -872,8 +872,8 @@ msgid "Add reminder preset"
 msgstr "リマインダー候補を追加"
 
 msgctxt "Settings"
-msgid "Basic Language Week start Due filters Custom due days Reminder presets Recurrence Platform features"
-msgstr "基本 言語 週の開始 期限フィルタ カスタム期限 リマインダー カスタム項目 繰り返し プラットフォーム機能"
+msgid "Basic Language Week start Due filters Custom due days Reminder presets Recurrence Platform features Tag suggestions"
+msgstr "基本 言語 週の開始 期限フィルタ カスタム期限 リマインダー カスタム項目 繰り返し プラットフォーム機能 タグの候補"
 
 msgctxt "TaskDetail"
 msgid "30 minutes before start"
@@ -2196,3 +2196,19 @@ msgstr "「{0}」を削除しました"
 msgctxt "Toast"
 msgid "Undo"
 msgstr "元に戻す"
+
+msgctxt "TaskDetail"
+msgid "No tags"
+msgstr "タグなし"
+
+msgctxt "Settings"
+msgid "Tag suggestions"
+msgstr "タグの候補"
+
+msgctxt "Settings"
+msgid "Suggestions shown while adding a tag"
+msgstr "タグ追加時に表示する候補の数"
+
+msgctxt "Settings"
+msgid "Number of tag suggestions"
+msgstr "タグ候補の表示件数"

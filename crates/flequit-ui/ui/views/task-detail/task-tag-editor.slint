@@ -1,0 +1,310 @@
+import { Theme } from "../../globals/theme.slint";
+import { Layout } from "../../globals/layout.slint";
+import { AppState } from "../../globals/app-state.slint";
+import { Actions } from "../../globals/actions.slint";
+import { SettingsState } from "../../globals/settings.slint";
+import { TagItem } from "../../globals/types.slint";
+import { IconButton } from "../../components/icon-button.slint";
+import { Icon, IconName } from "../../components/icon.slint";
+import { FocusRing } from "../../components/focus-ring.slint";
+
+// The small colour dot in front of a tag name.
+component TagDot inherits Rectangle {
+    in property <TagItem> tag;
+    width: 8px;
+    height: 8px;
+    border-radius: 4px;
+    background: root.tag.has-color ? root.tag.color-brush : Theme.accent;
+}
+
+// A tag the task carries, with a way to take it off.
+component AssignedTagRow inherits Rectangle {
+    in property <TagItem> tag;
+    in property <string> task-id;
+    in property <string> task-title;
+
+    height: Layout.touch-target;
+    border-radius: Theme.radius-sm;
+    background: Theme.surface-selected;
+    border-width: 1px;
+    border-color: Theme.accent;
+
+    HorizontalLayout {
+        padding-left: Theme.space-sm;
+        spacing: Theme.space-sm;
+
+        TagDot {
+            tag: root.tag;
+            y: (parent.height - self.height) / 2;
+        }
+
+        Text {
+            text: "#" + root.tag.name;
+            color: Theme.text;
+            font-size: Theme.font-size-base;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+            overflow: elide;
+        }
+
+        IconButton {
+            icon: IconName.close;
+            tooltip: @tr("TaskDetail" => "Remove tag {0} from {1}", root.tag.name, root.task-title);
+            clicked => { Actions.set-task-tag(root.task-id, root.tag.id, false); }
+        }
+    }
+}
+
+// An unassigned tag offered while a name is being typed.
+component SuggestionRow inherits Rectangle {
+    in property <TagItem> tag;
+    in property <string> task-title;
+    in property <bool> highlighted;
+    callback chosen();
+
+    height: Layout.touch-target;
+    border-radius: Theme.radius-sm;
+    background: root.highlighted ? Theme.surface-selected
+        : touch.has-hover ? Theme.surface-hover
+        : transparent;
+
+    HorizontalLayout {
+        padding-left: Theme.space-sm;
+        padding-right: Theme.space-sm;
+        spacing: Theme.space-sm;
+
+        TagDot {
+            tag: root.tag;
+            y: (parent.height - self.height) / 2;
+        }
+
+        Text {
+            text: "#" + root.tag.name;
+            color: Theme.text;
+            font-size: Theme.font-size-base;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+            overflow: elide;
+        }
+
+        Icon {
+            name: IconName.plus;
+            tint: Theme.text-muted;
+            y: (parent.height - self.height) / 2;
+        }
+    }
+
+    touch := TouchArea {
+        clicked => { root.chosen(); }
+    }
+    accessible-role: button;
+    accessible-label: @tr("TaskDetail" => "Add tag {0} to {1}", root.tag.name, root.task-title);
+    accessible-action-default => { root.chosen(); }
+}
+
+// The detail pane's tag area: the task's own tags, then a field that suggests
+// the project's other tags as a name is typed.
+//
+// Only assigned tags are listed permanently, so anything shown above the field
+// is a tag the task has. The rest appear under the field while it is focused
+// or holds text, narrowed by Rust (`Actions.tag-query-changed`) on every
+// keystroke.
+//
+// The field is a bare `TextInput` rather than a `LineEdit`: the IME's
+// composing text (`preedit-text`) lives on the `TextInput`, and a `LineEdit`
+// hides it. Reading it lets a Japanese name narrow the list while it is still
+// being composed, before it is committed into `text`.
+export component TaskTagEditor inherits VerticalLayout {
+    in property <string> task-id;
+    in property <string> task-title;
+
+    // -1 means "none": Enter then adds the typed name instead of a suggestion.
+    private property <int> highlighted-index: -1;
+    // Set by Escape; the next keystroke or focus shows the list again.
+    private property <bool> dismissed: false;
+    private property <string> query: input.text + input.preedit-text;
+    private property <int> suggestion-count: SettingsState.tag-suggestion-count;
+    private property <bool> showing-suggestions: !root.dismissed
+        && (input.has-focus || root.query != "")
+        && AppState.tag-suggestions.length > 0;
+
+    spacing: 2px;
+
+    // Rust keeps the last query across reloads; start this field from empty.
+    init => { Actions.tag-query-changed(root.query); }
+
+    changed query => {
+        root.highlighted-index = -1;
+        root.dismissed = false;
+        Actions.tag-query-changed(root.query);
+    }
+    changed suggestion-count => { Actions.tag-query-changed(root.query); }
+    changed task-id => {
+        input.text = "";
+        root.dismissed = false;
+    }
+
+    function add-typed() {
+        if input.text != "" {
+            Actions.add-task-tag(root.task-id, input.text);
+            input.text = "";
+        }
+    }
+
+    function choose(index: int) {
+        if index < 0 || index >= AppState.tag-suggestions.length {
+            return;
+        }
+        Actions.set-task-tag(root.task-id, AppState.tag-suggestions[index].id, true);
+        input.text = "";
+        root.highlighted-index = -1;
+    }
+
+    for tag in AppState.assigned-tags: AssignedTagRow {
+        tag: tag;
+        task-id: root.task-id;
+        task-title: root.task-title;
+    }
+
+    if AppState.assigned-tags.length == 0: Text {
+        text: @tr("TaskDetail" => "No tags");
+        color: Theme.text-muted;
+        font-size: Theme.font-size-sm;
+        height: Layout.touch-target * 0.75;
+        vertical-alignment: center;
+    }
+
+    HorizontalLayout {
+        height: Layout.touch-target;
+        spacing: Theme.space-sm;
+
+        field := Rectangle {
+            horizontal-stretch: 1;
+            border-radius: Theme.radius-sm;
+            border-width: 1px;
+            border-color: Theme.border;
+            background: Theme.surface;
+            clip: true;
+
+            Text {
+                x: Theme.space-sm;
+                width: parent.width - 2 * Theme.space-sm;
+                height: 100%;
+                text: (input.text == "" && input.preedit-text == "")
+                    ? @tr("TaskDetail" => "Add a tag") : "";
+                color: Theme.text-muted;
+                font-size: Theme.font-size-base;
+                vertical-alignment: center;
+                overflow: elide;
+                accessible-role: none;
+            }
+
+            // Scrolls the text sideways so the caret stays visible, the way
+            // `LineEdit` does.
+            Rectangle {
+                x: Theme.space-sm;
+                width: parent.width - 2 * Theme.space-sm;
+                height: 100%;
+                clip: true;
+
+                input := TextInput {
+                    property <length> computed-x;
+
+                    x: Math.min(0px, Math.max(parent.width - self.width - self.text-cursor-width, self.computed-x));
+                    width: Math.max(parent.width - self.text-cursor-width, self.preferred-width);
+                    height: 100%;
+                    single-line: true;
+                    vertical-alignment: center;
+                    color: Theme.text;
+                    font-size: Theme.font-size-base;
+                    accessible-label: @tr("TaskDetail" => "New tag name");
+                    accessible-placeholder-text: @tr("TaskDetail" => "Add a tag");
+
+                    changed has-focus => {
+                        if self.has-focus {
+                            root.dismissed = false;
+                        }
+                    }
+
+                    cursor-position-changed(position) => {
+                        if position.x + self.computed-x < 0px {
+                            self.computed-x = -position.x;
+                        } else if position.x + self.computed-x > parent.width - self.text-cursor-width {
+                            self.computed-x = parent.width - position.x - self.text-cursor-width;
+                        }
+                    }
+
+                    accepted => {
+                        if root.showing-suggestions && root.highlighted-index >= 0 {
+                            root.choose(root.highlighted-index);
+                        } else {
+                            root.add-typed();
+                        }
+                    }
+
+                    // Only the keys the list needs are taken; caret movement
+                    // and IME input stay with the field.
+                    key-pressed(event) => {
+                        if event.text == Key.Escape && root.showing-suggestions {
+                            root.dismissed = true;
+                            return accept;
+                        } else if event.text == Key.DownArrow && AppState.tag-suggestions.length > 0 {
+                            root.dismissed = false;
+                            root.highlighted-index = Math.min(root.highlighted-index + 1,
+                                AppState.tag-suggestions.length - 1);
+                            return accept;
+                        } else if event.text == Key.UpArrow && root.showing-suggestions {
+                            root.highlighted-index = Math.max(root.highlighted-index - 1, -1);
+                            return accept;
+                        }
+                        return reject;
+                    }
+                }
+            }
+
+            if input.has-focus: FocusRing { }
+        }
+
+        Rectangle {
+            width: Layout.touch-target;
+            height: Layout.touch-target;
+            border-radius: Theme.radius-sm;
+            background: Theme.accent;
+
+            Icon {
+                name: IconName.plus;
+                tint: Theme.text-on-accent;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+            }
+
+            TouchArea {
+                clicked => { root.add-typed(); }
+            }
+            accessible-role: button;
+            accessible-label: @tr("TaskDetail" => "Add tag");
+            accessible-action-default => { root.add-typed(); }
+        }
+    }
+
+    // Drawn inline rather than in a `PopupWindow`, which would take the focus
+    // (and the IME composition) away from the field when it opens.
+    if root.showing-suggestions: Rectangle {
+        border-radius: Theme.radius-sm;
+        border-width: 1px;
+        border-color: Theme.border;
+        background: Theme.surface-raised;
+
+        VerticalLayout {
+            padding: Theme.space-xs;
+            spacing: 0px;
+
+            for tag[index] in AppState.tag-suggestions: SuggestionRow {
+                tag: tag;
+                task-title: root.task-title;
+                highlighted: index == root.highlighted-index;
+                chosen => { root.choose(index); }
+            }
+        }
+    }
+}
