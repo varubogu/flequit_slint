@@ -30,10 +30,9 @@ pub use manager::UnifiedManager;
 // 公開エクスポート（既存の互換性維持）
 pub use accounts::AccountUnifiedRepository;
 pub use task_projects::{
-    ProjectUnifiedRepository, RecurrenceRuleUnifiedRepository, SubTaskAssignmentUnifiedRepository,
-    SubTaskRecurrenceUnifiedRepository, SubTaskTagUnifiedRepository, SubTaskUnifiedRepository,
-    TagUnifiedRepository, TaskAssignmentUnifiedRepository, TaskListUnifiedRepository,
-    TaskRecurrenceUnifiedRepository, TaskTagUnifiedRepository, TaskUnifiedRepository,
+    ProjectUnifiedRepository, RecurrenceRuleUnifiedRepository, TagUnifiedRepository,
+    TaskAssignmentUnifiedRepository, TaskListUnifiedRepository, TaskRecurrenceUnifiedRepository,
+    TaskTagUnifiedRepository, TaskUnifiedRepository,
 };
 pub use user_preferences::TagBookmarkUnifiedRepository;
 pub use users::UserUnifiedRepository;

@@ -7,9 +7,6 @@ use crate::errors::sqlite_error::SQLiteError;
 use crate::infrastructure::{
     accounts::account::AccountLocalSqliteRepository, database_manager::DatabaseManager,
     task_projects::project::ProjectLocalSqliteRepository,
-    task_projects::subtask::SubTaskLocalSqliteRepository,
-    task_projects::subtask_assignments::SubtaskAssignmentLocalSqliteRepository,
-    task_projects::subtask_tag::SubtaskTagLocalSqliteRepository,
     task_projects::tag::TagLocalSqliteRepository, task_projects::task::TaskLocalSqliteRepository,
     task_projects::task_assignments::TaskAssignmentLocalSqliteRepository,
     task_projects::task_list::TaskListLocalSqliteRepository,
@@ -31,13 +28,10 @@ pub struct LocalSqliteRepositories {
     pub projects: ProjectLocalSqliteRepository,
     pub task_lists: TaskListLocalSqliteRepository,
     pub tasks: TaskLocalSqliteRepository,
-    pub sub_tasks: SubTaskLocalSqliteRepository,
     pub tags: TagLocalSqliteRepository,
     pub task_tags: TaskTagLocalSqliteRepository,
     pub task_assignments: TaskAssignmentLocalSqliteRepository,
     pub task_recurrences: TaskRecurrenceLocalSqliteRepository,
-    pub subtask_tags: SubtaskTagLocalSqliteRepository,
-    pub subtask_assignments: SubtaskAssignmentLocalSqliteRepository,
     pub accounts: AccountLocalSqliteRepository,
     pub users: UserLocalSqliteRepository,
     pub tag_bookmarks: TagBookmarkLocalSqliteRepository,
@@ -51,13 +45,10 @@ impl LocalSqliteRepositories {
             projects: ProjectLocalSqliteRepository::new(db_manager.clone()),
             task_lists: TaskListLocalSqliteRepository::new(db_manager.clone()),
             tasks: TaskLocalSqliteRepository::new(db_manager.clone()),
-            sub_tasks: SubTaskLocalSqliteRepository::new(db_manager.clone()),
             tags: TagLocalSqliteRepository::new(db_manager.clone()),
             task_tags: TaskTagLocalSqliteRepository::new(db_manager.clone()),
             task_assignments: TaskAssignmentLocalSqliteRepository::new(db_manager.clone()),
             task_recurrences: TaskRecurrenceLocalSqliteRepository::new(db_manager.clone()),
-            subtask_tags: SubtaskTagLocalSqliteRepository::new(db_manager.clone()),
-            subtask_assignments: SubtaskAssignmentLocalSqliteRepository::new(db_manager.clone()),
             accounts: AccountLocalSqliteRepository::new(db_manager.clone()),
             users: UserLocalSqliteRepository::new(db_manager.clone()),
             tag_bookmarks: TagBookmarkLocalSqliteRepository::new(db_manager),
@@ -92,11 +83,6 @@ impl LocalSqliteRepositories {
         &self.tasks
     }
 
-    /// サブタスクリポジトリへのアクセス
-    pub fn sub_tasks(&self) -> &SubTaskLocalSqliteRepository {
-        &self.sub_tasks
-    }
-
     /// タグリポジトリへのアクセス
     pub fn tags(&self) -> &TagLocalSqliteRepository {
         &self.tags
@@ -115,11 +101,6 @@ impl LocalSqliteRepositories {
     /// タスクアサインリポジトリへのアクセス
     pub fn task_assignments(&self) -> &TaskAssignmentLocalSqliteRepository {
         &self.task_assignments
-    }
-
-    /// サブタスクアサインリポジトリへのアクセス
-    pub fn subtask_assignments(&self) -> &SubtaskAssignmentLocalSqliteRepository {
-        &self.subtask_assignments
     }
 
     /// タグブックマークリポジトリへのアクセス

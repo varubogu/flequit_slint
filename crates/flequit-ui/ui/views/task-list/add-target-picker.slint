@@ -4,12 +4,13 @@ import { Layout } from "../../globals/layout.slint";
 import { AppState } from "../../globals/app-state.slint";
 import { Actions } from "../../globals/actions.slint";
 
-// The list the quick-add field adds to, and a picker to change it.
+// Where the quick-add field adds to, and a picker to change it.
 //
-// The task list shows whatever the search finds, so it does not say which list
-// a new task belongs in. The ViewModel picks a default from the query (the one
-// list or project it narrows to, else the last list used); choosing here
-// overrides that until the query points somewhere else.
+// The task list shows whatever the search finds, so it does not say where a
+// new task belongs. The ViewModel picks a default from the query (the one list
+// or project it narrows to, else the last place used); choosing here overrides
+// that until the query points somewhere else. A project itself is a place too,
+// for a task that belongs to none of its lists.
 export component AddTargetPicker inherits Rectangle {
     private property <int> visible-rows: 8;
 
@@ -40,9 +41,11 @@ export component AddTargetPicker inherits Rectangle {
         }
 
         label := Text {
-            text: AppState.add-target-list-id == ""
-                ? @tr("TaskList" => "No list")
-                : AppState.add-target-project-name + " › " + AppState.add-target-list-name;
+            text: AppState.add-target == ""
+                ? @tr("TaskList" => "No project")
+                : AppState.add-target-list-name == ""
+                    ? AppState.add-target-project-name
+                    : AppState.add-target-project-name + " › " + AppState.add-target-list-name;
             color: Theme.text;
             font-size: Theme.font-size-sm;
             vertical-alignment: center;
@@ -62,10 +65,13 @@ export component AddTargetPicker inherits Rectangle {
         clicked => { root.open(); }
     }
     accessible-role: button;
-    accessible-label: AppState.add-target-list-id == ""
+    accessible-label: AppState.add-target == ""
         ? @tr("TaskList" => "Choose where new tasks go")
-        : @tr("TaskList" => "New tasks go to {0} › {1}. Change",
-            AppState.add-target-project-name, AppState.add-target-list-name);
+        : AppState.add-target-list-name == ""
+            ? @tr("TaskList" => "New tasks go directly to {0}. Change",
+                AppState.add-target-project-name)
+            : @tr("TaskList" => "New tasks go to {0} › {1}. Change",
+                AppState.add-target-project-name, AppState.add-target-list-name);
     accessible-action-default => { root.open(); }
 
     popup := PopupWindow {
@@ -98,7 +104,7 @@ export component AddTargetPicker inherits Rectangle {
                     for target in AppState.add-targets: Rectangle {
                         height: Layout.touch-target;
                         border-radius: Theme.radius-sm;
-                        background: target.list-id == AppState.add-target-list-id ? Theme.surface-selected
+                        background: target.key == AppState.add-target ? Theme.surface-selected
                             : row-touch.has-hover ? Theme.surface-hover
                             : transparent;
 
@@ -116,8 +122,10 @@ export component AddTargetPicker inherits Rectangle {
                             }
 
                             Text {
-                                text: target.list-name;
-                                color: Theme.text;
+                                text: target.list-name == ""
+                                    ? @tr("TaskList" => "Directly in the project")
+                                    : target.list-name;
+                                color: target.list-name == "" ? Theme.text-muted : Theme.text;
                                 font-size: Theme.font-size-base;
                                 vertical-alignment: center;
                                 overflow: elide;
@@ -137,14 +145,16 @@ export component AddTargetPicker inherits Rectangle {
 
                         row-touch := TouchArea {
                             clicked => {
-                                Actions.choose-add-target(target.list-id);
+                                Actions.choose-add-target(target.key);
                                 popup.close();
                             }
                         }
                         accessible-role: button;
-                        accessible-label: target.project-name + " › " + target.list-name;
+                        accessible-label: target.list-name == ""
+                            ? @tr("TaskList" => "Directly in {0}", target.project-name)
+                            : target.project-name + " › " + target.list-name;
                         accessible-action-default => {
-                            Actions.choose-add-target(target.list-id);
+                            Actions.choose-add-target(target.key);
                             popup.close();
                         }
                     }

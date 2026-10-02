@@ -22,18 +22,17 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use flequit_core::InfrastructureRepositoriesTrait;
 use flequit_core::facades::{
-    initialization_facades, project_facades, recurrence_facades, subtask_facades,
-    tag_bookmark_facades, tag_facades, task_facades, task_list_facades, user_facades,
+    initialization_facades, project_facades, recurrence_facades, tag_bookmark_facades, tag_facades,
+    task_facades, task_list_facades, user_facades,
 };
 use flequit_model::models::task_projects::project::ProjectTree;
 use flequit_model::models::task_projects::recurrence_rule::RecurrenceRule;
-use flequit_model::models::task_projects::subtask::{PartialSubTask, SubTask};
 use flequit_model::models::task_projects::tag::Tag;
 use flequit_model::models::task_projects::task::{PartialTask, Task, TaskTree};
 use flequit_model::models::task_projects::task_list::TaskListTree;
 use flequit_model::models::user_preferences::tag_bookmark::TagBookmark;
 use flequit_model::types::id_types::{
-    ProjectId, RecurrenceRuleId, SubTaskId, TagId, TaskId, TaskListId, UserId,
+    ProjectId, RecurrenceRuleId, TagId, TaskId, TaskListId, UserId,
 };
 use flequit_model::types::task_types::TaskStatus as DomainStatus;
 use flequit_platform::{
@@ -54,8 +53,8 @@ use crate::adapters::task::from_status;
 use crate::adapters::{to_bookmarked_tag_item, to_project_item, to_recurrence_state, to_tag_item};
 use crate::bindings::{
     Actions, AppState, AppWindow, Capabilities as UiCapabilities, ColorOption, I18n, Pane,
-    ProjectItem, SettingsState as UiSettingsState, SubTaskItem, TagItem, TaskItem, TaskPriority,
-    TaskSort, TaskStatus, Theme,
+    ProjectItem, SettingsState as UiSettingsState, TagItem, TaskItem, TaskPriority, TaskSort,
+    TaskStatus, Theme,
 };
 use crate::viewmodels::TaskListUiViewModel;
 use crate::viewmodels::ordering;
@@ -241,55 +240,65 @@ enum SeriesStep {
 }
 
 impl SharedState {
-    /// Locates the project a task belongs to, using the cached tree.
+    /// Locates the project a task (at any depth) belongs to, using the cached
+    /// tree.
     fn project_of_task(&self, task_id: &str) -> Option<ProjectId> {
-        self.trees.iter().find_map(|tree| {
-            tree.task_lists
-                .iter()
-                .flat_map(|list| list.tasks.iter())
-                .any(|task| task.id.as_str() == task_id)
-                .then_some(tree.id)
-        })
+        self.task_with_project(task_id).map(|(tree, _)| tree.id)
     }
 
-    /// Locates a task and the project that owns it, using the cached tree.
+    /// Locates a task at any depth and the project that owns it, using the
+    /// cached tree.
     fn task_with_project(&self, task_id: &str) -> Option<(&ProjectTree, &TaskTree)> {
-        self.trees.iter().find_map(|tree| {
-            tree.task_lists
-                .iter()
-                .flat_map(|list| list.tasks.iter())
-                .find(|task| task.id.as_str() == task_id)
-                .map(|task| (tree, task))
-        })
+        let id = TaskId::try_from_str(task_id).ok()?;
+        self.trees
+            .iter()
+            .find_map(|tree| tree.find_task(&id).map(|task| (tree, task)))
     }
 
-    /// Locates the project a subtask belongs to.
-    fn project_of_subtask(&self, subtask_id: &str) -> Option<ProjectId> {
-        self.trees.iter().find_map(|tree| {
-            tree.task_lists
-                .iter()
-                .flat_map(|list| list.tasks.iter())
-                .flat_map(|task| task.sub_tasks.iter())
-                .any(|sub| sub.id.as_str() == subtask_id)
-                .then_some(tree.id)
-        })
+    /// The tasks above `task_id`, top-level first. Empty for a top-level task
+    /// or one that is not loaded.
+    fn ancestors_of(&self, task_id: &str) -> Vec<&TaskTree> {
+        let Ok(id) = TaskId::try_from_str(task_id) else {
+            return Vec::new();
+        };
+        self.trees
+            .iter()
+            .flat_map(ProjectTree::root_tasks)
+            .find_map(|root| root.path_to(&id))
+            .unwrap_or_default()
     }
 
-    /// Every live task, with the project and list that own it.
+    /// Every live top-level task, with the project and the list that own it
+    /// (`None` for a task directly under the project).
     ///
     /// The search query decides which of these are listed. Archived projects
     /// take part only while they are shown in the sidebar.
-    fn live_tasks(&self) -> impl Iterator<Item = (&ProjectTree, &TaskListTree, &TaskTree)> {
-        self.live_lists()
-            .flat_map(|(tree, list)| list.tasks.iter().map(move |task| (tree, list, task)))
+    fn live_tasks(&self) -> impl Iterator<Item = (&ProjectTree, Option<&TaskListTree>, &TaskTree)> {
+        self.live_projects()
+            .flat_map(|tree| {
+                let in_lists = tree
+                    .task_lists
+                    .iter()
+                    .filter(|list| !list.deleted && !list.is_archived)
+                    .flat_map(move |list| {
+                        list.tasks.iter().map(move |task| (tree, Some(list), task))
+                    });
+                let own = tree.tasks.iter().map(move |task| (tree, None, task));
+                in_lists.chain(own)
+            })
             .filter(|(_, _, task)| !task.deleted && !task.is_archived)
+    }
+
+    /// Every project shown in the sidebar.
+    fn live_projects(&self) -> impl Iterator<Item = &ProjectTree> {
+        self.trees
+            .iter()
+            .filter(|tree| !tree.deleted && (self.show_archived_projects || !tree.is_archived))
     }
 
     /// Every live task list, with its project.
     fn live_lists(&self) -> impl Iterator<Item = (&ProjectTree, &TaskListTree)> {
-        self.trees
-            .iter()
-            .filter(|tree| !tree.deleted && (self.show_archived_projects || !tree.is_archived))
+        self.live_projects()
             .flat_map(|tree| tree.task_lists.iter().map(move |list| (tree, list)))
             .filter(|(_, list)| !list.deleted && !list.is_archived)
     }
@@ -400,59 +409,6 @@ impl TaskRowSnapshot {
         item.start_day = self.start_parts.day;
         item.start_hour = self.start_parts.hour;
         item.start_minute = self.start_parts.minute;
-    }
-}
-
-/// The subtask counterpart of `TaskRowSnapshot`.
-struct SubTaskRowSnapshot {
-    id: String,
-    title: String,
-    notes: String,
-    completed: bool,
-    status: crate::bindings::TaskStatus,
-    priority: TaskPriority,
-    due_label: String,
-    has_due: bool,
-    overdue: bool,
-    due_parts: DateTimeParts,
-}
-
-impl SubTaskRowSnapshot {
-    fn capture(item: &SubTaskItem) -> Self {
-        Self {
-            id: item.id.to_string(),
-            title: item.title.to_string(),
-            notes: item.notes.to_string(),
-            completed: item.completed,
-            status: item.status,
-            priority: item.priority,
-            due_label: item.due_label.to_string(),
-            has_due: item.has_due,
-            overdue: item.overdue,
-            due_parts: DateTimeParts {
-                year: item.due_year,
-                month: item.due_month,
-                day: item.due_day,
-                hour: item.due_hour,
-                minute: item.due_minute,
-            },
-        }
-    }
-
-    fn restore(self, item: &mut SubTaskItem) {
-        item.title = SharedString::from(self.title);
-        item.notes = SharedString::from(self.notes);
-        item.completed = self.completed;
-        item.status = self.status;
-        item.priority = self.priority;
-        item.due_label = SharedString::from(self.due_label);
-        item.has_due = self.has_due;
-        item.overdue = self.overdue;
-        item.due_year = self.due_parts.year;
-        item.due_month = self.due_parts.month;
-        item.due_day = self.due_parts.day;
-        item.due_hour = self.due_parts.hour;
-        item.due_minute = self.due_parts.minute;
     }
 }
 
@@ -652,14 +608,15 @@ where
             });
         }
 
+        // Any task, at any depth: a subtask opened from its parent's pane or a
+        // parent opened from the breadcrumb.
         {
             let weak = window.as_weak();
             let state = Arc::clone(&self.state);
+            let timezone = self.timezone;
             actions.on_select_task(move |task_id| {
                 if let Some(window) = weak.upgrade() {
-                    // Picking a task leaves whatever subtask was open behind.
-                    clear_subtask_selection(&window);
-                    select_task(&window, &task_id);
+                    open_task(&window, &state, &task_id, timezone);
                     refresh_tags(&window, &state);
                 }
             });
@@ -687,66 +644,20 @@ where
             });
         }
 
-        // Selecting a subtask also expands its parent row, so the list shows
-        // where the detail pane's content came from.
+        // Subtasks are rows of their own, so opening or closing a task adds or
+        // removes rows rather than changing one.
         {
             let weak = window.as_weak();
             let state = Arc::clone(&self.state);
-            actions.on_select_subtask(move |subtask_id| {
-                let Some(window) = weak.upgrade() else { return };
-                let parent = window
-                    .global::<AppState>()
-                    .get_tasks()
-                    .iter()
-                    .find(|task| task.subtasks.iter().any(|sub| sub.id == subtask_id))
-                    .map(|task| task.id.to_string());
-
-                if let Some(parent_id) = parent {
-                    {
-                        let mut state = state.lock().expect("shared state poisoned");
-                        state.task_ui.expand(&parent_id);
-                    }
-                    update_task_row(&window, &parent_id, |item| item.expanded = true);
-                    select_task(&window, &SharedString::from(parent_id.as_str()));
-                    refresh_tags(&window, &state);
-                }
-
-                let app_state = window.global::<AppState>();
-                match subtask_row(&window, &subtask_id) {
-                    Some(item) => {
-                        app_state.set_selected_subtask_id(subtask_id);
-                        app_state.set_selected_subtask(item);
-                        app_state.set_has_selected_subtask(true);
-                    }
-                    None => {
-                        tracing::warn!(%subtask_id, "selection target is not in the visible model");
-                        clear_subtask_selection(&window);
-                    }
-                }
-            });
-        }
-
-        {
-            let weak = window.as_weak();
-            actions.on_go_to_parent_task(move || {
-                let Some(window) = weak.upgrade() else { return };
-                let parent_id = window.global::<AppState>().get_selected_task().id;
-                clear_subtask_selection(&window);
-                select_task(&window, &parent_id);
-            });
-        }
-
-        {
-            let weak = window.as_weak();
-            let state = Arc::clone(&self.state);
+            let timezone = self.timezone;
             actions.on_toggle_task_expansion(move |task_id| {
-                let id = task_id.to_string();
-                let expanded = {
-                    let mut state = state.lock().expect("shared state poisoned");
-                    state.task_ui.toggle(&id)
-                };
+                state
+                    .lock()
+                    .expect("shared state poisoned")
+                    .task_ui
+                    .toggle(task_id.as_str());
                 if let Some(window) = weak.upgrade() {
-                    update_task_row(&window, &id, |item| item.expanded = expanded);
+                    refresh_tasks(&window, &state, timezone);
                 }
             });
         }
@@ -771,62 +682,31 @@ where
             let repositories = Arc::clone(&self.repositories);
             let runtime = self.runtime.clone();
             let timezone = self.timezone;
-            actions.on_add_task(move |list_id, title| {
+            actions.on_add_task(move |target, title| {
                 let title = title.trim().to_string();
-                if title.is_empty() || list_id.is_empty() {
+                if title.is_empty() || target.is_empty() {
                     return;
                 }
 
-                let (project_id, user_id, order_index) = {
+                let (destination, user_id) = {
                     let state = state.lock().expect("shared state poisoned");
-                    let project = state.project_of_list(&list_id);
-                    let order = state
-                        .trees
-                        .iter()
-                        .flat_map(|tree| tree.task_lists.iter())
-                        .find(|list| list.id.as_str() == list_id.as_str())
-                        .map(|list| list.tasks.len() as i32)
-                        .unwrap_or(0);
-                    (project, state.current_user, order)
+                    (query::destination(&state, &target), state.current_user)
                 };
-
-                let (Some(project_id), Some(user_id)) = (project_id, user_id) else {
+                let (Some(destination), Some(user_id)) = (destination, user_id) else {
                     report_error(&weak, "task.save-failed");
-                    tracing::error!(%list_id, "cannot add a task: unknown project or user");
+                    tracing::error!(%target, "cannot add a task: unknown destination or user");
                     return;
                 };
 
-                let Ok(list_id) = TaskListId::try_from_str(list_id.as_str()) else {
-                    report_error(&weak, "input.malformed-id");
-                    return;
-                };
-
-                let now = Utc::now();
-                let target_list = list_id.as_str();
-                let task = Task {
-                    id: TaskId::new(),
-                    project_id,
-                    list_id,
+                let task = new_task(
+                    destination.project_id,
+                    destination.list_id,
+                    None,
                     title,
-                    description: None,
-                    status: DomainStatus::NotStarted,
-                    priority: 0,
-                    plan_start_date: None,
-                    plan_end_date: None,
-                    do_start_date: None,
-                    do_end_date: None,
-                    is_range_date: None,
-                    recurrence_rule: None,
-                    reminders: Vec::new(),
-                    order_index,
-                    is_archived: false,
-                    assigned_user_ids: Vec::new(),
-                    tag_ids: Vec::new(),
-                    created_at: now,
-                    updated_at: now,
-                    deleted: false,
-                    updated_by: user_id,
-                };
+                    destination.order_index,
+                    user_id,
+                );
+                let target = target.to_string();
 
                 let weak = weak.clone();
                 let state = Arc::clone(&state);
@@ -834,7 +714,7 @@ where
                 runtime.spawn(async move {
                     let result = task_facades::create_task(
                         repositories.as_ref(),
-                        &project_id,
+                        &task.project_id,
                         &task,
                         &user_id,
                     )
@@ -842,7 +722,7 @@ where
 
                     match result {
                         Ok(_) => {
-                            query::note_task_added(&state, &target_list, task.id.as_str());
+                            query::note_task_added(&state, &target, task.id.as_str());
                             reload_projects(&weak, &state, &repositories, timezone).await;
                         }
                         Err(error) => {
@@ -855,54 +735,53 @@ where
             });
         }
 
+        // A subtask is a task with a parent: it lives in the parent's project
+        // and belongs to no list of its own.
         {
             let weak = window.as_weak();
             let state = Arc::clone(&self.state);
             let repositories = Arc::clone(&self.repositories);
             let runtime = self.runtime.clone();
             let timezone = self.timezone;
-            actions.on_add_subtask(move |task_id, title| {
+            actions.on_add_subtask(move |parent_id, title| {
                 let title = title.trim().to_string();
-                let task_id = task_id.to_string();
-                if title.is_empty() || task_id.is_empty() {
+                let parent_id = parent_id.to_string();
+                if title.is_empty() || parent_id.is_empty() {
                     return;
                 }
 
-                let (project_and_order, user_id) = {
+                let (parent, user_id) = {
                     let state = state.lock().expect("shared state poisoned");
-                    let task = state
-                        .trees
-                        .iter()
-                        .flat_map(|tree| tree.task_lists.iter().map(move |list| (tree, list)))
-                        .flat_map(|(tree, list)| list.tasks.iter().map(move |task| (tree, task)))
-                        .find(|(_, task)| task.id.as_str() == task_id.as_str());
-                    let project_and_order = task.map(|(tree, task)| {
-                        let next_order = next_subtask_order(
-                            task.sub_tasks.iter().map(|subtask| subtask.order_index),
+                    let parent = state.task_with_project(&parent_id).map(|(tree, parent)| {
+                        let order = next_order_index(
+                            parent.sub_tasks.iter().map(|child| child.order_index),
                         );
-                        (tree.id, next_order)
+                        (tree.id, parent.id, order)
                     });
-                    (project_and_order, state.current_user)
+                    (parent, state.current_user)
                 };
-
-                let (Some((project_id, order_index)), Some(user_id)) = (project_and_order, user_id)
+                let (Some((project_id, parsed_parent_id, order_index)), Some(user_id)) =
+                    (parent, user_id)
                 else {
-                    tracing::error!(%task_id, "cannot add a subtask: unknown task or user");
+                    tracing::error!(%parent_id, "cannot add a subtask: unknown task or user");
                     report_error(&weak, "task.save-failed");
                     return;
                 };
-                let Ok(parsed_task_id) = TaskId::try_from_str(&task_id) else {
-                    report_error(&weak, "input.malformed-id");
-                    return;
-                };
 
-                let subtask = new_subtask(parsed_task_id, title, order_index, user_id);
+                let subtask = new_task(
+                    project_id,
+                    None,
+                    Some(parsed_parent_id),
+                    title,
+                    order_index,
+                    user_id,
+                );
 
                 let weak = weak.clone();
                 let state = Arc::clone(&state);
                 let repositories = Arc::clone(&repositories);
                 runtime.spawn(async move {
-                    let result = subtask_facades::create_sub_task(
+                    let result = task_facades::create_task(
                         repositories.as_ref(),
                         &project_id,
                         &subtask,
@@ -910,18 +789,19 @@ where
                     )
                     .await;
 
-                    match subtask_save_result(result) {
+                    match result {
                         Ok(_) => {
                             state
                                 .lock()
                                 .expect("shared state poisoned")
                                 .task_ui
-                                .expand(&task_id);
+                                .expand(&parent_id);
                             reload_projects(&weak, &state, &repositories, timezone).await;
                         }
                         Err(error) => {
-                            tracing::error!(%error, %task_id, "failed to create subtask");
-                            report_error(&weak, error.code());
+                            let ui_error = UiError::from(error);
+                            tracing::error!(%ui_error, %parent_id, "failed to create subtask");
+                            report_error(&weak, ui_error.code());
                         }
                     }
                 });
@@ -939,6 +819,14 @@ where
             actions.on_toggle_task_completed(move |task_id| {
                 let Some(window) = weak.upgrade() else { return };
                 let Some(before) = task_row(&window, &task_id) else {
+                    toggle_subtask_in_pane(
+                        &window,
+                        &state,
+                        &repositories,
+                        &runtime,
+                        timezone,
+                        &task_id,
+                    );
                     return;
                 };
                 let completed = !before.completed;
@@ -1428,389 +1316,6 @@ where
             });
         }
 
-        {
-            let weak = window.as_weak();
-            let state = Arc::clone(&self.state);
-            let repositories = Arc::clone(&self.repositories);
-            let runtime = self.runtime.clone();
-            let timezone = self.timezone;
-            actions.on_toggle_subtask_completed(move |subtask_id| {
-                let Some(window) = weak.upgrade() else { return };
-
-                let completed = window
-                    .global::<AppState>()
-                    .get_tasks()
-                    .iter()
-                    .flat_map(|task| task.subtasks.iter().collect::<Vec<_>>())
-                    .find(|sub| sub.id == subtask_id)
-                    .map(|sub| !sub.completed);
-                let Some(completed) = completed else { return };
-
-                let (project_id, user_id) = {
-                    let state = state.lock().expect("shared state poisoned");
-                    (state.project_of_subtask(&subtask_id), state.current_user)
-                };
-                let (Some(project_id), Some(user_id)) = (project_id, user_id) else {
-                    report_error(&weak, "task.save-failed");
-                    return;
-                };
-                let Ok(subtask_id) = SubTaskId::try_from_str(subtask_id.as_str()) else {
-                    report_error(&weak, "input.malformed-id");
-                    return;
-                };
-
-                let patch = PartialSubTask {
-                    completed: Some(completed),
-                    status: Some(if completed {
-                        DomainStatus::Completed
-                    } else {
-                        DomainStatus::NotStarted
-                    }),
-                    ..Default::default()
-                };
-
-                let weak = weak.clone();
-                let state = Arc::clone(&state);
-                let repositories = Arc::clone(&repositories);
-                runtime.spawn(async move {
-                    let result = subtask_facades::update_sub_task(
-                        repositories.as_ref(),
-                        &project_id,
-                        &subtask_id,
-                        &patch,
-                        &user_id,
-                    )
-                    .await;
-
-                    match result {
-                        Ok(_) => {
-                            reload_projects(&weak, &state, &repositories, timezone).await;
-                        }
-                        Err(error) => {
-                            let ui_error = UiError::from(error);
-                            tracing::error!(%ui_error, "failed to update subtask");
-                            report_error(&weak, ui_error.code());
-                        }
-                    }
-                });
-            });
-        }
-
-        // The remaining subtask edits follow the task ones: the row is updated
-        // in place first, and a failed write puts the snapshot back.
-        {
-            let weak = window.as_weak();
-            let state = Arc::clone(&self.state);
-            let repositories = Arc::clone(&self.repositories);
-            let runtime = self.runtime.clone();
-            let debouncer = Arc::new(EditDebouncer::default());
-            actions.on_update_subtask_title(move |subtask_id, title| {
-                let Some(window) = weak.upgrade() else { return };
-                let Some(before) = subtask_row(&window, &subtask_id) else {
-                    return;
-                };
-                if before.title == title {
-                    return;
-                }
-                let snapshot = SubTaskRowSnapshot::capture(&before);
-
-                update_subtask_row(&window, &subtask_id, |item| item.title = title.clone());
-                sync_selected_subtask(&window, &subtask_id);
-
-                let patch = PartialSubTask {
-                    title: Some(title.to_string()),
-                    ..Default::default()
-                };
-                spawn_debounced_subtask_patch(
-                    &weak,
-                    &state,
-                    &repositories,
-                    &runtime,
-                    &debouncer,
-                    subtask_id.to_string(),
-                    patch,
-                    snapshot,
-                );
-            });
-        }
-
-        {
-            let weak = window.as_weak();
-            let state = Arc::clone(&self.state);
-            let repositories = Arc::clone(&self.repositories);
-            let runtime = self.runtime.clone();
-            let debouncer = Arc::new(EditDebouncer::default());
-            actions.on_update_subtask_notes(move |subtask_id, notes| {
-                let Some(window) = weak.upgrade() else { return };
-                let Some(before) = subtask_row(&window, &subtask_id) else {
-                    return;
-                };
-                if before.notes == notes {
-                    return;
-                }
-                let snapshot = SubTaskRowSnapshot::capture(&before);
-
-                update_subtask_row(&window, &subtask_id, |item| item.notes = notes.clone());
-                sync_selected_subtask(&window, &subtask_id);
-
-                let patch = PartialSubTask {
-                    description: Some(Some(notes.to_string())),
-                    ..Default::default()
-                };
-                spawn_debounced_subtask_patch(
-                    &weak,
-                    &state,
-                    &repositories,
-                    &runtime,
-                    &debouncer,
-                    subtask_id.to_string(),
-                    patch,
-                    snapshot,
-                );
-            });
-        }
-
-        {
-            let weak = window.as_weak();
-            let state = Arc::clone(&self.state);
-            let repositories = Arc::clone(&self.repositories);
-            let runtime = self.runtime.clone();
-            actions.on_update_subtask_status(move |subtask_id, status| {
-                let Some(window) = weak.upgrade() else { return };
-                let Some(before) = subtask_row(&window, &subtask_id) else {
-                    return;
-                };
-                if before.status == status {
-                    return;
-                }
-                let snapshot = SubTaskRowSnapshot::capture(&before);
-                let completed = matches!(status, TaskStatus::Completed);
-
-                update_subtask_row(&window, &subtask_id, |item| {
-                    item.status = status;
-                    item.completed = completed;
-                    item.overdue = item.overdue && !completed;
-                });
-                sync_selected_subtask(&window, &subtask_id);
-
-                let patch = PartialSubTask {
-                    status: Some(from_status(status)),
-                    completed: Some(completed),
-                    ..Default::default()
-                };
-                spawn_subtask_patch(
-                    &weak,
-                    &state,
-                    &repositories,
-                    &runtime,
-                    subtask_id.to_string(),
-                    patch,
-                    snapshot,
-                );
-            });
-        }
-
-        {
-            let weak = window.as_weak();
-            let state = Arc::clone(&self.state);
-            let repositories = Arc::clone(&self.repositories);
-            let runtime = self.runtime.clone();
-            actions.on_update_subtask_priority(move |subtask_id, priority| {
-                let Some(window) = weak.upgrade() else { return };
-                let Some(before) = subtask_row(&window, &subtask_id) else {
-                    return;
-                };
-                if before.priority == priority {
-                    return;
-                }
-                let snapshot = SubTaskRowSnapshot::capture(&before);
-
-                update_subtask_row(&window, &subtask_id, |item| item.priority = priority);
-                sync_selected_subtask(&window, &subtask_id);
-
-                let patch = PartialSubTask {
-                    priority: Some(Some(priority_value(priority))),
-                    ..Default::default()
-                };
-                spawn_subtask_patch(
-                    &weak,
-                    &state,
-                    &repositories,
-                    &runtime,
-                    subtask_id.to_string(),
-                    patch,
-                    snapshot,
-                );
-            });
-        }
-
-        {
-            let weak = window.as_weak();
-            let state = Arc::clone(&self.state);
-            let repositories = Arc::clone(&self.repositories);
-            let runtime = self.runtime.clone();
-            actions.on_update_subtask_due(move |subtask_id, year, month, day, hour, minute| {
-                let Some(window) = weak.upgrade() else { return };
-                let Some(before) = subtask_row(&window, &subtask_id) else {
-                    return;
-                };
-                let parts = DateTimeParts {
-                    year,
-                    month,
-                    day,
-                    hour,
-                    minute,
-                };
-                let timezone = DisplayTimezone::from_setting(
-                    window.global::<UiSettingsState>().get_timezone().as_str(),
-                );
-                let Some(due) = from_display_parts(parts, timezone) else {
-                    report_error(&weak, "input.validation-failed");
-                    return;
-                };
-                if before.has_due
-                    && before.due_year == year
-                    && before.due_month == month
-                    && before.due_day == day
-                    && before.due_hour == hour
-                    && before.due_minute == minute
-                {
-                    return;
-                }
-                let snapshot = SubTaskRowSnapshot::capture(&before);
-                let completed = before.completed;
-
-                let display = DateTimeDisplaySettings::new(
-                    window.global::<UiSettingsState>().get_timezone().as_str(),
-                    window
-                        .global::<UiSettingsState>()
-                        .get_current_datetime_format()
-                        .as_str(),
-                );
-                update_subtask_row(&window, &subtask_id, |item| {
-                    item.due_label = SharedString::from(format_due(&due, &display));
-                    item.has_due = true;
-                    item.overdue = is_overdue(Some(&due), completed, &Utc::now());
-                    let parts = to_display_parts(&due, timezone);
-                    item.due_year = parts.year;
-                    item.due_month = parts.month;
-                    item.due_day = parts.day;
-                    item.due_hour = parts.hour;
-                    item.due_minute = parts.minute;
-                });
-                sync_selected_subtask(&window, &subtask_id);
-
-                let patch = PartialSubTask {
-                    plan_end_date: Some(Some(due)),
-                    ..Default::default()
-                };
-                spawn_subtask_patch(
-                    &weak,
-                    &state,
-                    &repositories,
-                    &runtime,
-                    subtask_id.to_string(),
-                    patch,
-                    snapshot,
-                );
-            });
-        }
-
-        {
-            let weak = window.as_weak();
-            let state = Arc::clone(&self.state);
-            let repositories = Arc::clone(&self.repositories);
-            let runtime = self.runtime.clone();
-            actions.on_clear_subtask_due(move |subtask_id| {
-                let Some(window) = weak.upgrade() else { return };
-                let Some(before) = subtask_row(&window, &subtask_id) else {
-                    return;
-                };
-                if !before.has_due {
-                    return;
-                }
-                let snapshot = SubTaskRowSnapshot::capture(&before);
-
-                update_subtask_row(&window, &subtask_id, |item| {
-                    item.due_label = SharedString::default();
-                    item.has_due = false;
-                    item.overdue = false;
-                });
-                sync_selected_subtask(&window, &subtask_id);
-
-                let patch = PartialSubTask {
-                    plan_end_date: Some(None),
-                    ..Default::default()
-                };
-                spawn_subtask_patch(
-                    &weak,
-                    &state,
-                    &repositories,
-                    &runtime,
-                    subtask_id.to_string(),
-                    patch,
-                    snapshot,
-                );
-            });
-        }
-
-        // Deleting reloads instead of editing the row: the parent's subtask
-        // counters are derived, and only the reload recomputes them.
-        {
-            let weak = window.as_weak();
-            let state = Arc::clone(&self.state);
-            let repositories = Arc::clone(&self.repositories);
-            let runtime = self.runtime.clone();
-            let timezone = self.timezone;
-            actions.on_delete_subtask(move |subtask_id| {
-                let project_id = {
-                    let state = state.lock().expect("shared state poisoned");
-                    state.project_of_subtask(&subtask_id)
-                };
-                let Some(project_id) = project_id else {
-                    tracing::error!(%subtask_id, "cannot delete a subtask: unknown project");
-                    report_error(&weak, "task.delete-failed");
-                    return;
-                };
-                let Ok(parsed_id) = SubTaskId::try_from_str(subtask_id.as_str()) else {
-                    report_error(&weak, "input.malformed-id");
-                    return;
-                };
-
-                let weak = weak.clone();
-                let state = Arc::clone(&state);
-                let repositories = Arc::clone(&repositories);
-                runtime.spawn(async move {
-                    let result = subtask_facades::delete_sub_task(
-                        repositories.as_ref(),
-                        &project_id,
-                        &parsed_id,
-                    )
-                    .await;
-
-                    match subtask_save_result(result) {
-                        Ok(()) => {
-                            let deleted_id = subtask_id.clone();
-                            if let Err(error) = weak.upgrade_in_event_loop(move |window| {
-                                if window.global::<AppState>().get_selected_subtask_id()
-                                    == deleted_id
-                                {
-                                    clear_subtask_selection(&window);
-                                }
-                            }) {
-                                tracing::error!(%error, "could not clear the deleted subtask selection");
-                            }
-                            reload_projects(&weak, &state, &repositories, timezone).await;
-                        }
-                        Err(error) => {
-                            tracing::error!(%error, %subtask_id, "failed to delete subtask");
-                            report_error(&weak, error.code());
-                        }
-                    }
-                });
-            });
-        }
-
         deletion::bind(
             window,
             &self.state,
@@ -1843,15 +1348,19 @@ where
             let state = Arc::clone(&self.state);
             let timezone = self.timezone;
             actions.on_change_show_completed_tasks(move |show| {
-                state.lock().expect("shared state poisoned").hide_completed_tasks = !show;
+                state
+                    .lock()
+                    .expect("shared state poisoned")
+                    .hide_completed_tasks = !show;
                 let Some(window) = weak.upgrade() else { return };
                 window.global::<AppState>().set_show_completed_tasks(show);
                 refresh_tasks(&window, &state, timezone);
             });
         }
 
-        // Reorder: the row is moved in the published model first, and its new
-        // neighbours are what tell storage where it belongs. A failure reloads,
+        // Reorder: only top-level tasks move; their subtasks go with them. The
+        // move is worked out on the visible top-level rows, whose new
+        // neighbours tell storage where the task belongs. A failure reloads,
         // because the stored order is the only thing that can correct the list.
         {
             let weak = window.as_weak();
@@ -1860,61 +1369,40 @@ where
             let runtime = self.runtime.clone();
             let timezone = self.timezone;
             actions.on_reorder_task(move |task_id, target_index| {
-                // The stored order is only what the list shows while sorting is
-                // manual; rewriting it from a derived order would move rows the
-                // user never saw move.
-                if state.lock().expect("shared state poisoned").task_sort != TaskSort::Manual {
-                    tracing::debug!(%task_id, "ignoring a reorder while a sort is applied");
-                    return;
-                }
-
                 let Some(window) = weak.upgrade() else { return };
-                let app_state = window.global::<AppState>();
-                let mut rows: Vec<TaskItem> = app_state.get_tasks().iter().collect();
-
-                let Some(from) = rows.iter().position(|row| row.id == task_id) else {
+                let rows: Vec<TaskItem> = window.global::<AppState>().get_tasks().iter().collect();
+                let Some(target) = ordering::root_position(&rows, target_index) else {
                     return;
                 };
-                let to = (target_index.max(0) as usize).min(rows.len() - 1);
-                if from == to {
-                    return;
-                }
-
-                let row = rows.remove(from);
-                let list_id = row.list_id.clone();
-                rows.insert(to, row);
-
-                // Only rows of the same list can anchor the move; the visible
-                // list may span several of them.
-                let previous = rows[..to]
-                    .iter()
-                    .rev()
-                    .find(|row| row.list_id == list_id)
-                    .and_then(|row| TaskId::try_from_str(row.id.as_str()).ok());
-                let next = rows[to + 1..]
-                    .iter()
-                    .find(|row| row.list_id == list_id)
-                    .and_then(|row| TaskId::try_from_str(row.id.as_str()).ok());
-
-                app_state.set_tasks(ModelRc::new(VecModel::from(rows)));
-
-                let updates = {
-                    let mut guard = state.lock().expect("shared state poisoned");
-                    ordering::reorder_task(&mut guard.trees, &task_id, previous, next)
-                };
-                let Some((project_id, updates)) = updates else {
-                    tracing::warn!(%task_id, "cannot reorder a task that is not loaded");
-                    return;
-                };
-
-                spawn_order_updates(
-                    &weak,
+                move_top_level_task(
+                    &window,
                     &state,
                     &repositories,
                     &runtime,
-                    project_id,
-                    updates,
                     timezone,
+                    &task_id,
+                    |_| Some(target),
+                );
+            });
+        }
+
+        // Keyboard and screen-reader equivalent: one top-level row at a time.
+        {
+            let weak = window.as_weak();
+            let state = Arc::clone(&self.state);
+            let repositories = Arc::clone(&self.repositories);
+            let runtime = self.runtime.clone();
+            let timezone = self.timezone;
+            actions.on_move_task_by(move |task_id, delta| {
+                let Some(window) = weak.upgrade() else { return };
+                move_top_level_task(
+                    &window,
+                    &state,
+                    &repositories,
+                    &runtime,
+                    timezone,
+                    &task_id,
+                    |from| from.checked_add_signed(delta as isize),
                 );
             });
         }
@@ -1930,30 +1418,31 @@ where
                     let mut guard = state.lock().expect("shared state poisoned");
                     ordering::move_task_to_list(&mut guard.trees, &task_id, &list_id)
                 };
-                let Some((project_id, updates)) = updates else {
+                let Some(updates) = updates else {
                     tracing::warn!(%task_id, %list_id, "cannot move the task to that list");
                     return;
                 };
+                apply_move(&weak, &state, &repositories, &runtime, timezone, updates);
+            });
+        }
 
-                let Some(window) = weak.upgrade() else { return };
-                // The task may leave the visible set, and both lists change size.
-                refresh_projects(&window, &state);
-                refresh_tasks(&window, &state, timezone);
-
-                let selected = window.global::<AppState>().get_selected_task_id();
-                if !selected.is_empty() && task_row(&window, &selected).is_none() {
-                    clear_selection(&window);
-                }
-
-                spawn_order_updates(
-                    &weak,
-                    &state,
-                    &repositories,
-                    &runtime,
-                    project_id,
-                    updates,
-                    timezone,
-                );
+        // Dropping on a project takes the task out of its list.
+        {
+            let weak = window.as_weak();
+            let state = Arc::clone(&self.state);
+            let repositories = Arc::clone(&self.repositories);
+            let runtime = self.runtime.clone();
+            let timezone = self.timezone;
+            actions.on_move_task_to_project(move |task_id| {
+                let updates = {
+                    let mut guard = state.lock().expect("shared state poisoned");
+                    ordering::move_task_to_project(&mut guard.trees, &task_id)
+                };
+                let Some(updates) = updates else {
+                    tracing::warn!(%task_id, "cannot move the task out of its list");
+                    return;
+                };
+                apply_move(&weak, &state, &repositories, &runtime, timezone, updates);
             });
         }
     }
@@ -3364,19 +2853,33 @@ fn reminder_specs(state: &Arc<Mutex<SharedState>>) -> Vec<ReminderSpec> {
 }
 
 fn reminder_specs_from_trees(trees: &[ProjectTree]) -> Vec<ReminderSpec> {
-    trees
-        .iter()
-        .filter(|project| !project.deleted)
-        .flat_map(|project| project.task_lists.iter())
-        .filter(|list| !list.deleted)
-        .flat_map(|list| list.tasks.iter())
-        .filter(|task| !task.deleted)
-        .flat_map(|task| {
+    /// The reminders of `task` and its live subtasks at every depth.
+    fn collect(task: &TaskTree, specs: &mut Vec<ReminderSpec>) {
+        if task.deleted {
+            return;
+        }
+        specs.extend(
             task.reminders
                 .iter()
-                .map(|reminder| (task.id.as_str(), task.title.clone(), *reminder))
-        })
-        .collect()
+                .map(|reminder| (task.id.as_str(), task.title.clone(), *reminder)),
+        );
+        for child in &task.sub_tasks {
+            collect(child, specs);
+        }
+    }
+
+    let mut specs = Vec::new();
+    for project in trees.iter().filter(|project| !project.deleted) {
+        let in_lists = project
+            .task_lists
+            .iter()
+            .filter(|list| !list.deleted)
+            .flat_map(|list| list.tasks.iter());
+        for task in in_lists.chain(project.tasks.iter()) {
+            collect(task, &mut specs);
+        }
+    }
+    specs
 }
 
 async fn ensure_notification_permission(
@@ -3543,22 +3046,15 @@ where
                 refresh_projects(&window, &state);
                 let rewrote = query::follow_data(&window, &state);
                 publish_search(&window, &state, timezone, rewrote);
+                // A task the list does not show (a subtask under a closed
+                // task, or one filtered out) stays open in the pane while it
+                // still exists.
                 let selected_task_id = app_state.get_selected_task_id();
                 if !selected_task_id.is_empty() {
-                    if task_row(&window, &selected_task_id).is_some() {
+                    if indexed_task_row(&window, &selected_task_id).is_some() {
                         sync_selected_task(&window, &selected_task_id);
-                    } else {
+                    } else if !show_from_tree(&window, &state, &selected_task_id, timezone) {
                         clear_selection(&window);
-                    }
-                }
-                // A subtask that disappeared (deleted here or by another
-                // client) sends the pane back to its parent task.
-                let selected_subtask_id = app_state.get_selected_subtask_id();
-                if !selected_subtask_id.is_empty() {
-                    if subtask_row(&window, &selected_subtask_id).is_some() {
-                        sync_selected_subtask(&window, &selected_subtask_id);
-                    } else {
-                        clear_subtask_selection(&window);
                     }
                 }
                 refresh_tags(&window, &state);
@@ -3654,12 +3150,8 @@ fn refresh_tags(window: &AppWindow, state_arc: &Arc<Mutex<SharedState>>) {
             .map(|tree| tree.id)
     });
     let assigned_tags: HashSet<TagId> = state
-        .trees
-        .iter()
-        .flat_map(|tree| tree.task_lists.iter())
-        .flat_map(|list| list.tasks.iter())
-        .find(|task| task.id.as_str() == selected_task_id)
-        .map(|task| task.tag_ids.iter().copied().collect())
+        .task_with_project(&selected_task_id)
+        .map(|(_, task)| task.tag_ids.iter().copied().collect())
         .unwrap_or_default();
 
     let tags = selected_project
@@ -3963,36 +3455,42 @@ where
     Ok(())
 }
 
-fn new_subtask(task_id: TaskId, title: String, order_index: i32, user_id: UserId) -> SubTask {
+/// A new task with default values, at the top level (`parent` is `None`) or
+/// under `parent`. A subtask never belongs to a list.
+fn new_task(
+    project_id: ProjectId,
+    list_id: Option<TaskListId>,
+    parent: Option<TaskId>,
+    title: String,
+    order_index: i32,
+    user_id: UserId,
+) -> Task {
     let now = Utc::now();
-    SubTask {
-        id: SubTaskId::new(),
-        task_id,
+    Task {
+        id: TaskId::new(),
+        project_id,
+        list_id: if parent.is_some() { None } else { list_id },
+        parent_task_id: parent,
         title,
         description: None,
         status: DomainStatus::NotStarted,
-        priority: None,
+        priority: 0,
         plan_start_date: None,
         plan_end_date: None,
         do_start_date: None,
         do_end_date: None,
         is_range_date: None,
         recurrence_rule: None,
+        reminders: Vec::new(),
+        order_index,
+        is_archived: false,
         assigned_user_ids: Vec::new(),
         tag_ids: Vec::new(),
-        order_index,
-        completed: false,
         created_at: now,
         updated_at: now,
         deleted: false,
         updated_by: user_id,
     }
-}
-
-fn next_subtask_order(order_indexes: impl Iterator<Item = i32>) -> i32 {
-    order_indexes
-        .max()
-        .map_or(0, |index| index.saturating_add(1))
 }
 
 fn priority_value(priority: TaskPriority) -> i32 {
@@ -4002,10 +3500,6 @@ fn priority_value(priority: TaskPriority) -> i32 {
         TaskPriority::Medium => 3,
         TaskPriority::High => 6,
     }
-}
-
-fn subtask_save_result(result: Result<bool, ServiceError>) -> Result<(), UiError> {
-    result.map(drop).map_err(UiError::from)
 }
 
 /// Waits for a pause in task text input, then persists only the newest value.
@@ -4110,11 +3604,19 @@ fn plan_next_occurrence(
     let state = state.lock().expect("shared state poisoned");
     let user_id = state.current_user?;
     let (project, task) = state.task_with_project(task_id.as_str())?;
-    let order_index = project
-        .task_lists
-        .iter()
-        .find(|list| list.id == task.list_id)
-        .map_or(0, |list| list.tasks.len() as i32);
+    // The successor joins the end of where the completed task lives.
+    let siblings: &[TaskTree] = match (task.parent_task_id, task.list_id) {
+        (Some(parent), _) => project
+            .find_task(&parent)
+            .map_or(&[], |parent| parent.sub_tasks.as_slice()),
+        (None, Some(list_id)) => project
+            .task_lists
+            .iter()
+            .find(|list| list.id == list_id)
+            .map_or(&[], |list| list.tasks.as_slice()),
+        (None, None) => &project.tasks,
+    };
+    let order_index = next_order_index(siblings.iter().map(|sibling| sibling.order_index));
     let created = recurrence::next_task(task, Utc::now(), display.timezone, order_index, user_id)?;
     Some(Successor {
         created,
@@ -4267,7 +3769,7 @@ fn spawn_completion_patch<R>(
 }
 
 /// Creates the next task in a series, with its own copies of the completed
-/// task's subtasks, and moves the rule over to it.
+/// task's subtasks at every depth, and moves the rule over to it.
 ///
 /// The completed task gives up its link, so the rule is never shared: editing
 /// or clearing the schedule on one task cannot reach the other. The copied
@@ -4291,10 +3793,12 @@ where
         task_facades::add_task_tag_relation(repositories, project_id, &next.id, tag_id, user_id)
             .await?;
     }
+    // Parents come before their children, so each parent exists when its
+    // children are created.
     for sub_task in &successor.created.sub_tasks {
-        subtask_facades::create_sub_task(repositories, project_id, sub_task, user_id).await?;
+        task_facades::create_task(repositories, project_id, sub_task, user_id).await?;
         for tag_id in &sub_task.tag_ids {
-            subtask_facades::add_subtask_tag_relation(
+            task_facades::add_task_tag_relation(
                 repositories,
                 project_id,
                 &sub_task.id,
@@ -4389,6 +3893,156 @@ fn spawn_order_updates<R>(
     });
 }
 
+/// Completes (or reopens) a subtask that only the open task's pane lists: its
+/// own row is hidden under a closed task or by the filter, and it is not the
+/// task in the pane.
+///
+/// The pane's summary is the only place it shows, so that is updated at once;
+/// the reload after the write puts the list and the pane back in step with
+/// storage either way.
+fn toggle_subtask_in_pane<R>(
+    window: &AppWindow,
+    state: &Arc<Mutex<SharedState>>,
+    repositories: &Arc<R>,
+    runtime: &Handle,
+    timezone: DisplayTimezone,
+    task_id: &SharedString,
+) where
+    R: InfrastructureRepositoriesTrait + Send + Sync + 'static,
+{
+    let app_state = window.global::<AppState>();
+    let mut parent = app_state.get_selected_task();
+    let subtasks = parent.subtasks.clone();
+    let Some(index) = subtasks.iter().position(|sub| sub.id == *task_id) else {
+        return;
+    };
+    let Some(mut summary) = subtasks.row_data(index) else {
+        return;
+    };
+    let completed = !summary.completed;
+    summary.completed = completed;
+    summary.overdue = summary.overdue && !completed;
+    subtasks.set_row_data(index, summary);
+    parent.subtask_done_count =
+        i32::try_from(subtasks.iter().filter(|sub| sub.completed).count()).unwrap_or(i32::MAX);
+    app_state.set_selected_task(parent);
+
+    let (project_id, user_id) = {
+        let state = state.lock().expect("shared state poisoned");
+        (state.project_of_task(task_id), state.current_user)
+    };
+    let (Some(project_id), Some(user_id), Ok(parsed_id)) =
+        (project_id, user_id, TaskId::try_from_str(task_id.as_str()))
+    else {
+        tracing::error!(%task_id, "cannot update a subtask: unknown project or user");
+        report_error(&window.as_weak(), "task.save-failed");
+        return;
+    };
+    let patch = PartialTask {
+        status: Some(if completed {
+            DomainStatus::Completed
+        } else {
+            DomainStatus::NotStarted
+        }),
+        ..Default::default()
+    };
+
+    let weak = window.as_weak();
+    let state = Arc::clone(state);
+    let repositories = Arc::clone(repositories);
+    runtime.spawn(async move {
+        let result = task_facades::update_task(
+            repositories.as_ref(),
+            &project_id,
+            &parsed_id,
+            &patch,
+            &user_id,
+        )
+        .await;
+        if let Err(error) = result {
+            let ui_error = UiError::from(error);
+            tracing::error!(%ui_error, %parsed_id, "failed to update subtask");
+            report_error(&weak, ui_error.code());
+        }
+        reload_projects(&weak, &state, &repositories, timezone).await;
+    });
+}
+
+/// Moves a visible top-level task to the position `to` picks among the visible
+/// top-level rows, and persists the new stored order.
+///
+/// The stored order is only what the list shows while sorting is manual;
+/// rewriting it from a derived order would move rows the user never saw move.
+fn move_top_level_task<R>(
+    window: &AppWindow,
+    state: &Arc<Mutex<SharedState>>,
+    repositories: &Arc<R>,
+    runtime: &Handle,
+    timezone: DisplayTimezone,
+    task_id: &SharedString,
+    to: impl FnOnce(usize) -> Option<usize>,
+) where
+    R: InfrastructureRepositoriesTrait + Send + Sync + 'static,
+{
+    if state.lock().expect("shared state poisoned").task_sort != TaskSort::Manual {
+        tracing::debug!(%task_id, "ignoring a reorder while a sort is applied");
+        return;
+    }
+    let rows: Vec<TaskItem> = window.global::<AppState>().get_tasks().iter().collect();
+    let Some((previous, next)) = ordering::neighbours_after_move(&rows, task_id.as_str(), to)
+    else {
+        return;
+    };
+
+    let updates = {
+        let mut guard = state.lock().expect("shared state poisoned");
+        ordering::reorder_task(&mut guard.trees, task_id, previous, next)
+    };
+    let Some(updates) = updates else {
+        tracing::warn!(%task_id, "cannot reorder a task that is not loaded");
+        return;
+    };
+    apply_move(
+        &window.as_weak(),
+        state,
+        repositories,
+        runtime,
+        timezone,
+        updates,
+    );
+}
+
+/// Shows a move already made in the cached tree, then persists it.
+fn apply_move<R>(
+    weak: &Weak<AppWindow>,
+    state: &Arc<Mutex<SharedState>>,
+    repositories: &Arc<R>,
+    runtime: &Handle,
+    timezone: DisplayTimezone,
+    (project_id, updates): ordering::tree::OrderUpdates,
+) where
+    R: InfrastructureRepositoriesTrait + Send + Sync + 'static,
+{
+    let Some(window) = weak.upgrade() else { return };
+    // The task may leave the visible set, and lists change size.
+    refresh_projects(&window, state);
+    refresh_tasks(&window, state, timezone);
+    let selected = window.global::<AppState>().get_selected_task_id();
+    if !selected.is_empty() && task_row(&window, &selected).is_none() {
+        clear_selection(&window);
+    }
+
+    spawn_order_updates(
+        weak,
+        state,
+        repositories,
+        runtime,
+        project_id,
+        updates,
+        timezone,
+    );
+}
+
 /// Restores a row to the value captured before the optimistic update.
 fn rollback_task_row(weak: &Weak<AppWindow>, snapshot: TaskRowSnapshot) {
     let posted = weak.upgrade_in_event_loop(move |window| {
@@ -4399,104 +4053,6 @@ fn rollback_task_row(weak: &Weak<AppWindow>, snapshot: TaskRowSnapshot) {
     if let Err(error) = posted {
         tracing::error!(%error, "could not roll back the optimistic update");
     }
-}
-
-/// Restores a subtask row after a failed save.
-fn rollback_subtask_row(weak: &Weak<AppWindow>, snapshot: SubTaskRowSnapshot) {
-    let posted = weak.upgrade_in_event_loop(move |window| {
-        let id = SharedString::from(snapshot.id.as_str());
-        update_subtask_row(&window, &id, move |item| snapshot.restore(item));
-        sync_selected_subtask(&window, &id);
-    });
-    if let Err(error) = posted {
-        tracing::error!(%error, "could not roll back the optimistic subtask update");
-    }
-}
-
-/// Waits for a pause in subtask text input, then persists only the newest value.
-#[allow(clippy::too_many_arguments)]
-fn spawn_debounced_subtask_patch<R>(
-    weak: &Weak<AppWindow>,
-    state: &Arc<Mutex<SharedState>>,
-    repositories: &Arc<R>,
-    runtime: &Handle,
-    debouncer: &Arc<EditDebouncer<SubTaskRowSnapshot>>,
-    subtask_id: String,
-    patch: PartialSubTask,
-    snapshot: SubTaskRowSnapshot,
-) where
-    R: InfrastructureRepositoriesTrait + Send + Sync + 'static,
-{
-    let revision = debouncer.schedule(subtask_id.clone(), snapshot);
-    let weak = weak.clone();
-    let state = Arc::clone(state);
-    let repositories = Arc::clone(repositories);
-    let debouncer = Arc::clone(debouncer);
-    let subtask_runtime = runtime.clone();
-    runtime.spawn(async move {
-        tokio::time::sleep(TEXT_SAVE_DEBOUNCE).await;
-        let Some(snapshot) = debouncer.take_if_latest(&subtask_id, revision) else {
-            return;
-        };
-        spawn_subtask_patch(
-            &weak,
-            &state,
-            &repositories,
-            &subtask_runtime,
-            subtask_id,
-            patch,
-            snapshot,
-        );
-    });
-}
-
-/// Persists a subtask patch, rolling the row back when the write fails.
-fn spawn_subtask_patch<R>(
-    weak: &Weak<AppWindow>,
-    state: &Arc<Mutex<SharedState>>,
-    repositories: &Arc<R>,
-    runtime: &Handle,
-    subtask_id: String,
-    patch: PartialSubTask,
-    snapshot: SubTaskRowSnapshot,
-) where
-    R: InfrastructureRepositoriesTrait + Send + Sync + 'static,
-{
-    let (project_id, user_id) = {
-        let state = state.lock().expect("shared state poisoned");
-        (state.project_of_subtask(&subtask_id), state.current_user)
-    };
-    let (Some(project_id), Some(user_id)) = (project_id, user_id) else {
-        tracing::error!(%subtask_id, "cannot update a subtask: unknown project or user");
-        rollback_subtask_row(weak, snapshot);
-        report_error(weak, "task.save-failed");
-        return;
-    };
-    let Ok(parsed_id) = SubTaskId::try_from_str(&subtask_id) else {
-        rollback_subtask_row(weak, snapshot);
-        report_error(weak, "input.malformed-id");
-        return;
-    };
-
-    let weak = weak.clone();
-    let repositories = Arc::clone(repositories);
-    runtime.spawn(async move {
-        let result = subtask_facades::update_sub_task(
-            repositories.as_ref(),
-            &project_id,
-            &parsed_id,
-            &patch,
-            &user_id,
-        )
-        .await;
-
-        if let Err(error) = result {
-            let ui_error = UiError::from(error);
-            tracing::error!(%ui_error, %subtask_id, "failed to update subtask");
-            rollback_subtask_row(&weak, snapshot);
-            report_error(&weak, ui_error.code());
-        }
-    });
 }
 
 /// Shows an error, resolving the message through the translation catalogue.
@@ -4522,9 +4078,79 @@ fn indexed_task_row(window: &AppWindow, task_id: &SharedString) -> Option<(usize
         .find(|(_, item)| item.id == task_id)
 }
 
-/// Reads the current UI row for a task.
+/// Reads a task as the UI shows it: its row, or the detail pane's copy when
+/// the list does not show it (a subtask under a closed task, or one the
+/// search leaves out).
 fn task_row(window: &AppWindow, task_id: &SharedString) -> Option<TaskItem> {
-    indexed_task_row(window, task_id).map(|(_, item)| item)
+    indexed_task_row(window, task_id)
+        .map(|(_, item)| item)
+        .or_else(|| {
+            let app_state = window.global::<AppState>();
+            (app_state.get_has_selected_task() && app_state.get_selected_task_id() == *task_id)
+                .then(|| app_state.get_selected_task())
+        })
+}
+
+/// Opens a task at any depth: the tasks above it open so the list shows where
+/// it is, and it is selected. A task the search leaves out is still shown in
+/// the detail pane.
+fn open_task(
+    window: &AppWindow,
+    state: &Arc<Mutex<SharedState>>,
+    task_id: &SharedString,
+    timezone: DisplayTimezone,
+) {
+    let opened = {
+        let mut guard = state.lock().expect("shared state poisoned");
+        let ancestors: Vec<String> = guard
+            .ancestors_of(task_id)
+            .iter()
+            .map(|ancestor| ancestor.id.as_str())
+            .collect();
+        let mut opened = false;
+        for ancestor in ancestors {
+            if !guard.task_ui.is_expanded(&ancestor) {
+                guard.task_ui.expand(&ancestor);
+                opened = true;
+            }
+        }
+        opened
+    };
+    if opened {
+        refresh_tasks(window, state, timezone);
+    }
+
+    if indexed_task_row(window, task_id).is_some() {
+        select_task(window, task_id);
+    } else if show_from_tree(window, state, task_id, timezone) {
+        window.global::<AppState>().set_active_pane(Pane::Detail);
+    } else {
+        tracing::warn!(%task_id, "selection target is not loaded");
+        clear_selection(window);
+    }
+}
+
+/// Fills the detail pane with a task straight from the cached tree, for a task
+/// the list does not show. Returns whether the task was found.
+fn show_from_tree(
+    window: &AppWindow,
+    state: &Arc<Mutex<SharedState>>,
+    task_id: &SharedString,
+    timezone: DisplayTimezone,
+) -> bool {
+    let display = display_settings(window, timezone);
+    let item = {
+        let guard = state.lock().expect("shared state poisoned");
+        query::task_item_from_tree(&guard, task_id, &display)
+    };
+    let Some(item) = item else {
+        return false;
+    };
+    let app_state = window.global::<AppState>();
+    app_state.set_selected_task_id(task_id.clone());
+    app_state.set_selected_task(item);
+    app_state.set_has_selected_task(true);
+    true
 }
 
 /// Selects a task and mirrors the resolved row into `AppState`.
@@ -4566,7 +4192,6 @@ fn select_task_at_offset(window: &AppWindow, delta: i32) -> bool {
         return false;
     };
 
-    clear_subtask_selection(window);
     select_task(window, &task.id);
     app_state.set_active_pane(Pane::List);
     true
@@ -4583,7 +4208,6 @@ fn select_task_boundary(window: &AppWindow, first: bool) -> bool {
         return false;
     };
 
-    clear_subtask_selection(window);
     select_task(window, &task.id);
     app_state.set_active_pane(Pane::List);
     true
@@ -4607,44 +4231,6 @@ fn task_boundary_index(row_count: usize, first: bool) -> Option<usize> {
     (row_count > 0).then_some(if first { 0 } else { row_count - 1 })
 }
 
-/// Reads the current UI row for a subtask, wherever its parent task is.
-fn subtask_row(window: &AppWindow, subtask_id: &SharedString) -> Option<SubTaskItem> {
-    window
-        .global::<AppState>()
-        .get_tasks()
-        .iter()
-        .find_map(|task| task.subtasks.iter().find(|sub| sub.id == subtask_id))
-}
-
-/// Applies a change to a single subtask row without rebuilding the model.
-///
-/// The subtask models are nested inside the task rows, and the nested `ModelRc`
-/// is shared with `selected-task`, so writing here updates both views of it.
-fn update_subtask_row(window: &AppWindow, subtask_id: &str, edit: impl FnOnce(&mut SubTaskItem)) {
-    for task in window.global::<AppState>().get_tasks().iter() {
-        let subtasks = task.subtasks;
-        let Some(index) = subtasks.iter().position(|sub| sub.id == subtask_id) else {
-            continue;
-        };
-        if let Some(mut item) = subtasks.row_data(index) {
-            edit(&mut item);
-            subtasks.set_row_data(index, item);
-        }
-        return;
-    }
-}
-
-/// Keeps the subtask detail pane in step after a row changed in place.
-fn sync_selected_subtask(window: &AppWindow, subtask_id: &SharedString) {
-    let app_state = window.global::<AppState>();
-    if app_state.get_selected_subtask_id() != subtask_id {
-        return;
-    }
-    if let Some(item) = subtask_row(window, subtask_id) {
-        app_state.set_selected_subtask(item);
-    }
-}
-
 /// Keeps the detail pane in step after a row changed in place.
 fn sync_selected_task(window: &AppWindow, task_id: &SharedString) {
     let app_state = window.global::<AppState>();
@@ -4661,32 +4247,79 @@ fn clear_selection(window: &AppWindow) {
     let app_state = window.global::<AppState>();
     app_state.set_selected_task_id(SharedString::default());
     app_state.set_has_selected_task(false);
-    clear_subtask_selection(window);
     app_state.set_active_pane(Pane::List);
 }
 
-/// Drops the subtask selection, leaving the parent task selected.
-fn clear_subtask_selection(window: &AppWindow) {
-    let app_state = window.global::<AppState>();
-    app_state.set_selected_subtask_id(SharedString::default());
-    app_state.set_has_selected_subtask(false);
-    app_state.set_selected_subtask(SubTaskItem::default());
-}
-
-/// Applies a change to a single task row without rebuilding the model.
+/// Applies a change to a single task without rebuilding the model.
 ///
 /// Rebuilding would reset scroll position and discard row identity, so
-/// single-value edits always go through here.
+/// single-value edits always go through here. A task without a row is only in
+/// the detail pane, so the change goes there. Either way the summary its
+/// parent shows of it follows.
 fn update_task_row(window: &AppWindow, task_id: &str, edit: impl FnOnce(&mut TaskItem)) {
-    let model = window.global::<AppState>().get_tasks();
-    let Some(index) = model.iter().position(|item| item.id == task_id) else {
+    let app_state = window.global::<AppState>();
+    let model = app_state.get_tasks();
+    match model.iter().position(|item| item.id == task_id) {
+        Some(index) => {
+            let Some(mut item) = model.row_data(index) else {
+                return;
+            };
+            edit(&mut item);
+            model.set_row_data(index, item);
+        }
+        None if app_state.get_has_selected_task()
+            && app_state.get_selected_task_id() == task_id =>
+        {
+            let mut item = app_state.get_selected_task();
+            edit(&mut item);
+            app_state.set_selected_task(item);
+        }
+        None => return,
+    }
+    sync_subtask_summary(window, task_id);
+}
+
+/// Keeps the parent's list of subtasks in step after `child_id` changed in
+/// place: its row's progress, and the list in the pane when the parent is open.
+fn sync_subtask_summary(window: &AppWindow, child_id: &str) {
+    let Some(child) = task_row(window, &SharedString::from(child_id)) else {
         return;
     };
-    let Some(mut item) = model.row_data(index) else {
+    if child.parent_id.is_empty() {
         return;
+    }
+    let refresh = |parent: &mut TaskItem| {
+        let subtasks = parent.subtasks.clone();
+        let Some(index) = subtasks.iter().position(|sub| sub.id == child_id) else {
+            return false;
+        };
+        if let Some(mut sub) = subtasks.row_data(index) {
+            sub.title = child.title.clone();
+            sub.completed = child.completed;
+            sub.due_label = child.due_label.clone();
+            sub.has_due = child.has_due;
+            sub.overdue = child.overdue;
+            subtasks.set_row_data(index, sub);
+        }
+        parent.subtask_done_count =
+            i32::try_from(subtasks.iter().filter(|sub| sub.completed).count()).unwrap_or(i32::MAX);
+        true
     };
-    edit(&mut item);
-    model.set_row_data(index, item);
+
+    let app_state = window.global::<AppState>();
+    let model = app_state.get_tasks();
+    if let Some(index) = model.iter().position(|item| item.id == child.parent_id)
+        && let Some(mut parent) = model.row_data(index)
+        && refresh(&mut parent)
+    {
+        model.set_row_data(index, parent);
+    }
+    if app_state.get_selected_task_id() == child.parent_id {
+        let mut parent = app_state.get_selected_task();
+        if refresh(&mut parent) {
+            app_state.set_selected_task(parent);
+        }
+    }
 }
 
 /// Applies a change to a single sidebar project row.
@@ -4735,25 +4368,43 @@ mod tests {
     }
 
     #[test]
-    fn a_new_subtask_has_default_values() {
-        let task_id = TaskId::new();
+    fn a_new_subtask_belongs_to_its_parent_and_no_list() {
+        let parent = TaskId::new();
         let user_id = UserId::new();
 
-        let subtask = new_subtask(task_id, "Pick up bread".to_string(), 3, user_id);
+        let subtask = new_task(
+            ProjectId::new(),
+            Some(TaskListId::new()),
+            Some(parent),
+            "Pick up bread".to_string(),
+            3,
+            user_id,
+        );
 
-        assert_eq!(subtask.task_id, task_id);
+        assert_eq!(subtask.parent_task_id, Some(parent));
+        assert_eq!(subtask.list_id, None);
         assert_eq!(subtask.title, "Pick up bread");
         assert_eq!(subtask.order_index, 3);
         assert_eq!(subtask.status, DomainStatus::NotStarted);
-        assert!(!subtask.completed);
         assert_eq!(subtask.updated_by, user_id);
     }
 
     #[test]
-    fn a_new_subtask_follows_the_highest_existing_order() {
-        assert_eq!(next_subtask_order([2, 7, 4].into_iter()), 8);
-        assert_eq!(next_subtask_order([].into_iter()), 0);
-        assert_eq!(next_subtask_order([i32::MAX].into_iter()), i32::MAX);
+    fn a_new_top_level_task_keeps_its_place() {
+        let list_id = TaskListId::new();
+        let in_list = new_task(
+            ProjectId::new(),
+            Some(list_id),
+            None,
+            "a".into(),
+            0,
+            UserId::new(),
+        );
+        let loose = new_task(ProjectId::new(), None, None, "b".into(), 0, UserId::new());
+
+        assert_eq!(in_list.list_id, Some(list_id));
+        assert_eq!(in_list.parent_task_id, None);
+        assert_eq!(loose.list_id, None);
     }
 
     #[test]
@@ -4790,7 +4441,8 @@ mod tests {
         TaskTree {
             id: TaskId::new(),
             project_id: ProjectId::new(),
-            list_id: TaskListId::new(),
+            list_id: Some(TaskListId::new()),
+            parent_task_id: None,
             title: "Buy milk".to_string(),
             description: None,
             status: DomainStatus::NotStarted,
@@ -4853,18 +4505,6 @@ mod tests {
         assert!(state.tag_in_project(&project_id, &gone.id).is_none());
     }
 
-    #[test]
-    fn a_subtask_save_failure_becomes_a_ui_error() {
-        let result = subtask_save_result(Err(ServiceError::ValidationError(
-            "title is required".to_string(),
-        )));
-
-        assert_eq!(
-            result.expect_err("the save should fail").code(),
-            "input.validation-failed"
-        );
-    }
-
     pub(super) fn task_named(title: &str) -> TaskTree {
         TaskTree {
             title: title.to_string(),
@@ -4906,6 +4546,7 @@ mod tests {
             deleted: false,
             updated_by: UserId::new(),
             task_lists,
+            tasks: Vec::new(),
         }
     }
 
@@ -4937,10 +4578,14 @@ mod tests {
             vec![list_named("Errands", vec![task_named("Shelved")])],
         );
         archived.is_archived = true;
-        let other = project_named(
+        let mut other = project_named(
             "Home",
             vec![list_named("Errands", vec![task_named("Milk")])],
         );
+        other.tasks.push(TaskTree {
+            list_id: None,
+            ..task_named("Loose")
+        });
 
         let mut state = SharedState {
             trees: vec![project, archived, other],
@@ -4953,21 +4598,32 @@ mod tests {
             .live_tasks()
             .map(|(_, _, task)| task.title.as_str())
             .collect();
-        assert_eq!(titles, ["Buy milk", "Milk"]);
+        assert_eq!(titles, ["Buy milk", "Milk", "Loose"]);
 
         state.show_archived_projects = true;
         let titles: Vec<&str> = state
             .live_tasks()
             .map(|(_, _, task)| task.title.as_str())
             .collect();
-        assert_eq!(titles, ["Buy milk", "Shelved", "Milk"]);
+        assert_eq!(titles, ["Buy milk", "Shelved", "Milk", "Loose"]);
     }
 
     #[test]
     fn reminders_are_only_collected_from_rows_that_still_exist() {
         let due = Utc::now();
+        let child = TaskTree {
+            reminders: vec![due],
+            ..task_named("Find the card")
+        };
+        let child_id = child.id.as_str();
+        let gone_child = TaskTree {
+            deleted: true,
+            reminders: vec![due],
+            ..task_named("Never mind")
+        };
         let live = TaskTree {
             reminders: vec![due],
+            sub_tasks: vec![child, gone_child],
             ..task_named("Call the dentist")
         };
         let live_id = live.id.as_str();
@@ -4995,7 +4651,10 @@ mod tests {
 
         assert_eq!(
             specs,
-            vec![(live_id, "Call the dentist".to_string(), due)],
+            vec![
+                (live_id, "Call the dentist".to_string(), due),
+                (child_id, "Find the card".to_string(), due),
+            ],
             "a reminder on a row the user deleted must not still fire"
         );
     }

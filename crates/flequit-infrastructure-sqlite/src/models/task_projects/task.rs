@@ -30,8 +30,13 @@ pub struct Model {
     pub id: String,
 
     /// 所属タスクリストID
+    /// 最上位のタスクだけが持つ。NULL はプロジェクト直下のタスクと子のタスク
     #[sea_orm(indexed)] // タスクリスト別検索用
-    pub list_id: String,
+    pub list_id: Option<String>,
+
+    /// 親タスク。NULL は最上位のタスク
+    #[sea_orm(indexed)] // 子の検索用
+    pub parent_task_id: Option<String>,
 
     /// タスクタイトル
     #[sea_orm(indexed)] // タイトル検索用
@@ -99,8 +104,12 @@ pub enum Relation {
         to = "(super::task_list::Column::ProjectId, super::task_list::Column::Id)"
     )]
     TaskList,
-    #[sea_orm(has_many = "super::subtask::Entity")]
-    Subtasks,
+    #[sea_orm(
+        belongs_to = "Entity",
+        from = "(Column::ProjectId, Column::ParentTaskId)",
+        to = "(Column::ProjectId, Column::Id)"
+    )]
+    Parent,
 }
 
 impl Related<super::project::Entity> for Entity {
@@ -112,12 +121,6 @@ impl Related<super::project::Entity> for Entity {
 impl Related<super::task_list::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::TaskList.def()
-    }
-}
-
-impl Related<super::subtask::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Subtasks.def()
     }
 }
 
@@ -149,7 +152,8 @@ impl SqliteModelConverter<Task> for Model {
         Ok(Task {
             id: TaskId::from(self.id.clone()),
             project_id: ProjectId::from(self.project_id.clone()),
-            list_id: TaskListId::from(self.list_id.clone()),
+            list_id: self.list_id.clone().map(TaskListId::from),
+            parent_task_id: self.parent_task_id.clone().map(TaskId::from),
             title: self.title.clone(),
             description: self.description.clone(),
             status,
@@ -196,7 +200,8 @@ impl DomainToSqliteConverter<ActiveModel> for Task {
         Ok(ActiveModel {
             id: Set(self.id.to_string()),
             project_id: Set(self.project_id.to_string()),
-            list_id: Set(self.list_id.to_string()),
+            list_id: Set(self.list_id.map(|id| id.to_string())),
+            parent_task_id: Set(self.parent_task_id.map(|id| id.to_string())),
             title: Set(self.title.clone()),
             description: Set(self.description.clone()),
             status: Set(status_string),
@@ -241,7 +246,8 @@ impl DomainToSqliteConverterWithProjectId<ActiveModel> for Task {
         Ok(ActiveModel {
             id: Set(self.id.to_string()),
             project_id: Set(project_id.to_string()),
-            list_id: Set(self.list_id.to_string()),
+            list_id: Set(self.list_id.map(|id| id.to_string())),
+            parent_task_id: Set(self.parent_task_id.map(|id| id.to_string())),
             title: Set(self.title.clone()),
             description: Set(self.description.clone()),
             status: Set(status_string),

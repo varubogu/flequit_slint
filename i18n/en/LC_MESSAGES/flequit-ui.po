@@ -75,21 +75,6 @@ msgctxt "DateTimePicker"
 msgid "Not set"
 msgstr "Not set"
 
-#: crates/flequit-ui/ui/components/subtask-row.slint:54
-msgctxt "TaskList"
-msgid "Complete {0}"
-msgstr "Complete {0}"
-
-#: crates/flequit-ui/ui/components/subtask-row.slint:69
-msgctxt "TaskList"
-msgid "Edit subtask {0}"
-msgstr "Edit subtask {0}"
-
-#: crates/flequit-ui/ui/components/subtask-row.slint:75
-msgctxt "TaskList"
-msgid "Open subtask {0}"
-msgstr "Open subtask {0}"
-
 #: crates/flequit-ui/ui/globals/i18n.slint:23
 msgctxt "DueFilter"
 msgid "Within {0} minutes"
@@ -610,36 +595,6 @@ msgctxt "Recurrence"
 msgid "Select the last date"
 msgstr "Select the last date"
 
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:37
-msgctxt "SubTaskDetail"
-msgid "Back to {0}"
-msgstr "Back to {0}"
-
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:42
-msgctxt "SubTaskDetail"
-msgid "Subtask of {0}"
-msgstr "Subtask of {0}"
-
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:52
-msgctxt "SubTaskDetail"
-msgid "Delete subtask"
-msgstr "Delete subtask"
-
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:67
-msgctxt "SubTaskDetail"
-msgid "Subtask title"
-msgstr "Subtask title"
-
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:74
-msgctxt "SubTaskDetail"
-msgid "Due"
-msgstr "Due"
-
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:99
-msgctxt "SubTaskDetail"
-msgid "Status"
-msgstr "Status"
-
 #: crates/flequit-ui/ui/views/task-detail/task-detail.slint:262
 msgctxt "Status"
 msgid "Not started"
@@ -674,11 +629,6 @@ msgctxt "Status"
 msgid "Cancelled"
 msgstr "Cancelled"
 
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:163
-msgctxt "SubTaskDetail"
-msgid "Priority"
-msgstr "Priority"
-
 #: crates/flequit-ui/ui/views/task-detail/task-detail.slint:315
 msgctxt "Priority"
 msgid "None"
@@ -706,16 +656,6 @@ msgstr "Medium"
 msgctxt "Priority"
 msgid "High"
 msgstr "High"
-
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:210
-msgctxt "SubTaskDetail"
-msgid "Notes"
-msgstr "Notes"
-
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:219
-msgctxt "SubTaskDetail"
-msgid "Subtask notes"
-msgstr "Subtask notes"
 
 #: crates/flequit-ui/ui/views/task-detail/task-detail.slint:75
 msgctxt "TaskDetail"
@@ -1026,20 +966,10 @@ msgctxt "TaskList"
 msgid "Create project"
 msgstr "Create project"
 
-#: crates/flequit-ui/ui/views/task-list/task-list.slint:174
-msgctxt "TaskList"
-msgid "Create task list"
-msgstr "Create task list"
-
 #: crates/flequit-ui/ui/views/task-list/task-list.slint:180
 msgctxt "TaskList"
 msgid "Add your first task"
 msgstr "Add your first task"
-
-#: crates/flequit-ui/ui/views/task-list/task-list.slint:137
-msgctxt "TaskList"
-msgid "Select a list to add a task"
-msgstr "Select a list to add a task"
 
 #: crates/flequit-ui/ui/views/task-list/task-list.slint:138
 #: crates/flequit-ui/ui/views/task-list/task-list.slint:138
@@ -1957,16 +1887,6 @@ msgctxt "TaskDetail"
 msgid "Change priority"
 msgstr "Change priority"
 
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:117
-msgctxt "SubTaskDetail"
-msgid "Change status"
-msgstr "Change status"
-
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:136
-msgctxt "SubTaskDetail"
-msgid "Change priority"
-msgstr "Change priority"
-
 #: crates/flequit-ui/ui/components/calendar-popup.slint:157
 msgctxt "Calendar"
 msgid "2026/9/15 13:30"
@@ -2085,20 +2005,8 @@ msgid "{0} matching subtasks"
 msgstr "{0} matching subtasks"
 
 msgctxt "TaskList"
-msgid "Open subtask {0}, matches the search"
-msgstr "Open subtask {0}, matches the search"
-
-msgctxt "TaskList"
-msgid "Create a task list to add tasks to."
-msgstr "Create a task list to add tasks to."
-
-msgctxt "TaskList"
 msgid "Add your first task."
 msgstr "Add your first task."
-
-msgctxt "TaskList"
-msgid "No list"
-msgstr "No list"
 
 msgctxt "TaskList"
 msgid "Choose where new tasks go"
@@ -2219,3 +2127,58 @@ msgstr "Suggestions shown while adding a tag"
 msgctxt "Settings"
 msgid "Number of tag suggestions"
 msgstr "Number of tag suggestions"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:76
+msgctxt "TaskDetail"
+msgid "Delete subtask"
+msgstr "Delete subtask"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:118
+msgctxt "TaskDetail"
+msgid "Open {0}"
+msgstr "Open {0}"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:65
+msgctxt "TaskDetail"
+msgid "Subtask"
+msgstr "Subtask"
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:479
+msgctxt "TaskDetail"
+msgid "{0} subtasks"
+msgstr "{0} subtasks"
+
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:257
+msgctxt "TaskList"
+msgid "Create a project to add a task"
+msgstr "Create a project to add a task"
+
+#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:126
+msgctxt "TaskList"
+msgid "Directly in the project"
+msgstr "Directly in the project"
+
+#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:154
+msgctxt "TaskList"
+msgid "Directly in {0}"
+msgstr "Directly in {0}"
+
+#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:71
+msgctxt "TaskList"
+msgid "New tasks go directly to {0}. Change"
+msgstr "New tasks go directly to {0}. Change"
+
+#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:45
+msgctxt "TaskList"
+msgid "No project"
+msgstr "No project"
+
+#: crates/flequit-ui/ui/components/task-row.slint:97
+msgctxt "TaskList"
+msgid "Show subtasks of {0}"
+msgstr "Show subtasks of {0}"
+
+#: crates/flequit-ui/ui/components/task-row.slint:195
+msgctxt "TaskList"
+msgid "{0}, matches the search"
+msgstr "{0}, matches the search"

@@ -1,17 +1,15 @@
-//! タグ・タスクタグ・サブタスクタグ用UnifiedRepositoryビルダー
+//! タグ・タスクタグ用UnifiedRepositoryビルダー
 //!
-//! Tag、TaskTag、SubTaskTag エンティティのUnifiedRepositoryを構築するメソッドを提供する
+//! Tag、TaskTag（サブタスクを含む）エンティティのUnifiedRepositoryを構築するメソッドを提供する
 
 use super::{UnifiedManager, get_default_automerge_path};
 use crate::automerge_sync::QueuedSqlite;
-use crate::unified::{SubTaskTagUnifiedRepository, TagUnifiedRepository, TaskTagUnifiedRepository};
+use crate::unified::{TagUnifiedRepository, TaskTagUnifiedRepository};
 use flequit_infrastructure_automerge::infrastructure::task_projects::{
-    subtask_tag::SubtaskTagLocalAutomergeRepository, tag::TagLocalAutomergeRepository,
-    task_tag::TaskTagLocalAutomergeRepository,
+    tag::TagLocalAutomergeRepository, task_tag::TaskTagLocalAutomergeRepository,
 };
 use flequit_infrastructure_sqlite::infrastructure::task_projects::{
-    subtask_tag::SubtaskTagLocalSqliteRepository, tag::TagLocalSqliteRepository,
-    task_tag::TaskTagLocalSqliteRepository,
+    tag::TagLocalSqliteRepository, task_tag::TaskTagLocalSqliteRepository,
 };
 
 impl UnifiedManager {
@@ -104,52 +102,6 @@ impl UnifiedManager {
 
         tracing::info!(
             "TaskTagUnifiedRepository構築完了 - 保存用: {} 検索用: 1 リポジトリ",
-            repo.save_repositories_count()
-        );
-
-        Ok(repo)
-    }
-
-    /// SubTaskTag用UnifiedRepositoryを構築
-    pub async fn create_sub_task_tag_unified_repository(
-        &self,
-    ) -> Result<SubTaskTagUnifiedRepository, Box<dyn std::error::Error>> {
-        let mut repo = SubTaskTagUnifiedRepository::default();
-
-        // SQLiteリポジトリの設定
-        if self.config.sqlite_search_enabled || self.config.sqlite_storage_enabled {
-            let db_manager = self.database_manager()?;
-
-            if self.config.sqlite_search_enabled {
-                let sqlite_repo = SubtaskTagLocalSqliteRepository::new(db_manager.clone());
-                repo.add_sqlite_for_search(sqlite_repo);
-                tracing::info!("SQLiteリポジトリを検索用に追加しました（SubTaskTag）");
-            }
-
-            if self.config.sqlite_storage_enabled {
-                let sqlite_repo = SubtaskTagLocalSqliteRepository::new(db_manager.clone());
-                repo.set_queued_sqlite(QueuedSqlite::new(sqlite_repo, self.sync_queue()?));
-                tracing::info!("SQLiteリポジトリを保存用に追加しました（SubTaskTag）");
-            }
-        }
-
-        // Automergeリポジトリの設定
-        // SQLite があるときは同期キュー経由で反映するため、Automerge へ直接は書かない
-        if self.config.automerge_storage_enabled && !self.config.sqlite_storage_enabled {
-            let automerge_repo = if let Some(doc_manager) = &self.shared_document_manager {
-                SubtaskTagLocalAutomergeRepository::new_with_manager(doc_manager.clone()).await?
-            } else {
-                let base_path =
-                    get_default_automerge_path().ok_or("Failed to get default Automerge path")?;
-                SubtaskTagLocalAutomergeRepository::new(base_path).await?
-            };
-
-            repo.add_automerge_for_save(automerge_repo);
-            tracing::info!("Automergeリポジトリを保存用に追加しました（SubTaskTag）");
-        }
-
-        tracing::info!(
-            "SubTaskTagUnifiedRepository構築完了 - 保存用: {} 検索用: 1 リポジトリ",
             repo.save_repositories_count()
         );
 

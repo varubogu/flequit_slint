@@ -168,18 +168,10 @@ where
     let repository = repositories;
     let mut count = 0u32;
 
-    // タスクでの使用回数をカウント
+    // タスク（サブタスクを含む）での使用回数をカウント
     let tasks = repository.tasks().find_all(project_id).await?;
     for task in tasks {
         if task.tag_ids.contains(tag_id) {
-            count += 1;
-        }
-    }
-
-    // サブタスクでの使用回数をカウント
-    let subtasks = repository.sub_tasks().find_all(project_id).await?;
-    for subtask in subtasks {
-        if subtask.tag_ids.contains(tag_id) {
             count += 1;
         }
     }

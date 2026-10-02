@@ -96,7 +96,8 @@ fn fixture() -> Fixture {
         task: Task {
             id: TaskId::new(),
             project_id,
-            list_id: task_list_id,
+            list_id: Some(task_list_id),
+            parent_task_id: None,
             title: "タスク".to_string(),
             reminders: vec![],
             description: None,
@@ -142,12 +143,12 @@ async fn save_fixture(repositories: &InfrastructureRepositories, f: &Fixture) ->
 fn task_save(project_id: ProjectId) -> AutomergeChange {
     let mut task = fixture().task;
     task.project_id = project_id;
-    AutomergeChange::Task(ProjectChange::Save {
+    AutomergeChange::Task(Box::new(ProjectChange::Save {
         project_id,
         entity: task,
         user_id: UserId::new(),
         timestamp: Utc::now(),
-    })
+    }))
 }
 
 /// Automerge にプロジェクトが無いので、再試行しても当面は失敗し続ける変更
@@ -598,5 +599,127 @@ async fn stopping_the_automerge_repo_leaves_the_applied_changes_on_disk() -> Tes
         tasks.iter().map(|task| task.id).collect::<Vec<_>>(),
         [f.task.id]
     );
+    Ok(())
+}
+
+/// `parent` の子タスク（リストには属さない）
+fn child_of(parent: &Task, title: &str) -> Task {
+    Task {
+        id: TaskId::new(),
+        list_id: None,
+        parent_task_id: Some(parent.id),
+        title: title.to_string(),
+        ..parent.clone()
+    }
+}
+
+#[tokio::test]
+async fn deleting_a_task_takes_its_subtree_and_restoring_brings_it_back() -> TestResult {
+    let repositories = setup("deleting_a_task_takes_its_subtree").await?;
+    let f = fixture();
+    let project_id = f.project.id;
+    save_fixture(&repositories, &f).await?;
+    let child = child_of(&f.task, "子");
+    let grandchild = child_of(&child, "孫");
+    for task in [&child, &grandchild] {
+        repositories
+            .tasks
+            .save(&project_id, task, &f.user_id, &f.timestamp)
+            .await?;
+    }
+
+    repositories
+        .delete_task_transactionally(&project_id, &f.task.id, &f.user_id, &Utc::now())
+        .await?;
+    for id in [f.task.id, child.id, grandchild.id] {
+        assert!(
+            repositories
+                .tasks
+                .find_by_id(&project_id, &id)
+                .await?
+                .is_none()
+        );
+    }
+
+    repositories
+        .restore_task_transactionally(&project_id, &f.task.id, &f.user_id, &Utc::now())
+        .await?;
+
+    let restored_child = repositories
+        .tasks
+        .find_by_id(&project_id, &child.id)
+        .await?
+        .expect("child is back");
+    assert_eq!(restored_child.parent_task_id, Some(f.task.id));
+    let restored_grandchild = repositories
+        .tasks
+        .find_by_id(&project_id, &grandchild.id)
+        .await?
+        .expect("grandchild is back");
+    assert_eq!(restored_grandchild.parent_task_id, Some(child.id));
+    let processor = repositories.automerge_sync().unwrap();
+    processor.process_pending().await?;
+    let mut active: Vec<TaskId> = processor
+        .targets()
+        .projects()
+        .get_active_tasks(&project_id)
+        .await?
+        .iter()
+        .map(|task| task.id)
+        .collect();
+    active.sort();
+    let mut expected = vec![f.task.id, child.id, grandchild.id];
+    expected.sort();
+    assert_eq!(active, expected);
+    Ok(())
+}
+
+/// アプリの更新前にキューへ入ったサブタスクの行は、親を持つタスクとして Automerge に入る
+#[tokio::test]
+async fn a_queued_legacy_subtask_lands_as_a_child_task() -> TestResult {
+    let repositories = setup("a_queued_legacy_subtask").await?;
+    let f = fixture();
+    let project_id = f.project.id;
+    save_fixture(&repositories, &f).await?;
+    let subtask_id = TaskId::new();
+    let legacy: AutomergeChange = serde_json::from_value(serde_json::json!({
+        "target": "sub_task",
+        "change": {
+            "op": "save",
+            "project_id": project_id,
+            "entity": {
+                "id": subtask_id,
+                "task_id": f.task.id,
+                "title": "旧サブタスク",
+                "status": "not_started",
+                "priority": null,
+                "order_index": 0,
+                "completed": true,
+                "created_at": f.timestamp,
+                "updated_at": f.timestamp,
+                "deleted": false,
+                "updated_by": f.user_id,
+            },
+            "user_id": f.user_id,
+            "timestamp": f.timestamp,
+        }
+    }))?;
+    enqueue(&repositories, vec![legacy]).await?;
+
+    let processor = repositories.automerge_sync().unwrap();
+    let report = processor.process_pending().await?;
+
+    assert_eq!(report.processed, 4);
+    let tasks = processor
+        .targets()
+        .projects()
+        .get_tasks(&project_id)
+        .await?;
+    let child = tasks
+        .iter()
+        .find(|task| task.id == subtask_id)
+        .expect("legacy subtask was applied");
+    assert_eq!(child.parent_task_id, Some(f.task.id));
+    assert_eq!(child.status, TaskStatus::Completed);
     Ok(())
 }

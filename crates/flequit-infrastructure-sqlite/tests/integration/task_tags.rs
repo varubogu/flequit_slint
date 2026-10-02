@@ -92,7 +92,8 @@ async fn test_task_tag_relation_operations() -> Result<(), Box<dyn std::error::E
     let task = Task {
         id: task_id,
         project_id,
-        list_id: task_list_id,
+        list_id: Some(task_list_id),
+        parent_task_id: None,
         title: "TaskTag紐づけテスト用タスク".to_string(),
         reminders: vec![],
         description: None,
@@ -273,7 +274,8 @@ async fn test_task_tag_bulk_update() -> Result<(), Box<dyn std::error::Error>> {
     let task = Task {
         id: task_id,
         project_id,
-        list_id: task_list_id,
+        list_id: Some(task_list_id),
+        parent_task_id: None,
         title: "一括更新テスト用タスク".to_string(),
         reminders: vec![],
         description: None,

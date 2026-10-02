@@ -13,14 +13,15 @@ Flequit のデータ管理は、ローカル環境での CRDT (Conflict-free Rep
 | Settings | `settings.automerge` | 設定情報 + プロジェクト一覧 + カスタム日付/日時フォーマット + ローカル設定 |
 | Account | `account.automerge` | アカウントの集合 + 現在のアカウント ID |
 | User | `user.automerge` | ユーザー情報の集合 (**追加・更新のみ、削除不可**) + ユーザー設定（タグブックマーク） |
-| Project | `project_{id}.automerge` | プロジェクト詳細 + タスクリスト + タスク + サブタスク + タグ + メンバー (1 プロジェクト = 1 ファイル) |
+| Project | `project_{id}.automerge` | プロジェクト詳細 + タスクリスト + タスク（サブタスクを含む） + タグ + メンバー (1 プロジェクト = 1 ファイル) |
 
 ### ドキュメント間の関係
 
 - **Settings → Project**: プロジェクト一覧から各プロジェクト詳細へナビゲーション
 - **Account ↔ User**: 認証情報 (ローカル/サーバー) と公開プロフィールの関連
 - **Project → User**: メンバー・担当者は `User.id` で参照
-- **TaskList → Task → SubTask**: 階層的タスク管理
+- **Project → (TaskList →) Task → Task …**: 階層的タスク管理。タスクはリストに属するか
+  プロジェクト直下に置かれ、サブタスクは親を持つタスク（`parent_task_id`）として同じ `tasks` に入る
 
 ## エンティティの集合の保存形
 
@@ -32,11 +33,10 @@ Flequit のデータ管理は、ローカル環境での CRDT (Conflict-free Rep
 | Settings | `projects` | プロジェクト ID |
 | Account | `accounts` | アカウント ID |
 | User | `users` | ユーザー ID |
-| Project | `task_lists` / `tasks` / `subtasks` / `tags` / `recurrence_rules` / `date_conditions` / `weekday_conditions` | 各エンティティの ID |
+| Project | `task_lists` / `tasks` / `tags` / `recurrence_rules` / `date_conditions` / `weekday_conditions` | 各エンティティの ID |
 | Project | `members` | ユーザー ID（1 ユーザーにつき 1 件） |
 | Project | `task_tags` / `task_assignments` | `{task_id}:{tag_id}` / `{task_id}:{user_id}` |
-| Project | `subtask_tags` / `subtask_assignments` | `{subtask_id}:{tag_id}` / `{subtask_id}:{user_id}` |
-| Project | `task_recurrences` / `subtask_recurrences` | タスク ID / サブタスク ID（1 件に 1 ルール） |
+| Project | `task_recurrences` | タスク ID（1 件に 1 ルール） |
 
 タグブックマークは User ドキュメントの `user_preferences/{user_id}/tag_bookmarks/{project_id}/{tag_id}`
 に置く（入れ子の Map）。プロジェクトの基本情報は Project ドキュメント直下の個別のキー
@@ -70,6 +70,22 @@ Flequit のデータ管理は、ローカル環境での CRDT (Conflict-free Rep
 
 以前のタグブックマークの削除は値を `null` にしていた。読み取りでは `null` を無いものとして扱う。
 
+### 以前のサブタスクの集合
+
+以前はサブタスクを独立したエンティティとして `subtasks` / `subtask_tags` / `subtask_assignments` /
+`subtask_recurrences` に置いていた。今のサブタスクは親を持つタスクで、`tasks` / `task_tags` /
+`task_assignments` に入る（[`entity/projects.md`](./entity/projects.md) の Task）。
+
+- 旧集合は、そのプロジェクトのドキュメントへ書き込む直前（同期キューの適用）と、ゴミ箱から復元する前に
+  タスクへ移し、旧キーを消す。サブタスクは `parent_task_id` に元のタスク、`list_id` は null、
+  旧 `completed` が立っていれば状態「完了」、優先度が無ければ 0 にする
+- 移す先にすでに同じキーがあれば書かない（後から書かれた内容を古い内容で上書きしない）。
+  書き終えてから旧キーを消すので、途中で止まってもやり直せる
+- 旧サブタスクの繰り返しの関連は UI から書いていなかったため移さずに消す
+- 一度も書き込まれないプロジェクトには旧集合が残るが、画面の読み取りは SQLite なので見え方は変わらない。
+  将来 Automerge から SQLite を作り直すときは、先にこの移行を通すこと
+- 実装: `crates/flequit-infrastructure-automerge/src/infrastructure/task_projects/legacy_subtasks.rs`
+
 ## データアクセスパターン
 
 集合は `Collection`（集合のキーとエンティティのキーの求め方）を通して読み書きする。
@@ -88,10 +104,9 @@ Flequit のデータ管理は、ローカル環境での CRDT (Conflict-free Rep
 通常の単一エンティティ取得に加え、関連データを含む Tree 構造の取得 API も提供する。
 Tauri 版ではこれらは IPC コマンドだったが、Slint 版では facade の関数となる。
 
-- `get_user_with_assignments(user_id)`: ユーザー + 担当タスク・サブタスク
-- `get_tag_with_relations(tag_id)`: タグ + 関連タスク・サブタスク
+- `get_user_with_assignments(user_id)`: ユーザー + 担当タスク（サブタスクを含む）
+- `get_tag_with_relations(tag_id)`: タグ + 関連タスク（サブタスクを含む）
 - `assign_task_to_user(task_id, user_id)`: 正規化された紐付けテーブルを使用
-- `add_tag_to_subtask(subtask_id, tag_id)`: 同上
 - `associate_recurrence_rule_to_task(task_id, recurrence_rule_id)`: 繰り返しルール関連付け
 
 ## User Document の特別な操作制約

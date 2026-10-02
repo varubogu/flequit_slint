@@ -20,7 +20,6 @@ Tauri 版にあった TypeScript との型変換は不要になりました。
 | `TaskId` | `string` | `TEXT` | `UUID` | `string` | タスク一意識別子（UUID v4） |
 | `TaskListId` | `string` | `TEXT` | `UUID` | `string` | タスクリスト一意識別子（UUID v4） |
 | `TagId` | `string` | `TEXT` | `UUID` | `string` | タグ一意識別子（UUID v4） |
-| `SubTaskId` | `string` | `TEXT` | `UUID` | `string` | サブタスク一意識別子（UUID v4） |
 | `DateTime<Utc>` | `string`（整形済み表示文字列） | `TEXT` | `TIMESTAMPTZ` | `string` | ISO 8601 形式日時文字列 |
 | `Option<T>` | `T` + 既定値、または `bool` の有無フラグ | `NULL` | `NULL` | `null` | Optional 値 |
 | `String` | `string` | `TEXT` | `TEXT` | `string` | 文字列 |

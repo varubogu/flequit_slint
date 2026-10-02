@@ -13,8 +13,8 @@ use chrono::{DateTime, Utc};
 use flequit_model::models::task_projects::task::TaskTree;
 use flequit_model::types::id_types::TaskId;
 
-use crate::bindings::TaskSort;
-pub use tree::{move_task_to_list, normalize, reorder_task};
+use crate::bindings::{TaskItem, TaskSort};
+pub use tree::{move_task_to_list, move_task_to_project, normalize, reorder_task};
 
 /// Compares two tasks under `sort`.
 ///
@@ -64,6 +64,51 @@ pub fn insertion_index(full: &[TaskId], previous: Option<TaskId>, next: Option<T
     full.len()
 }
 
+/// The top-level position a drop at `target_index` of the visible rows means.
+///
+/// Rows are the flat list the view shows, subtasks included; a drop on a
+/// subtask's row counts as a drop on its top-level task. `None` when there are
+/// no top-level rows.
+pub fn root_position(rows: &[TaskItem], target_index: i32) -> Option<usize> {
+    let roots = rows.iter().filter(|row| row.depth == 0).count();
+    if roots == 0 {
+        return None;
+    }
+    let target = usize::try_from(target_index)
+        .unwrap_or(0)
+        .min(rows.len().saturating_sub(1));
+    let before = rows[..=target].iter().filter(|row| row.depth == 0).count();
+    Some(before.saturating_sub(1).min(roots - 1))
+}
+
+/// The visible top-level tasks that would surround `task_id` once it moves
+/// from its position among them to the one `to` picks.
+///
+/// Only tasks living in the same place (the same list, or the same project
+/// directly) can anchor the move: the visible list may span several. `None`
+/// when the task is not a visible top-level row or would not move.
+pub fn neighbours_after_move(
+    rows: &[TaskItem],
+    task_id: &str,
+    to: impl FnOnce(usize) -> Option<usize>,
+) -> Option<(Option<TaskId>, Option<TaskId>)> {
+    let mut roots: Vec<&TaskItem> = rows.iter().filter(|row| row.depth == 0).collect();
+    let from = roots.iter().position(|row| row.id == task_id)?;
+    let to = to(from)?.min(roots.len() - 1);
+    if to == from {
+        return None;
+    }
+    let moved = roots.remove(from);
+    roots.insert(to, moved);
+
+    let same_home =
+        |row: &&&TaskItem| row.project_id == moved.project_id && row.list_id == moved.list_id;
+    let id = |row: &&TaskItem| TaskId::try_from_str(row.id.as_str()).ok();
+    let previous = roots[..to].iter().rev().find(same_home).and_then(id);
+    let next = roots[to + 1..].iter().find(same_home).and_then(id);
+    Some((previous, next))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -77,7 +122,8 @@ mod tests {
         TaskTree {
             id: TaskId::new(),
             project_id: ProjectId::new(),
-            list_id: TaskListId::new(),
+            list_id: Some(TaskListId::new()),
+            parent_task_id: None,
             title: title.to_string(),
             description: None,
             status: TaskStatus::NotStarted,
@@ -183,5 +229,58 @@ mod tests {
 
         assert_eq!(insertion_index(&ids, Some(hidden), Some(hidden)), 3);
         assert_eq!(insertion_index(&ids, None, None), 3);
+    }
+
+    fn row(id: &TaskId, list: &str, depth: i32) -> TaskItem {
+        TaskItem {
+            id: id.as_str().into(),
+            project_id: "p".into(),
+            list_id: list.into(),
+            depth,
+            ..TaskItem::default()
+        }
+    }
+
+    #[test]
+    fn a_drop_on_a_subtask_row_counts_as_a_drop_on_its_task() {
+        let (a, b) = (TaskId::new(), TaskId::new());
+        let rows = [row(&a, "l", 0), row(&TaskId::new(), "", 1), row(&b, "l", 0)];
+
+        assert_eq!(root_position(&rows, 0), Some(0));
+        assert_eq!(root_position(&rows, 1), Some(0));
+        assert_eq!(root_position(&rows, 2), Some(1));
+        assert_eq!(root_position(&rows, 9), Some(1));
+        assert_eq!(root_position(&[], 0), None);
+    }
+
+    #[test]
+    fn a_task_moves_among_its_own_place_and_skips_its_subtasks() {
+        let (a, b, c, other) = (TaskId::new(), TaskId::new(), TaskId::new(), TaskId::new());
+        let rows = [
+            row(&a, "l", 0),
+            row(&TaskId::new(), "", 1),
+            row(&other, "", 0),
+            row(&b, "l", 0),
+            row(&c, "l", 0),
+        ];
+
+        // a goes after b: the task of the project itself is not an anchor.
+        assert_eq!(
+            neighbours_after_move(&rows, &a.as_str(), |_| Some(2)),
+            Some((Some(b), Some(c)))
+        );
+        // One step down from the top passes only the other place's task.
+        assert_eq!(
+            neighbours_after_move(&rows, &a.as_str(), |from| from.checked_add(1)),
+            Some((None, Some(b)))
+        );
+        assert_eq!(
+            neighbours_after_move(&rows, &a.as_str(), |from| from.checked_sub(1)),
+            None
+        );
+        assert_eq!(
+            neighbours_after_move(&rows, &TaskId::new().as_str(), |_| Some(0)),
+            None
+        );
     }
 }

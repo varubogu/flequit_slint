@@ -11,10 +11,9 @@ pub mod occurrence;
 use chrono::{DateTime, TimeDelta, Utc};
 use flequit_model::models::task_projects::recurrence_details::RecurrenceDetails;
 use flequit_model::models::task_projects::recurrence_rule::RecurrenceRule;
-use flequit_model::models::task_projects::subtask::{SubTask, SubTaskTree};
 use flequit_model::models::task_projects::task::{Task, TaskTree};
 use flequit_model::types::datetime_calendar_types::{DayOfWeek, RecurrenceUnit as DomainUnit};
-use flequit_model::types::id_types::{RecurrenceRuleId, SubTaskId, TaskId, UserId};
+use flequit_model::types::id_types::{RecurrenceRuleId, TaskId, UserId};
 use flequit_model::types::task_types::TaskStatus;
 
 use crate::adapters::datetime::{DateTimeParts, DisplayTimezone, from_display_parts};
@@ -163,8 +162,9 @@ fn details(
 pub struct NextOccurrence {
     /// The successor task, carrying the handed-over rule.
     pub task: Task,
-    /// Fresh copies of the completed task's subtasks, belonging to it.
-    pub sub_tasks: Vec<SubTask>,
+    /// Fresh copies of the completed task's subtasks at every depth, parents
+    /// before their children, so they can be created in this order.
+    pub sub_tasks: Vec<Task>,
     /// The rule as it stands once it has moved to the successor.
     pub rule: RecurrenceRule,
 }
@@ -204,6 +204,7 @@ pub fn next_task(
         id: next_id,
         project_id: task.project_id,
         list_id: task.list_id,
+        parent_task_id: task.parent_task_id,
         title: task.title.clone(),
         description: task.description.clone(),
         status: TaskStatus::NotStarted,
@@ -228,32 +229,44 @@ pub fn next_task(
         deleted: false,
         updated_by: user_id,
     };
+    let mut sub_tasks = Vec::new();
+    let copy = SubTaskCopy {
+        offset,
+        // Without a due date the offset counts from now, which says nothing
+        // about when a reminder should come round again.
+        keep_reminders: task.plan_end_date.is_some(),
+        now,
+        user_id,
+    };
+    copy_sub_tasks(task, next_id, &copy, &mut sub_tasks);
     Some(NextOccurrence {
         task: next,
-        sub_tasks: next_sub_tasks(task, next_id, offset, now, user_id),
+        sub_tasks,
         rule: handed_over,
     })
 }
 
-/// Fresh copies of the completed task's subtasks, for its successor.
+/// Fresh copies of `task`'s subtasks at every depth, for its successor.
 ///
 /// Each copy starts unstarted, and its planned dates move by the same distance
 /// as the task's due date: a subtask due two days before its task is again due
 /// two days before it in the next occurrence. Subtasks already deleted are
-/// left behind, and no copy carries a rule — the series belongs to the task.
-fn next_sub_tasks(
-    task: &TaskTree,
-    parent_id: TaskId,
-    offset: TimeDelta,
-    now: DateTime<Utc>,
-    user_id: UserId,
-) -> Vec<SubTask> {
-    task.sub_tasks
-        .iter()
-        .filter(|sub_task| !sub_task.deleted)
-        .map(|sub_task| SubTask {
-            id: SubTaskId::new(),
-            task_id: parent_id,
+/// left behind with everything below them, and no copy carries a rule — the
+/// series belongs to the task. A copy belongs to the copy of its parent.
+fn copy_sub_tasks(task: &TaskTree, parent_id: TaskId, copy: &SubTaskCopy, copies: &mut Vec<Task>) {
+    let SubTaskCopy {
+        offset,
+        keep_reminders,
+        now,
+        user_id,
+    } = *copy;
+    for sub_task in task.sub_tasks.iter().filter(|sub_task| !sub_task.deleted) {
+        let copy_id = TaskId::new();
+        copies.push(Task {
+            id: copy_id,
+            project_id: sub_task.project_id,
+            list_id: None,
+            parent_task_id: Some(parent_id),
             title: sub_task.title.clone(),
             description: sub_task.description.clone(),
             status: TaskStatus::NotStarted,
@@ -264,16 +277,35 @@ fn next_sub_tasks(
             do_end_date: None,
             is_range_date: sub_task.is_range_date,
             recurrence_rule: None,
+            reminders: if keep_reminders {
+                sub_task
+                    .reminders
+                    .iter()
+                    .map(|date| *date + offset)
+                    .collect()
+            } else {
+                Vec::new()
+            },
+            order_index: sub_task.order_index,
+            is_archived: false,
             assigned_user_ids: sub_task.assigned_user_ids.clone(),
             tag_ids: sub_task.tag_ids.clone(),
-            order_index: sub_task.order_index,
-            completed: false,
             created_at: now,
             updated_at: now,
             deleted: false,
             updated_by: user_id,
-        })
-        .collect()
+        });
+        copy_sub_tasks(sub_task, copy_id, copy, copies);
+    }
+}
+
+/// How [`copy_sub_tasks`] shifts and stamps each copy.
+#[derive(Clone, Copy)]
+struct SubTaskCopy {
+    offset: TimeDelta,
+    keep_reminders: bool,
+    now: DateTime<Utc>,
+    user_id: UserId,
 }
 
 /// Whether the occurrence `next_task` created is still exactly as it was made.
@@ -283,52 +315,50 @@ fn next_sub_tasks(
 /// schedule, it is their task and stays.
 pub fn is_untouched(created: &NextOccurrence, current: &TaskTree) -> bool {
     let task = &created.task;
-    let mut created_tags = task.tag_ids.clone();
-    let mut current_tags = current.tag_ids.clone();
-    created_tags.sort();
-    current_tags.sort();
-
     current.id == task.id
         && !current.deleted
         && !current.is_archived
         && current.list_id == task.list_id
-        && current.title == task.title
-        && current.description == task.description
-        && current.status == task.status
-        && current.priority == task.priority
-        && current.plan_start_date == task.plan_start_date
-        && current.plan_end_date == task.plan_end_date
-        && current.do_start_date == task.do_start_date
-        && current.do_end_date == task.do_end_date
-        && current.is_range_date == task.is_range_date
+        && current.parent_task_id == task.parent_task_id
         && current.reminders == task.reminders
-        && current_tags == created_tags
-        && sub_tasks_are_untouched(&created.sub_tasks, &current.sub_tasks)
+        && fields_are_untouched(task, current)
+        && sub_tasks_are_untouched(&created.sub_tasks, current)
         && schedule_of(current.recurrence_rule.as_ref())
             == schedule_of(task.recurrence_rule.as_ref())
 }
 
 /// Whether the successor still has exactly the subtasks it was created with.
 ///
-/// Subtasks added, removed or edited since make the successor the user's, so
-/// the set has to match one for one; a subtask deleted in the meantime counts
-/// as a change rather than as absent.
-fn sub_tasks_are_untouched(created: &[SubTask], current: &[SubTaskTree]) -> bool {
-    let live: Vec<&SubTaskTree> = current
-        .iter()
-        .filter(|sub_task| !sub_task.deleted)
-        .collect();
+/// Subtasks added, removed, moved or edited since make the successor the
+/// user's, so the set has to match one for one; a subtask deleted in the
+/// meantime counts as a change rather than as absent.
+fn sub_tasks_are_untouched(created: &[Task], current: &TaskTree) -> bool {
+    let mut live = Vec::new();
+    collect_live(current, &mut live);
 
     live.len() == created.len()
         && created.iter().all(|created| {
             live.iter()
                 .find(|current| current.id == created.id)
-                .is_some_and(|current| sub_task_is_untouched(created, current))
+                .is_some_and(|current| {
+                    current.parent_task_id == created.parent_task_id
+                        && current.order_index == created.order_index
+                        && current.reminders == created.reminders
+                        && fields_are_untouched(created, current)
+                })
         })
 }
 
-/// Whether one created subtask is still as `next_task` made it.
-fn sub_task_is_untouched(created: &SubTask, current: &SubTaskTree) -> bool {
+/// The live subtasks of `task` at every depth.
+fn collect_live<'a>(task: &'a TaskTree, live: &mut Vec<&'a TaskTree>) {
+    for sub_task in task.sub_tasks.iter().filter(|sub_task| !sub_task.deleted) {
+        live.push(sub_task);
+        collect_live(sub_task, live);
+    }
+}
+
+/// Whether what the user can edit on a task is still as it was created.
+fn fields_are_untouched(created: &Task, current: &TaskTree) -> bool {
     let mut created_tags = created.tag_ids.clone();
     let mut current_tags = current.tag_ids.clone();
     created_tags.sort();
@@ -337,14 +367,12 @@ fn sub_task_is_untouched(created: &SubTask, current: &SubTaskTree) -> bool {
     current.title == created.title
         && current.description == created.description
         && current.status == created.status
-        && current.completed == created.completed
         && current.priority == created.priority
         && current.plan_start_date == created.plan_start_date
         && current.plan_end_date == created.plan_end_date
         && current.do_start_date == created.do_start_date
         && current.do_end_date == created.do_end_date
         && current.is_range_date == created.is_range_date
-        && current.order_index == created.order_index
         && current_tags == created_tags
 }
 
@@ -507,7 +535,8 @@ mod tests {
         TaskTree {
             id: TaskId::new(),
             project_id: ProjectId::new(),
-            list_id: TaskListId::new(),
+            list_id: Some(TaskListId::new()),
+            parent_task_id: None,
             title: "Water the plants".to_string(),
             description: Some("both balconies".to_string()),
             status: TaskStatus::Completed,
@@ -631,7 +660,9 @@ mod tests {
     fn any_edit_makes_the_successor_the_users() {
         let due = Utc.with_ymd_and_hms(2026, 9, 19, 9, 0, 0).unwrap();
         let mut task = repeating_task(DomainUnit::Day, Some(due));
-        task.sub_tasks = vec![sub_task_of(&task, "Fill the can", Some(due))];
+        let mut child = sub_task_of(&task, "Fill the can", Some(due));
+        child.sub_tasks = vec![sub_task_of(&child, "Find the can", None)];
+        task.sub_tasks = vec![child];
         let created = next_task(&task, due, DisplayTimezone::Utc, 0, UserId::new()).unwrap();
 
         let edits: Vec<fn(&mut TaskTree)> = vec![
@@ -645,15 +676,22 @@ mod tests {
             |t| t.deleted = true,
             |t| t.sub_tasks[0].title.push('!'),
             |t| t.sub_tasks[0].plan_end_date = None,
-            |t| t.sub_tasks[0].completed = true,
+            |t| t.sub_tasks[0].status = TaskStatus::Completed,
             |t| t.sub_tasks[0].deleted = true,
             |t| t.sub_tasks.clear(),
             |t| {
                 let extra = t.sub_tasks[0].clone();
-                t.sub_tasks.push(SubTaskTree {
-                    id: SubTaskId::new(),
+                t.sub_tasks.push(TaskTree {
+                    id: TaskId::new(),
                     ..extra
                 });
+            },
+            |t| t.sub_tasks[0].sub_tasks[0].title.push('!'),
+            |t| t.sub_tasks[0].sub_tasks[0].deleted = true,
+            |t| {
+                let mut grandchild = t.sub_tasks[0].sub_tasks.remove(0);
+                grandchild.parent_task_id = Some(t.id);
+                t.sub_tasks.push(grandchild);
             },
         ];
         for edit in edits {
@@ -694,7 +732,6 @@ mod tests {
         source.do_start_date = Some(due - chrono::TimeDelta::hours(2));
         source.do_end_date = Some(due);
         source.status = TaskStatus::Completed;
-        source.completed = true;
         source.order_index = 4;
         task.sub_tasks = vec![source.clone()];
 
@@ -702,10 +739,10 @@ mod tests {
         let copy = &created.sub_tasks[0];
 
         assert_ne!(copy.id, source.id);
-        assert_eq!(copy.task_id, created.task.id);
+        assert_eq!(copy.parent_task_id, Some(created.task.id));
+        assert_eq!(copy.list_id, None);
         assert_eq!(copy.title, source.title);
         assert_eq!(copy.status, TaskStatus::NotStarted);
-        assert!(!copy.completed);
         assert_eq!(copy.order_index, source.order_index);
         assert_eq!(copy.tag_ids, source.tag_ids);
         assert!(copy.recurrence_rule.is_none());
@@ -742,38 +779,82 @@ mod tests {
         assert_eq!(created.sub_tasks[0].title, "Buy the soil");
     }
 
-    fn sub_task_of(task: &TaskTree, title: &str, due: Option<DateTime<Utc>>) -> SubTaskTree {
+    #[test]
+    fn subtasks_are_copied_at_every_depth_under_their_own_copies() {
+        let due = Utc.with_ymd_and_hms(2026, 1, 5, 9, 0, 0).unwrap();
+        let mut task = repeating_task(DomainUnit::Week, Some(due));
+        let mut child = sub_task_of(&task, "Prepare", None);
+        let mut grandchild = sub_task_of(&child, "Buy the soil", Some(due));
+        let mut gone = sub_task_of(&grandchild, "Never mind", None);
+        gone.deleted = true;
+        let under_gone = sub_task_of(&gone, "Lost with it", None);
+        gone.sub_tasks = vec![under_gone];
+        grandchild.sub_tasks = vec![gone];
+        child.sub_tasks = vec![grandchild];
+        task.sub_tasks = vec![child];
+
+        let created = next_task(&task, due, DisplayTimezone::Utc, 0, UserId::new()).unwrap();
+
+        let titles: Vec<&str> = created.sub_tasks.iter().map(|t| t.title.as_str()).collect();
+        assert_eq!(titles, ["Prepare", "Buy the soil"]);
+        assert_eq!(created.sub_tasks[0].parent_task_id, Some(created.task.id));
+        assert_eq!(
+            created.sub_tasks[1].parent_task_id,
+            Some(created.sub_tasks[0].id)
+        );
+        assert!(is_untouched(&created, &as_tree(&created)));
+    }
+
+    fn sub_task_of(parent: &TaskTree, title: &str, due: Option<DateTime<Utc>>) -> TaskTree {
         let now = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
-        SubTaskTree {
-            id: SubTaskId::new(),
-            task_id: task.id,
+        TaskTree {
+            id: TaskId::new(),
+            project_id: parent.project_id,
+            list_id: None,
+            parent_task_id: Some(parent.id),
             title: title.to_string(),
             description: Some("from the shed".to_string()),
             status: TaskStatus::NotStarted,
-            priority: Some(1),
+            priority: 1,
             plan_start_date: None,
             plan_end_date: due,
             do_start_date: None,
             do_end_date: None,
             is_range_date: None,
             recurrence_rule: None,
+            reminders: Vec::new(),
+            assigned_user_ids: Vec::new(),
             order_index: 0,
-            completed: false,
+            is_archived: false,
             created_at: now,
             updated_at: now,
             deleted: false,
             updated_by: UserId::new(),
-            assigned_user_ids: Vec::new(),
+            sub_tasks: Vec::new(),
             tag_ids: vec![TagId::new()],
         }
     }
 
+    /// The successor as storage would load it: the copies nested under their
+    /// parents.
     fn as_tree(created: &NextOccurrence) -> TaskTree {
-        let task = &created.task;
+        let mut root = tree_of(&created.task);
+        for copy in &created.sub_tasks {
+            let parent = copy.parent_task_id.expect("a copy has a parent");
+            root.find_mut(&parent)
+                .expect("parents come first")
+                .sub_tasks
+                .push(tree_of(copy));
+        }
+        root
+    }
+
+    fn tree_of(task: &Task) -> TaskTree {
         TaskTree {
             id: task.id,
             project_id: task.project_id,
             list_id: task.list_id,
+            parent_task_id: task.parent_task_id,
             title: task.title.clone(),
             description: task.description.clone(),
             status: task.status.clone(),
@@ -792,33 +873,8 @@ mod tests {
             updated_at: task.updated_at,
             deleted: task.deleted,
             updated_by: task.updated_by,
-            sub_tasks: created.sub_tasks.iter().map(as_sub_task_tree).collect(),
+            sub_tasks: Vec::new(),
             tag_ids: task.tag_ids.clone(),
-        }
-    }
-
-    fn as_sub_task_tree(sub_task: &SubTask) -> SubTaskTree {
-        SubTaskTree {
-            id: sub_task.id,
-            task_id: sub_task.task_id,
-            title: sub_task.title.clone(),
-            description: sub_task.description.clone(),
-            status: sub_task.status.clone(),
-            priority: sub_task.priority,
-            plan_start_date: sub_task.plan_start_date,
-            plan_end_date: sub_task.plan_end_date,
-            do_start_date: sub_task.do_start_date,
-            do_end_date: sub_task.do_end_date,
-            is_range_date: sub_task.is_range_date,
-            recurrence_rule: sub_task.recurrence_rule.clone(),
-            order_index: sub_task.order_index,
-            completed: sub_task.completed,
-            created_at: sub_task.created_at,
-            updated_at: sub_task.updated_at,
-            deleted: sub_task.deleted,
-            updated_by: sub_task.updated_by,
-            assigned_user_ids: sub_task.assigned_user_ids.clone(),
-            tag_ids: sub_task.tag_ids.clone(),
         }
     }
 }

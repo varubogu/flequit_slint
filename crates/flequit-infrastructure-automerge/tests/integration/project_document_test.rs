@@ -8,13 +8,10 @@ use flequit_infrastructure_automerge::infrastructure::task_projects::project::Pr
 use flequit_infrastructure_automerge::infrastructure::task_projects::project::ProjectLocalAutomergeRepository;
 use flequit_model::models::task_projects::member::Member;
 use flequit_model::models::task_projects::project::Project;
-use flequit_model::models::task_projects::subtask::SubTask;
 use flequit_model::models::task_projects::tag::Tag;
 use flequit_model::models::task_projects::task::Task;
 use flequit_model::models::task_projects::task_list::TaskList;
-use flequit_model::types::id_types::{
-    MemberId, ProjectId, SubTaskId, TagId, TaskId, TaskListId, UserId,
-};
+use flequit_model::types::id_types::{MemberId, ProjectId, TagId, TaskId, TaskListId, UserId};
 use flequit_model::types::project_types::MemberRole;
 use flequit_model::types::task_types::TaskStatus;
 use flequit_testing::TestPathGenerator;
@@ -138,14 +135,6 @@ impl TestProjectDocumentRepository {
         Ok(self.inner.add_task(project_id, task).await?)
     }
 
-    async fn add_subtask(
-        &self,
-        project_id: &ProjectId,
-        subtask: &SubTask,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        Ok(self.inner.add_subtask(project_id, subtask).await?)
-    }
-
     async fn add_tag(
         &self,
         project_id: &ProjectId,
@@ -174,13 +163,6 @@ impl TestProjectDocumentRepository {
         project_id: &ProjectId,
     ) -> Result<Vec<Task>, Box<dyn std::error::Error>> {
         Ok(self.inner.get_tasks(project_id).await?)
-    }
-
-    async fn get_subtasks(
-        &self,
-        project_id: &ProjectId,
-    ) -> Result<Vec<SubTask>, Box<dyn std::error::Error>> {
-        Ok(self.inner.get_subtasks(project_id).await?)
     }
 
     async fn get_tags(
@@ -259,7 +241,6 @@ async fn test_project_document_comprehensive_operations() -> Result<(), Box<dyn 
     let doc = initial_doc.unwrap();
     assert_eq!(doc.task_lists.len(), 0);
     assert_eq!(doc.tasks.len(), 0);
-    assert_eq!(doc.subtasks.len(), 0);
     assert_eq!(doc.tags.len(), 0);
     assert_eq!(doc.members.len(), 0);
     println!("✅ Initial empty state verified");
@@ -321,7 +302,8 @@ async fn test_project_document_comprehensive_operations() -> Result<(), Box<dyn 
     let task_1 = Task {
         id: TaskId::new(),
         project_id,
-        list_id: task_list_1.id,
+        list_id: Some(task_list_1.id),
+        parent_task_id: None,
         title: "タスク1".to_string(),
         reminders: vec![],
         description: Some("最初のテストタスク".to_string()),
@@ -346,7 +328,8 @@ async fn test_project_document_comprehensive_operations() -> Result<(), Box<dyn 
     let task_2 = Task {
         id: TaskId::new(),
         project_id,
-        list_id: task_list_2.id,
+        list_id: Some(task_list_2.id),
+        parent_task_id: None,
         title: "タスク2".to_string(),
         reminders: vec![],
         description: Some("2番目のテストタスク".to_string()),
@@ -385,60 +368,67 @@ async fn test_project_document_comprehensive_operations() -> Result<(), Box<dyn 
     assert!(tasks.iter().any(|t| t.title == "タスク1"));
     assert!(tasks.iter().any(|t| t.title == "タスク2"));
 
-    // 3. SubTask 2個追加テスト
+    // 3. サブタスク（親を持つタスク）2個追加テスト
     println!("\n📝 SubTask Tests");
 
-    let subtask_1 = SubTask {
-        id: SubTaskId::new(),
-        task_id: task_1.id,
+    let subtask_1 = Task {
+        id: TaskId::new(),
+        project_id,
+        list_id: None,
+        parent_task_id: Some(task_1.id),
         title: "サブタスク1".to_string(),
         description: Some("最初のサブタスク".to_string()),
         status: TaskStatus::NotStarted,
-        priority: Some(1),
+        priority: 1,
         plan_start_date: Some(Utc::now()),
         plan_end_date: None,
         do_start_date: None,
         do_end_date: None,
         is_range_date: Some(false),
         recurrence_rule: None,
+        reminders: vec![],
         assigned_user_ids: vec![],
         tag_ids: vec![],
         order_index: 1,
-        completed: false,
+        is_archived: false,
         created_at: timestamp,
         updated_at: timestamp,
         deleted: false,
         updated_by: user_id,
     };
 
-    let subtask_2 = SubTask {
-        id: SubTaskId::new(),
-        task_id: task_2.id,
+    // サブタスクのサブタスク（孫）
+    let subtask_2 = Task {
+        id: TaskId::new(),
+        project_id,
+        list_id: None,
+        parent_task_id: Some(subtask_1.id),
         title: "サブタスク2".to_string(),
         description: Some("2番目のサブタスク".to_string()),
         status: TaskStatus::InProgress,
-        priority: Some(2),
+        priority: 2,
         plan_start_date: Some(Utc::now()),
         plan_end_date: Some(Utc::now()),
         do_start_date: Some(Utc::now()),
         do_end_date: None,
         is_range_date: Some(true),
         recurrence_rule: None,
+        reminders: vec![],
         assigned_user_ids: vec![UserId::new()],
         tag_ids: vec![],
         order_index: 2,
-        completed: false,
+        is_archived: false,
         created_at: timestamp,
         updated_at: timestamp,
         deleted: false,
         updated_by: user_id,
     };
 
-    repository.add_subtask(&project_id, &subtask_1).await?;
+    repository.add_task(&project_id, &subtask_1).await?;
     history_manager
         .export_history(&repository, "add_subtask_1", "subtask")
         .await?;
-    repository.add_subtask(&project_id, &subtask_2).await?;
+    repository.add_task(&project_id, &subtask_2).await?;
     history_manager
         .export_history(&repository, "add_subtask_2", "subtask")
         .await?;
@@ -446,7 +436,11 @@ async fn test_project_document_comprehensive_operations() -> Result<(), Box<dyn 
     println!("✅ SubTask 2: {} added", subtask_2.title);
 
     // SubTask確認
-    let subtasks = repository.get_subtasks(&project_id).await?;
+    let tasks = repository.get_tasks(&project_id).await?;
+    let subtasks: Vec<&Task> = tasks
+        .iter()
+        .filter(|task| task.parent_task_id.is_some())
+        .collect();
     assert_eq!(subtasks.len(), 2);
     assert!(subtasks.iter().any(|st| st.title == "サブタスク1"));
     assert!(subtasks.iter().any(|st| st.title == "サブタスク2"));
@@ -547,8 +541,11 @@ async fn test_project_document_comprehensive_operations() -> Result<(), Box<dyn 
 
     // 各配列の長さ確認
     assert_eq!(doc.task_lists.len(), 2, "TaskLists should contain 2 items");
-    assert_eq!(doc.tasks.len(), 2, "Tasks should contain 2 items");
-    assert_eq!(doc.subtasks.len(), 2, "SubTasks should contain 2 items");
+    assert_eq!(
+        doc.tasks.len(),
+        4,
+        "Tasks should contain 2 tasks and 2 subtasks"
+    );
     assert_eq!(doc.tags.len(), 2, "Tags should contain 2 items");
     assert_eq!(doc.members.len(), 2, "Members should contain 2 items");
 
@@ -556,7 +553,6 @@ async fn test_project_document_comprehensive_operations() -> Result<(), Box<dyn 
     println!("📊 Data Structure Validation:");
     println!("  - TaskLists: {}", doc.task_lists.len());
     println!("  - Tasks: {}", doc.tasks.len());
-    println!("  - SubTasks: {}", doc.subtasks.len());
     println!("  - Tags: {}", doc.tags.len());
     println!("  - Members: {}", doc.members.len());
 
@@ -581,7 +577,7 @@ async fn test_project_document_comprehensive_operations() -> Result<(), Box<dyn 
     // 必須フィールドの存在確認
     assert!(json_str.contains("task_lists"));
     assert!(json_str.contains("tasks"));
-    assert!(json_str.contains("subtasks"));
+    assert!(json_str.contains("parent_task_id"));
     assert!(json_str.contains("tags"));
     assert!(json_str.contains("members"));
     assert!(json_str.contains("created_at"));
@@ -595,7 +591,7 @@ async fn test_project_document_comprehensive_operations() -> Result<(), Box<dyn 
     let todo_tasks: Vec<_> = persisted
         .tasks
         .iter()
-        .filter(|task| task.list_id == task_list_1.id)
+        .filter(|task| task.list_id == Some(task_list_1.id))
         .collect();
     assert_eq!(todo_tasks.len(), 1);
     assert_eq!(todo_tasks[0].title, "タスク1");
@@ -603,16 +599,16 @@ async fn test_project_document_comprehensive_operations() -> Result<(), Box<dyn 
     let in_progress_tasks: Vec<_> = persisted
         .tasks
         .iter()
-        .filter(|task| task.list_id == task_list_2.id)
+        .filter(|task| task.list_id == Some(task_list_2.id))
         .collect();
     assert_eq!(in_progress_tasks.len(), 1);
     assert_eq!(in_progress_tasks[0].title, "タスク2");
 
     // 特定タスクのサブタスクが正しく関連付けられているかテスト
     let task1_subtasks: Vec<_> = persisted
-        .subtasks
+        .tasks
         .iter()
-        .filter(|subtask| subtask.task_id == task_1.id)
+        .filter(|subtask| subtask.parent_task_id == Some(task_1.id))
         .collect();
     assert_eq!(task1_subtasks.len(), 1);
     assert_eq!(task1_subtasks[0].title, "サブタスク1");

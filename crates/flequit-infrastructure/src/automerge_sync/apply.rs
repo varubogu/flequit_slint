@@ -12,11 +12,7 @@ use flequit_infrastructure_automerge::infrastructure::accounts::account::Account
 use flequit_infrastructure_automerge::infrastructure::document_manager::DocumentManager;
 use flequit_infrastructure_automerge::infrastructure::task_projects::{
     project::ProjectLocalAutomergeRepository,
-    recurrence_rule::RecurrenceRuleLocalAutomergeRepository,
-    subtask::SubTaskLocalAutomergeRepository,
-    subtask_assignments::SubtaskAssignmentLocalAutomergeRepository,
-    subtask_recurrence::SubtaskRecurrenceLocalAutomergeRepository,
-    subtask_tag::SubtaskTagLocalAutomergeRepository, tag::TagLocalAutomergeRepository,
+    recurrence_rule::RecurrenceRuleLocalAutomergeRepository, tag::TagLocalAutomergeRepository,
     task::TaskLocalAutomergeRepository, task_assignments::TaskAssignmentLocalAutomergeRepository,
     task_list::TaskListLocalAutomergeRepository,
     task_recurrence::TaskRecurrenceLocalAutomergeRepository,
@@ -29,8 +25,11 @@ use flequit_repository::repositories::project_relation_repository_trait::Project
 use flequit_repository::repositories::project_repository_trait::ProjectRepository;
 use flequit_types::errors::repository_error::RepositoryError;
 
+use flequit_model::types::id_types::TaskId;
+
 use super::change::{
-    AutomergeChange, ProjectChange, RelationChange, RootChange, TagBookmarkChange, TrashChange,
+    AutomergeChange, LegacySubTask, ProjectChange, RelationChange, RootChange, TagBookmarkChange,
+    TrashChange,
 };
 
 /// 変更の適用先になる Automerge リポジトリ一式
@@ -44,15 +43,11 @@ pub struct AutomergeSyncTargets {
     projects: ProjectLocalAutomergeRepository,
     task_lists: TaskListLocalAutomergeRepository,
     tasks: TaskLocalAutomergeRepository,
-    sub_tasks: SubTaskLocalAutomergeRepository,
     tags: TagLocalAutomergeRepository,
     recurrence_rules: RecurrenceRuleLocalAutomergeRepository,
     task_tags: TaskTagLocalAutomergeRepository,
-    subtask_tags: SubtaskTagLocalAutomergeRepository,
     task_assignments: TaskAssignmentLocalAutomergeRepository,
-    subtask_assignments: SubtaskAssignmentLocalAutomergeRepository,
     task_recurrences: TaskRecurrenceLocalAutomergeRepository,
-    subtask_recurrences: SubtaskRecurrenceLocalAutomergeRepository,
     tag_bookmarks: TagBookmarkLocalAutomergeRepository,
 }
 
@@ -67,24 +62,14 @@ impl AutomergeSyncTargets {
             projects: ProjectLocalAutomergeRepository::new_with_manager(manager()).await?,
             task_lists: TaskListLocalAutomergeRepository::new_with_manager(manager()).await?,
             tasks: TaskLocalAutomergeRepository::new_with_manager(manager()).await?,
-            sub_tasks: SubTaskLocalAutomergeRepository::new_with_manager(manager()).await?,
             tags: TagLocalAutomergeRepository::new_with_manager(manager()).await?,
             recurrence_rules: RecurrenceRuleLocalAutomergeRepository::new_with_manager(manager())
                 .await?,
             task_tags: TaskTagLocalAutomergeRepository::new_with_manager(manager()).await?,
-            subtask_tags: SubtaskTagLocalAutomergeRepository::new_with_manager(manager()).await?,
             task_assignments: TaskAssignmentLocalAutomergeRepository::new_with_manager(manager())
                 .await?,
-            subtask_assignments: SubtaskAssignmentLocalAutomergeRepository::new_with_manager(
-                manager(),
-            )
-            .await?,
             task_recurrences: TaskRecurrenceLocalAutomergeRepository::new_with_manager(manager())
                 .await?,
-            subtask_recurrences: SubtaskRecurrenceLocalAutomergeRepository::new_with_manager(
-                manager(),
-            )
-            .await?,
             tag_bookmarks: TagBookmarkLocalAutomergeRepository::new_with_manager(manager()).await?,
         })
     }
@@ -95,14 +80,20 @@ impl AutomergeSyncTargets {
     }
 
     /// 1 件の変更を適用する
+    ///
+    /// プロジェクトのドキュメントへ書く前に、旧形式のサブタスクをタスクへ移す。
+    /// 旧形式の行（`sub_task` 系）はその後に、移した先のタスクへの操作として当てる。
     pub async fn apply(&self, change: &AutomergeChange) -> Result<(), RepositoryError> {
+        if let Some(project_id) = change.project_id() {
+            self.projects.migrate_legacy_subtasks(&project_id).await?;
+        }
         match change {
             AutomergeChange::Account(change) => apply_root(&self.accounts, change).await,
             AutomergeChange::User(change) => apply_root(&self.users, change).await,
             AutomergeChange::Project(change) => apply_root(&self.projects, change).await,
             AutomergeChange::TaskList(change) => apply_project(&self.task_lists, change).await,
-            AutomergeChange::Task(change) => apply_project(&self.tasks, change).await,
-            AutomergeChange::SubTask(change) => apply_project(&self.sub_tasks, change).await,
+            AutomergeChange::Task(change) => apply_project(&self.tasks, change.as_ref()).await,
+            AutomergeChange::SubTask(change) => self.apply_legacy_subtask(change).await,
             AutomergeChange::Tag(change) => apply_project(&self.tags, change).await,
             AutomergeChange::RecurrenceRule(change) => {
                 apply_project(&self.recurrence_rules, change).await
@@ -120,26 +111,50 @@ impl AutomergeSyncTargets {
                 project_id,
                 child_id,
             }) => {
-                self.subtask_tags
+                self.task_tags
                     .remove_all_relations_by_tag_id(project_id, child_id)
                     .await
             }
-            AutomergeChange::SubTaskTag(change) => apply_relation(&self.subtask_tags, change).await,
+            AutomergeChange::SubTaskTag(change) => apply_relation(&self.task_tags, change).await,
             AutomergeChange::TaskAssignment(change) => {
                 apply_relation(&self.task_assignments, change).await
             }
             AutomergeChange::SubTaskAssignment(change) => {
-                apply_relation(&self.subtask_assignments, change).await
+                apply_relation(&self.task_assignments, change).await
             }
             AutomergeChange::TaskRecurrence(change) => {
                 apply_relation(&self.task_recurrences, change).await
             }
-            AutomergeChange::SubTaskRecurrence(change) => {
-                apply_relation(&self.subtask_recurrences, change).await
-            }
+            // サブタスクは繰り返しを持たない。旧形式の関連も UI から書いていなかった
+            AutomergeChange::SubTaskRecurrence(_) => Ok(()),
             AutomergeChange::TagBookmark(change) => self.apply_tag_bookmark(change).await,
             AutomergeChange::Trash(change) => self.apply_trash(change).await,
         }
+    }
+
+    /// 旧形式のサブタスクの保存・削除を、親を持つタスクの保存・削除として当てる
+    async fn apply_legacy_subtask(
+        &self,
+        change: &ProjectChange<LegacySubTask, TaskId>,
+    ) -> Result<(), RepositoryError> {
+        let change = match change {
+            ProjectChange::Save {
+                project_id,
+                entity,
+                user_id,
+                timestamp,
+            } => ProjectChange::Save {
+                project_id: *project_id,
+                entity: entity.clone().into_task(*project_id),
+                user_id: *user_id,
+                timestamp: *timestamp,
+            },
+            ProjectChange::Delete { project_id, id } => ProjectChange::Delete {
+                project_id: *project_id,
+                id: *id,
+            },
+        };
+        apply_project(&self.tasks, &change).await
     }
 
     async fn apply_tag_bookmark(&self, change: &TagBookmarkChange) -> Result<(), RepositoryError> {

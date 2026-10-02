@@ -42,15 +42,11 @@ pub struct InfrastructureRepositories {
     pub tags: TagUnifiedRepository,
     pub tasks: TaskUnifiedRepository,
     pub task_lists: TaskListUnifiedRepository,
-    pub sub_tasks: SubTaskUnifiedRepository,
     pub users: UserUnifiedRepository,
     pub recurrence_rules: RecurrenceRuleUnifiedRepository,
     pub task_assignments: TaskAssignmentUnifiedRepository,
-    pub subtask_assignments: SubTaskAssignmentUnifiedRepository,
     pub task_tags: TaskTagUnifiedRepository,
-    pub subtask_tags: SubTaskTagUnifiedRepository,
     pub task_recurrences: TaskRecurrenceUnifiedRepository,
-    pub subtask_recurrences: SubTaskRecurrenceUnifiedRepository,
 
     // User Preferences
     pub tag_bookmarks: TagBookmarkUnifiedRepository,
@@ -70,15 +66,11 @@ impl InfrastructureRepositories {
             tags: TagUnifiedRepository::default(),
             tasks: TaskUnifiedRepository::default(),
             task_lists: TaskListUnifiedRepository::default(),
-            sub_tasks: SubTaskUnifiedRepository::default(),
             users: UserUnifiedRepository::default(),
             recurrence_rules: RecurrenceRuleUnifiedRepository::default(),
             task_assignments: TaskAssignmentUnifiedRepository::default(),
-            subtask_assignments: SubTaskAssignmentUnifiedRepository::default(),
             task_tags: TaskTagUnifiedRepository::default(),
-            subtask_tags: SubTaskTagUnifiedRepository::default(),
             task_recurrences: TaskRecurrenceUnifiedRepository::default(),
-            subtask_recurrences: SubTaskRecurrenceUnifiedRepository::default(),
             // User Preferences - テスト用のダミーインスタンス
             // 実際の使用時はsetup_with_sqlite_and_automerge()を使用すること
             tag_bookmarks: {
@@ -112,7 +104,6 @@ impl InfrastructureRepositories {
             .create_task_list_unified_repository()
             .await?;
         let tags = unified_manager.create_tag_unified_repository().await?;
-        let sub_tasks = unified_manager.create_sub_task_unified_repository().await?;
         let users = unified_manager.create_user_unified_repository().await?;
         let recurrence_rules = unified_manager
             .create_recurrence_rule_unified_repository()
@@ -120,18 +111,9 @@ impl InfrastructureRepositories {
         let task_assignments = unified_manager
             .create_task_assignment_unified_repository()
             .await?;
-        let subtask_assignments = unified_manager
-            .create_sub_task_assignment_unified_repository()
-            .await?;
         let task_tags = unified_manager.create_task_tag_unified_repository().await?;
-        let subtask_tags = unified_manager
-            .create_sub_task_tag_unified_repository()
-            .await?;
         let task_recurrences = unified_manager
             .create_task_recurrence_unified_repository()
-            .await?;
-        let subtask_recurrences = unified_manager
-            .create_subtask_recurrence_unified_repository()
             .await?;
 
         // User Preferences - LocalRepositoriesから取得
@@ -156,15 +138,11 @@ impl InfrastructureRepositories {
             tasks,
             task_lists,
             tags,
-            sub_tasks,
             users,
             recurrence_rules,
             task_assignments,
-            subtask_assignments,
             task_tags,
-            subtask_tags,
             task_recurrences,
-            subtask_recurrences,
             tag_bookmarks,
             unified_manager,
         })
@@ -237,15 +215,11 @@ impl InfrastructureRepositoriesTrait for InfrastructureRepositories {
     type TagsRepository = TagUnifiedRepository;
     type TasksRepository = TaskUnifiedRepository;
     type TaskListsRepository = TaskListUnifiedRepository;
-    type SubTasksRepository = SubTaskUnifiedRepository;
     type UsersRepository = UserUnifiedRepository;
     type RecurrenceRulesRepository = RecurrenceRuleUnifiedRepository;
     type TaskAssignmentsRepository = TaskAssignmentUnifiedRepository;
-    type SubtaskAssignmentsRepository = SubTaskAssignmentUnifiedRepository;
     type TaskTagsRepository = TaskTagUnifiedRepository;
-    type SubtaskTagsRepository = SubTaskTagUnifiedRepository;
     type TaskRecurrencesRepository = TaskRecurrenceUnifiedRepository;
-    type SubtaskRecurrencesRepository = SubTaskRecurrenceUnifiedRepository;
     type TagBookmarksRepository = TagBookmarkUnifiedRepository;
     type SqliteRepositories = LocalSqliteRepositories;
 
@@ -269,10 +243,6 @@ impl InfrastructureRepositoriesTrait for InfrastructureRepositories {
         &self.task_lists
     }
 
-    fn sub_tasks(&self) -> &Self::SubTasksRepository {
-        &self.sub_tasks
-    }
-
     fn users(&self) -> &Self::UsersRepository {
         &self.users
     }
@@ -285,24 +255,12 @@ impl InfrastructureRepositoriesTrait for InfrastructureRepositories {
         &self.task_assignments
     }
 
-    fn subtask_assignments(&self) -> &Self::SubtaskAssignmentsRepository {
-        &self.subtask_assignments
-    }
-
     fn task_tags(&self) -> &Self::TaskTagsRepository {
         &self.task_tags
     }
 
-    fn subtask_tags(&self) -> &Self::SubtaskTagsRepository {
-        &self.subtask_tags
-    }
-
     fn task_recurrences(&self) -> &Self::TaskRecurrencesRepository {
         &self.task_recurrences
-    }
-
-    fn subtask_recurrences(&self) -> &Self::SubtaskRecurrencesRepository {
-        &self.subtask_recurrences
     }
 
     fn tag_bookmarks(&self) -> &Self::TagBookmarksRepository {
@@ -346,10 +304,8 @@ mod tests {
         let _tags = repos.tags();
         let _tasks = repos.tasks();
         let _task_lists = repos.task_lists();
-        let _sub_tasks = repos.sub_tasks();
         let _users = repos.users();
         let _task_assignments = repos.task_assignments();
-        let _subtask_assignments = repos.subtask_assignments();
 
         // 非同期メソッドのテストはここでは省略
         // （実際のテストでは適切なテスト用ランタイムを使用する）

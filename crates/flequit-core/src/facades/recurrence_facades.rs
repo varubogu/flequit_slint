@@ -1,6 +1,6 @@
 //! 繰り返し関連ファサード
 //!
-//! このモジュールは繰り返しルール、調整、詳細、タスク・サブタスク関連付けの
+//! このモジュールは繰り返しルール、調整、詳細、タスク関連付けの
 //! Service層とのインターフェースを提供します。
 
 use crate::InfrastructureRepositoriesTrait;
@@ -10,10 +10,9 @@ use flequit_model::{
         recurrence_adjustment::RecurrenceAdjustment,
         recurrence_details::RecurrenceDetails,
         recurrence_rule::{PartialRecurrenceRule, RecurrenceRule},
-        subtask_recurrence::SubTaskRecurrence,
         task_recurrence::TaskRecurrence,
     },
-    types::id_types::{ProjectId, RecurrenceRuleId, SubTaskId, TaskId, UserId},
+    types::id_types::{ProjectId, RecurrenceRuleId, TaskId, UserId},
 };
 use flequit_types::errors::service_error::ServiceError;
 
@@ -300,72 +299,6 @@ where
     R: InfrastructureRepositoriesTrait + Send + Sync,
 {
     match recurrence_service::delete_task_recurrence(repositories, project_id, task_id).await {
-        Ok(_) => Ok(true),
-        Err(ServiceError::ValidationError(message)) => Err(ServiceError::ValidationError(message)),
-        Err(error) => Err(error),
-    }
-}
-
-// =============================================================================
-// サブタスク繰り返し関連付けファサード
-// =============================================================================
-
-/// サブタスクに繰り返しルールを関連付けます。
-pub async fn create_subtask_recurrence<R>(
-    repositories: &R,
-    project_id: &ProjectId,
-    subtask_id: &SubTaskId,
-    recurrence_rule_id: &RecurrenceRuleId,
-) -> Result<bool, ServiceError>
-where
-    R: InfrastructureRepositoriesTrait + Send + Sync,
-{
-    match recurrence_service::create_subtask_recurrence(
-        repositories,
-        project_id,
-        subtask_id,
-        recurrence_rule_id,
-    )
-    .await
-    {
-        Ok(_) => Ok(true),
-        Err(ServiceError::ValidationError(message)) => Err(ServiceError::ValidationError(message)),
-        Err(error) => Err(error),
-    }
-}
-
-/// サブタスクIDによる繰り返し関連付けを取得します。
-pub async fn get_subtask_recurrence_by_subtask_id<R>(
-    repositories: &R,
-    project_id: &ProjectId,
-    subtask_id: &SubTaskId,
-) -> Result<Option<SubTaskRecurrence>, ServiceError>
-where
-    R: InfrastructureRepositoriesTrait + Send + Sync,
-{
-    match recurrence_service::get_subtask_recurrence_by_subtask_id(
-        repositories,
-        project_id,
-        subtask_id,
-    )
-    .await
-    {
-        Ok(subtask_recurrence) => Ok(subtask_recurrence),
-        Err(error) => Err(error),
-    }
-}
-
-/// サブタスクの繰り返し関連付けを削除します。
-pub async fn delete_subtask_recurrence<R>(
-    repositories: &R,
-    project_id: &ProjectId,
-    subtask_id: &SubTaskId,
-) -> Result<bool, ServiceError>
-where
-    R: InfrastructureRepositoriesTrait + Send + Sync,
-{
-    match recurrence_service::delete_subtask_recurrence(repositories, project_id, subtask_id).await
-    {
         Ok(_) => Ok(true),
         Err(ServiceError::ValidationError(message)) => Err(ServiceError::ValidationError(message)),
         Err(error) => Err(error),

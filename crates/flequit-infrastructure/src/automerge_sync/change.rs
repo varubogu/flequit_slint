@@ -5,6 +5,9 @@
 //!
 //! 形式を変えるときは、キューに残っている古い行を読めるように互換性を保つこと
 //! （フィールドの追加は `#[serde(default)]` で、それ以外は新しい種類を足す）。
+//!
+//! サブタスクは親を持つタスクになった。`sub_task` 系の種類はもう作らないが、
+//! アプリの更新前にキューへ入った行を読むために残し、タスクの操作として適用する。
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -12,15 +15,16 @@ use serde::{Deserialize, Serialize};
 use flequit_model::models::accounts::account::Account;
 use flequit_model::models::task_projects::project::Project;
 use flequit_model::models::task_projects::recurrence_rule::RecurrenceRule;
-use flequit_model::models::task_projects::subtask::SubTask;
 use flequit_model::models::task_projects::tag::Tag;
 use flequit_model::models::task_projects::task::Task;
 use flequit_model::models::task_projects::task_list::TaskList;
 use flequit_model::models::user_preferences::tag_bookmark::TagBookmark;
 use flequit_model::models::users::user::User;
 use flequit_model::types::id_types::{
-    AccountId, ProjectId, RecurrenceRuleId, SubTaskId, TagId, TaskId, TaskListId, UserId,
+    AccountId, ProjectId, RecurrenceRuleId, TagId, TaskId, TaskListId, UserId,
 };
+
+pub use flequit_infrastructure_automerge::infrastructure::task_projects::legacy_subtasks::LegacySubTask;
 
 /// Automerge へ反映する 1 件の変更
 ///
@@ -33,16 +37,21 @@ pub enum AutomergeChange {
     User(RootChange<User, UserId>),
     Project(RootChange<Project, ProjectId>),
     TaskList(ProjectChange<TaskList, TaskListId>),
-    Task(ProjectChange<Task, TaskId>),
-    SubTask(ProjectChange<SubTask, SubTaskId>),
+    /// 箱に入れても JSON は変わらない（他の種類との大きさの差を詰めるため）
+    Task(Box<ProjectChange<Task, TaskId>>),
+    /// 旧形式（読み取り専用）。サブタスクの ID はそのままタスクの ID になる
+    SubTask(ProjectChange<LegacySubTask, TaskId>),
     Tag(ProjectChange<Tag, TagId>),
     RecurrenceRule(ProjectChange<RecurrenceRule, RecurrenceRuleId>),
     TaskTag(RelationChange<TaskId, TagId>),
-    SubTaskTag(RelationChange<SubTaskId, TagId>),
+    /// 旧形式（読み取り専用）。タスクのタグとして適用する
+    SubTaskTag(RelationChange<TaskId, TagId>),
     TaskAssignment(RelationChange<TaskId, UserId>),
-    SubTaskAssignment(RelationChange<SubTaskId, UserId>),
+    /// 旧形式（読み取り専用）。タスクの担当者として適用する
+    SubTaskAssignment(RelationChange<TaskId, UserId>),
     TaskRecurrence(RelationChange<TaskId, RecurrenceRuleId>),
-    SubTaskRecurrence(RelationChange<SubTaskId, RecurrenceRuleId>),
+    /// 旧形式（読み取り専用）。サブタスクは繰り返しを持たないので何もしない
+    SubTaskRecurrence(RelationChange<TaskId, RecurrenceRuleId>),
     TagBookmark(TagBookmarkChange),
     /// 論理削除（ゴミ箱へ移す）と復元
     Trash(TrashChange),
@@ -205,6 +214,28 @@ impl AutomergeChange {
         }
     }
 
+    /// 反映先がプロジェクトのドキュメントなら、そのプロジェクト
+    pub fn project_id(&self) -> Option<ProjectId> {
+        match self {
+            Self::Account(_) | Self::User(_) | Self::TagBookmark(_) => None,
+            Self::Project(RootChange::Save { entity, .. }) => Some(entity.id),
+            Self::Project(RootChange::Delete { id }) => Some(*id),
+            Self::TaskList(change) => Some(*change.project_id()),
+            Self::Task(change) => Some(*change.project_id()),
+            Self::SubTask(change) => Some(*change.project_id()),
+            Self::Tag(change) => Some(*change.project_id()),
+            Self::RecurrenceRule(change) => Some(*change.project_id()),
+            Self::TaskTag(change) | Self::SubTaskTag(change) => Some(*change.project_id()),
+            Self::TaskAssignment(change) | Self::SubTaskAssignment(change) => {
+                Some(*change.project_id())
+            }
+            Self::TaskRecurrence(change) | Self::SubTaskRecurrence(change) => {
+                Some(*change.project_id())
+            }
+            Self::Trash(change) => Some(*change.project_id()),
+        }
+    }
+
     /// ログと調査用の種類名（例: `task.save`）
     pub fn kind(&self) -> String {
         let (target, op) = match self {
@@ -331,6 +362,56 @@ mod tests {
 
         assert_eq!(restored.kind(), "task_tag.add");
         assert_eq!(restored.document_key(), format!("project:{project_id}"));
+    }
+
+    /// 更新前のアプリがキューへ入れたサブタスクの行も読める
+    #[test]
+    fn a_legacy_subtask_row_is_still_read() {
+        let project_id = ProjectId::new();
+        let (subtask_id, task_id, user_id) = (TaskId::new(), TaskId::new(), UserId::new());
+        let payload = serde_json::json!({
+            "target": "sub_task",
+            "change": {
+                "op": "save",
+                "project_id": project_id,
+                "entity": {
+                    "id": subtask_id,
+                    "task_id": task_id,
+                    "title": "Legacy",
+                    "description": null,
+                    "status": "completed",
+                    "priority": 2,
+                    "plan_start_date": null,
+                    "plan_end_date": null,
+                    "do_start_date": null,
+                    "do_end_date": null,
+                    "is_range_date": null,
+                    "recurrence_rule": null,
+                    "assigned_user_ids": [],
+                    "tag_ids": [],
+                    "order_index": 1,
+                    "completed": false,
+                    "created_at": "2026-09-30T00:00:00Z",
+                    "updated_at": "2026-09-30T00:00:00Z",
+                    "deleted": false,
+                    "updated_by": user_id,
+                },
+                "user_id": user_id,
+                "timestamp": "2026-09-30T00:00:00Z",
+            }
+        });
+
+        let change: AutomergeChange = serde_json::from_value(payload).expect("deserialize");
+
+        assert_eq!(change.kind(), "sub_task.save");
+        assert_eq!(change.document_key(), project_document_key(&project_id));
+        let AutomergeChange::SubTask(ProjectChange::Save { entity, .. }) = change else {
+            panic!("expected a legacy subtask save");
+        };
+        let task = entity.into_task(project_id);
+        assert_eq!(task.id, subtask_id);
+        assert_eq!(task.parent_task_id, Some(task_id));
+        assert_eq!(task.list_id, None);
     }
 
     #[test]

@@ -7,6 +7,7 @@ use sea_orm_migration::prelude::*;
 mod m20250101_000001_initial_schema;
 mod m20260906_000002_task_reminders;
 mod m20260920_000003_automerge_sync_queue;
+mod m20261001_000004_task_hierarchy;
 
 pub struct Migrator;
 
@@ -17,6 +18,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20250101_000001_initial_schema::Migration),
             Box::new(m20260906_000002_task_reminders::Migration),
             Box::new(m20260920_000003_automerge_sync_queue::Migration),
+            Box::new(m20261001_000004_task_hierarchy::Migration),
         ]
     }
 }

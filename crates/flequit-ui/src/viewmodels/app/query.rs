@@ -7,18 +7,20 @@
 
 use std::sync::{Arc, Mutex};
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use flequit_model::models::task_projects::project::ProjectTree;
-use flequit_model::models::task_projects::subtask::SubTaskTree;
 use flequit_model::models::task_projects::task::TaskTree;
 use flequit_model::models::task_projects::task_list::TaskListTree;
+use flequit_model::types::id_types::{ProjectId, TaskListId};
 use flequit_model::types::task_types::TaskStatus as DomainStatus;
 use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
 
-use super::{SharedState, clear_selection, display_settings, refresh_tags, report_error};
+use super::{
+    SharedState, clear_selection, display_settings, next_order_index, refresh_tags, report_error,
+};
 use crate::adapters::color::parse_hex;
-use crate::adapters::datetime::DisplayTimezone;
-use crate::adapters::to_task_item;
+use crate::adapters::datetime::{DateTimeDisplaySettings, DisplayTimezone};
+use crate::adapters::task::{Placement, live_children, to_task_item};
 use crate::bindings::{
     Actions, AddTargetItem, AppState, AppWindow, FilterHighlight, FilterKind, I18n, QueryEdit,
     SearchSuggestion, SearchSuggestionKind, TaskItem,
@@ -193,11 +195,11 @@ pub(super) fn bind(window: &AppWindow, state: &Arc<Mutex<SharedState>>, timezone
     {
         let weak = window.as_weak();
         let state = Arc::clone(state);
-        actions.on_choose_add_target(move |list_id| {
+        actions.on_choose_add_target(move |target| {
             {
                 let mut guard = state.lock().expect("shared state poisoned");
                 let default = default_add_target(&guard);
-                guard.add_target_override = Some((list_id.to_string(), default));
+                guard.add_target_override = Some((target.to_string(), default));
             }
             if let Some(window) = weak.upgrade() {
                 publish_add_target(&window, &state);
@@ -542,15 +544,77 @@ fn publish_highlights(window: &AppWindow, highlights: &[(ItemKey, Highlight)]) {
 
 // -- Quick-add destination --------------------------------------------------
 
-/// Whether `list_id` is a list a task can be added to right now.
-fn is_live_list(state: &SharedState, list_id: &str) -> bool {
-    state
-        .live_lists()
-        .any(|(_, list)| list.id.as_str() == list_id)
+/// The prefix that marks a destination as a project itself rather than a list.
+const PROJECT_TARGET_PREFIX: &str = "project:";
+
+/// Where the quick-add field puts a task.
+///
+/// Stored and passed through Slint as a key: a list id as it is, or the
+/// project id behind [`PROJECT_TARGET_PREFIX`]. Keys saved before projects
+/// could take tasks are plain list ids and still read the same way.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AddTarget<'a> {
+    List(&'a str),
+    Project(&'a str),
 }
 
-/// The destination the query suggests: its one list, or a list of its one
-/// project, else the last list used, else the first list there is.
+impl<'a> AddTarget<'a> {
+    fn parse(key: &'a str) -> Self {
+        match key.strip_prefix(PROJECT_TARGET_PREFIX) {
+            Some(project_id) => Self::Project(project_id),
+            None => Self::List(key),
+        }
+    }
+}
+
+fn project_target(project_id: &str) -> String {
+    format!("{PROJECT_TARGET_PREFIX}{project_id}")
+}
+
+/// Where a new task goes, resolved against the loaded tree.
+pub(super) struct Destination {
+    pub project_id: ProjectId,
+    /// `None` for a task directly under the project.
+    pub list_id: Option<TaskListId>,
+    /// Places the task after everything already there.
+    pub order_index: i32,
+}
+
+/// Resolves a destination key to a live list or project.
+pub(super) fn destination(state: &SharedState, key: &str) -> Option<Destination> {
+    match AddTarget::parse(key) {
+        AddTarget::List(id) => state
+            .live_lists()
+            .find(|(_, list)| list.id.as_str() == id)
+            .map(|(tree, list)| Destination {
+                project_id: tree.id,
+                list_id: Some(list.id),
+                order_index: next_order_index(list.tasks.iter().map(|task| task.order_index)),
+            }),
+        AddTarget::Project(id) => state
+            .live_projects()
+            .find(|tree| tree.id.as_str() == id)
+            .map(|tree| Destination {
+                project_id: tree.id,
+                list_id: None,
+                order_index: next_order_index(tree.tasks.iter().map(|task| task.order_index)),
+            }),
+    }
+}
+
+/// The project that owns a destination, for a live one.
+fn project_of_target(state: &SharedState, key: &str) -> Option<String> {
+    destination(state, key).map(|destination| destination.project_id.as_str())
+}
+
+/// Whether `key` is somewhere a task can be added right now.
+fn is_live_target(state: &SharedState, key: &str) -> bool {
+    destination(state, key).is_some()
+}
+
+/// The destination the query suggests: its one list, or a place in its one
+/// project (the last used there, else its first list, else the project
+/// itself), else the last place used, else the first there is.
 fn default_add_target(state: &SharedState) -> Option<String> {
     let strong = state.search.strong_references();
     let lists: Vec<&String> = strong
@@ -561,7 +625,7 @@ fn default_add_target(state: &SharedState) -> Option<String> {
         })
         .collect();
     if let [list] = lists.as_slice()
-        && is_live_list(state, list)
+        && is_live_target(state, list)
     {
         return Some((*list).clone());
     }
@@ -573,34 +637,44 @@ fn default_add_target(state: &SharedState) -> Option<String> {
             _ => None,
         })
         .collect();
-    if let [project] = projects.as_slice() {
-        let in_project: Vec<String> = state
-            .live_lists()
-            .filter(|(tree, _)| tree.id.as_str() == **project)
-            .map(|(_, list)| list.id.as_str())
-            .collect();
+    if let [project] = projects.as_slice()
+        && let Some(tree) = state
+            .live_projects()
+            .find(|tree| tree.id.as_str() == **project)
+    {
         let recent = state
             .recent_add_targets
             .iter()
-            .find(|id| in_project.contains(id));
-        if let Some(list) = recent.or(in_project.first()) {
-            return Some(list.clone());
-        }
+            .find(|key| project_of_target(state, key).as_deref() == Some(project.as_str()));
+        let first_list = state
+            .live_lists()
+            .find(|(owner, _)| owner.id == tree.id)
+            .map(|(_, list)| list.id.as_str());
+        return recent
+            .cloned()
+            .or(first_list)
+            .or_else(|| Some(project_target(project)));
     }
 
     state
         .recent_add_targets
         .iter()
-        .find(|id| is_live_list(state, id))
+        .find(|key| is_live_target(state, key))
         .cloned()
         .or_else(|| state.live_lists().next().map(|(_, list)| list.id.as_str()))
+        .or_else(|| {
+            state
+                .live_projects()
+                .next()
+                .map(|tree| project_target(&tree.id.as_str()))
+        })
 }
 
 /// Settles the destination and the project the tag manager works on.
 fn settle_add_target(state: &mut SharedState, selected_task_id: &str) {
     let default = default_add_target(state);
     let target = match state.add_target_override.take() {
-        Some((chosen, replaced)) if replaced == default && is_live_list(state, &chosen) => {
+        Some((chosen, replaced)) if replaced == default && is_live_target(state, &chosen) => {
             state.add_target_override = Some((chosen.clone(), replaced));
             Some(chosen)
         }
@@ -621,22 +695,34 @@ fn settle_add_target(state: &mut SharedState, selected_task_id: &str) {
                 .project_of_task(selected_task_id)
                 .map(|project| project.as_str())
         })
-        .or_else(|| state.add_target.as_deref().and_then(project_of_list))
+        .or_else(|| {
+            state
+                .add_target
+                .as_deref()
+                .and_then(|key| project_of_target(state, key))
+        })
         .unwrap_or_default();
 }
 
 pub(super) fn publish_add_target(window: &AppWindow, state: &Arc<Mutex<SharedState>>) {
     let app_state = window.global::<AppState>();
     let selected_task_id = app_state.get_selected_task_id().to_string();
-    let (list_id, project_name, list_name, color, context) = {
+    let (key, project_name, list_name, color, context) = {
         let mut guard = state.lock().expect("shared state poisoned");
         settle_add_target(&mut guard, &selected_task_id);
-        let found = guard.add_target.as_deref().and_then(|id| {
-            guard
-                .live_lists()
-                .find(|(_, list)| list.id.as_str() == id)
-                .map(|(tree, list)| (tree.name.clone(), list.name.clone(), tree.color.clone()))
-        });
+        let found = guard
+            .add_target
+            .as_deref()
+            .and_then(|key| match AddTarget::parse(key) {
+                AddTarget::List(id) => guard
+                    .live_lists()
+                    .find(|(_, list)| list.id.as_str() == id)
+                    .map(|(tree, list)| (tree.name.clone(), list.name.clone(), tree.color.clone())),
+                AddTarget::Project(id) => guard
+                    .live_projects()
+                    .find(|tree| tree.id.as_str() == id)
+                    .map(|tree| (tree.name.clone(), String::new(), tree.color.clone())),
+            });
         let (project_name, list_name, color) = found.unwrap_or_default();
         (
             guard.add_target.clone().unwrap_or_default(),
@@ -647,7 +733,7 @@ pub(super) fn publish_add_target(window: &AppWindow, state: &Arc<Mutex<SharedSta
         )
     };
     let color = color.as_deref().and_then(parse_hex);
-    app_state.set_add_target_list_id(list_id.into());
+    app_state.set_add_target(key.into());
     app_state.set_add_target_project_name(project_name.into());
     app_state.set_add_target_list_name(list_name.into());
     app_state.set_add_target_color(color.unwrap_or_default().into());
@@ -655,52 +741,73 @@ pub(super) fn publish_add_target(window: &AppWindow, state: &Arc<Mutex<SharedSta
     app_state.set_selected_project_id(context.into());
 }
 
-/// Fills the destination picker, recent lists first.
+/// Fills the destination picker, recent places first. Each project offers
+/// itself before its lists.
 fn publish_add_targets(window: &AppWindow, state: &Arc<Mutex<SharedState>>) {
     let items = {
         let guard = state.lock().expect("shared state poisoned");
         let needle = fold(&guard.add_target_filter);
-        let matches = |tree: &ProjectTree, list: &TaskListTree| {
-            needle.is_empty()
-                || fold(&list.name).contains(&needle)
-                || fold(&tree.name).contains(&needle)
-        };
-        let item = |tree: &ProjectTree, list: &TaskListTree, recent: bool| {
+        let item = |tree: &ProjectTree, list: Option<&TaskListTree>, recent: bool| {
             let color = tree.color.as_deref().and_then(parse_hex);
             AddTargetItem {
-                list_id: SharedString::from(list.id.as_str()),
+                key: SharedString::from(match list {
+                    Some(list) => list.id.as_str(),
+                    None => project_target(&tree.id.as_str()),
+                }),
                 project_name: SharedString::from(tree.name.as_str()),
-                list_name: SharedString::from(list.name.as_str()),
+                list_name: list
+                    .map(|list| SharedString::from(list.name.as_str()))
+                    .unwrap_or_default(),
                 color_brush: color.unwrap_or_default().into(),
                 has_color: color.is_some(),
                 recent,
             }
         };
-        let recent: Vec<AddTargetItem> = guard
-            .recent_add_targets
-            .iter()
-            .filter_map(|id| guard.live_lists().find(|(_, list)| list.id.as_str() == *id))
-            .filter(|(tree, list)| matches(tree, list))
-            .map(|(tree, list)| item(tree, list, true))
+        let matches = |item: &AddTargetItem| {
+            needle.is_empty()
+                || fold(&item.list_name).contains(&needle)
+                || fold(&item.project_name).contains(&needle)
+        };
+        let all: Vec<AddTargetItem> = guard
+            .live_projects()
+            .flat_map(|tree| {
+                let lists = guard
+                    .live_lists()
+                    .filter(move |(owner, _)| owner.id == tree.id)
+                    .map(move |(_, list)| item(tree, Some(list), false));
+                std::iter::once(item(tree, None, false)).chain(lists)
+            })
             .collect();
-        let rest = guard
-            .live_lists()
-            .filter(|(_, list)| !guard.recent_add_targets.contains(&list.id.as_str()))
-            .filter(|(tree, list)| matches(tree, list))
-            .map(|(tree, list)| item(tree, list, false));
-        recent.into_iter().chain(rest).collect::<Vec<_>>()
+        let recent = guard.recent_add_targets.iter().filter_map(|key| {
+            all.iter()
+                .find(|item| item.key == key.as_str())
+                .map(|item| AddTargetItem {
+                    recent: true,
+                    ..item.clone()
+                })
+        });
+        let rest = all
+            .iter()
+            .filter(|item| {
+                !guard
+                    .recent_add_targets
+                    .iter()
+                    .any(|key| item.key == key.as_str())
+            })
+            .cloned();
+        recent.chain(rest).filter(matches).collect::<Vec<_>>()
     };
     window
         .global::<AppState>()
         .set_add_targets(ModelRc::new(VecModel::from(items)));
 }
 
-/// Records that a task was added to `list_id`, so it leads the picker and
+/// Records that a task was added to `target`, so it leads the picker and
 /// becomes the fallback destination.
-pub(super) fn note_task_added(state: &Arc<Mutex<SharedState>>, list_id: &str, task_id: String) {
+pub(super) fn note_task_added(state: &Arc<Mutex<SharedState>>, target: &str, task_id: String) {
     let mut guard = state.lock().expect("shared state poisoned");
-    guard.recent_add_targets.retain(|id| id != list_id);
-    guard.recent_add_targets.insert(0, list_id.to_string());
+    guard.recent_add_targets.retain(|key| key != target);
+    guard.recent_add_targets.insert(0, target.to_string());
     guard.recent_add_targets.truncate(RECENT_ADD_TARGETS);
     guard.just_added = Some(task_id);
 }
@@ -717,128 +824,206 @@ fn unit_status(status: &DomainStatus) -> UnitStatus {
     }
 }
 
-fn subtask_status(subtask: &SubTaskTree) -> UnitStatus {
-    // `completed` predates the status field and is still written by some
-    // clients, so either one marks the subtask finished.
-    if subtask.completed {
-        UnitStatus::Completed
-    } else {
-        unit_status(&subtask.status)
-    }
-}
-
-/// A task and its live subtasks, with the owned values their search units
-/// borrow.
-struct Row<'a> {
+/// One task of a [`Row`], with the owned values its search unit borrows.
+struct Node<'a> {
     task: &'a TaskTree,
-    project_id: String,
-    list_id: String,
+    /// The tasks above it, top-level first.
+    ancestors: Vec<&'a TaskTree>,
+    ancestor_texts: Vec<UnitText<'a>>,
+    /// Its own tags and those of every task above it.
     tags: Vec<&'a str>,
     assignees: Vec<String>,
-    children: Vec<UnitText<'a>>,
-    subtasks: Vec<SubRow<'a>>,
+    /// Indexes of its live subtasks in [`Row::nodes`].
+    children: Vec<usize>,
 }
 
-struct SubRow<'a> {
-    subtask: &'a SubTaskTree,
-    tags: Vec<&'a str>,
-    assignees: Vec<String>,
+/// A top-level task and every live task below it, in display order.
+struct Row<'a> {
+    project_id: String,
+    /// Empty when the task is directly under the project.
+    list_id: String,
+    /// The top-level task first, then each subtask after its parent.
+    nodes: Vec<Node<'a>>,
+    /// Titles and notes of every subtask, for the top-level task's `@subtask:`.
+    descendant_texts: Vec<UnitText<'a>>,
 }
 
 impl<'a> Row<'a> {
     fn new(
         state: &'a SharedState,
         project: &'a ProjectTree,
-        list: &'a TaskListTree,
+        list: Option<&'a TaskListTree>,
         task: &'a TaskTree,
     ) -> Self {
-        let tags = state.tag_names_of(task);
-        let live: Vec<&SubTaskTree> = task.sub_tasks.iter().filter(|sub| !sub.deleted).collect();
-        let subtasks = live
+        let mut row = Self {
+            project_id: project.id.as_str(),
+            list_id: list.map(|list| list.id.as_str()).unwrap_or_default(),
+            nodes: Vec::new(),
+            descendant_texts: Vec::new(),
+        };
+        row.push(state, task, Vec::new(), &[]);
+        row.descendant_texts = row.nodes[1..]
             .iter()
-            .map(|subtask| {
-                let mut own: Vec<&str> = subtask
-                    .tag_ids
-                    .iter()
-                    .filter_map(|id| state.tag_names.get(id).map(String::as_str))
-                    .collect();
-                own.extend(tags.iter().copied());
-                SubRow {
-                    subtask,
-                    tags: own,
-                    assignees: subtask
-                        .assigned_user_ids
-                        .iter()
-                        .map(|id| id.as_str())
-                        .collect(),
-                }
+            .map(|node| UnitText {
+                title: &node.task.title,
+                notes: node.task.description.as_deref(),
             })
             .collect();
-        Self {
+        row
+    }
+
+    fn push(
+        &mut self,
+        state: &'a SharedState,
+        task: &'a TaskTree,
+        ancestors: Vec<&'a TaskTree>,
+        inherited_tags: &[&'a str],
+    ) -> usize {
+        let mut tags = state.tag_names_of(task);
+        tags.extend(inherited_tags.iter().copied());
+        let index = self.nodes.len();
+        self.nodes.push(Node {
             task,
-            project_id: project.id.as_str(),
-            list_id: list.id.as_str(),
+            ancestor_texts: ancestors
+                .iter()
+                .map(|ancestor| UnitText {
+                    title: &ancestor.title,
+                    notes: ancestor.description.as_deref(),
+                })
+                .collect(),
+            ancestors: ancestors.clone(),
+            tags: tags.clone(),
             assignees: task
                 .assigned_user_ids
                 .iter()
                 .map(|id| id.as_str())
                 .collect(),
-            children: live
-                .iter()
-                .map(|sub| UnitText {
-                    title: &sub.title,
-                    notes: sub.description.as_deref(),
-                })
-                .collect(),
-            tags,
-            subtasks,
+            children: Vec::new(),
+        });
+        let mut below = ancestors;
+        below.push(task);
+        for child in live_children(task) {
+            let child_index = self.push(state, child, below.clone(), &tags);
+            self.nodes[index].children.push(child_index);
         }
+        index
     }
 
-    fn task_unit(&self) -> SearchUnit<'_> {
+    fn unit(&self, index: usize) -> SearchUnit<'_> {
+        let node = &self.nodes[index];
         SearchUnit {
             project_id: &self.project_id,
             list_id: &self.list_id,
-            title: &self.task.title,
-            notes: self.task.description.as_deref(),
-            parent: None,
-            children: &self.children,
-            due: self.task.plan_end_date.as_ref(),
-            status: unit_status(&self.task.status),
-            assignees: &self.assignees,
-            tags: &self.tags,
+            title: &node.task.title,
+            notes: node.task.description.as_deref(),
+            ancestors: &node.ancestor_texts,
+            descendants: if index == 0 {
+                &self.descendant_texts
+            } else {
+                &[]
+            },
+            due: node.task.plan_end_date.as_ref(),
+            status: unit_status(&node.task.status),
+            assignees: &node.assignees,
+            tags: &node.tags,
         }
     }
 
-    fn subtask_unit<'s>(&'s self, sub: &'s SubRow<'a>) -> SearchUnit<'s> {
-        SearchUnit {
-            project_id: &self.project_id,
-            list_id: &self.list_id,
-            title: &sub.subtask.title,
-            notes: sub.subtask.description.as_deref(),
-            parent: Some(UnitText {
-                title: &self.task.title,
-                notes: self.task.description.as_deref(),
-            }),
-            children: &[],
-            due: sub.subtask.plan_end_date.as_ref(),
-            status: subtask_status(sub.subtask),
-            assignees: &sub.assignees,
-            tags: &sub.tags,
+    /// Whether each task of the row matches, by position in [`Self::nodes`].
+    fn evaluate(&self, query: &Prepared, context: &EvalContext) -> Vec<bool> {
+        (0..self.nodes.len())
+            .map(|index| query.matches(&self.unit(index), context))
+            .collect()
+    }
+}
+
+/// What the search makes of one row, and how to publish it.
+struct Listing<'s, 'a> {
+    row: &'s Row<'a>,
+    matches: Vec<bool>,
+    /// Whether each task or something below it matches.
+    reaches: Vec<bool>,
+    filtering: bool,
+    hide_completed: bool,
+}
+
+impl Listing<'_, '_> {
+    /// Appends the row's visible tasks, the top-level one first.
+    fn publish(
+        &self,
+        state: &SharedState,
+        now: &DateTime<Utc>,
+        display: &DateTimeDisplaySettings,
+        items: &mut Vec<TaskItem>,
+    ) {
+        self.emit(0, self.filtering, state, now, display, items);
+    }
+
+    /// `searching` says the task is on the way to a match: the top-level task
+    /// while filtering, or a subtask of a task shown only for its subtasks.
+    fn emit(
+        &self,
+        index: usize,
+        searching: bool,
+        state: &SharedState,
+        now: &DateTime<Utc>,
+        display: &DateTimeDisplaySettings,
+        items: &mut Vec<TaskItem>,
+    ) {
+        let node = &self.row.nodes[index];
+        if index > 0 && self.hide_completed && node.task.status == DomainStatus::Completed {
+            return;
+        }
+        // Listed only for what matches below it: shown receded and opened up.
+        let dimmed = searching && !self.matches[index] && self.reaches[index];
+        let id = node.task.id.as_str();
+        let expanded = dimmed || state.task_ui.is_expanded(&id);
+        let placement = Placement {
+            list_id: (!self.row.list_id.is_empty()).then_some(self.row.list_id.as_str()),
+            ancestors: &node.ancestors,
+        };
+        let mut item = to_task_item(node.task, placement, expanded, now, display, &node.tags);
+        if dimmed {
+            item.search_dimmed = true;
+            let below = self.below(index).filter(|&at| self.matches[at]).count();
+            item.matched_subtask_count = i32::try_from(below).unwrap_or(i32::MAX);
+        }
+        item.search_match = index > 0 && searching && self.matches[index];
+        items.push(item);
+
+        if expanded {
+            for &child in &node.children {
+                self.emit(child, dimmed, state, now, display, items);
+            }
         }
     }
 
-    /// Whether the task matches, and which of its subtasks do.
-    fn evaluate(&self, query: &Prepared, context: &EvalContext) -> (bool, Vec<String>) {
-        let task = query.matches(&self.task_unit(), context);
-        let subtasks = self
-            .subtasks
+    /// Positions of every task below `index`.
+    fn below(&self, index: usize) -> impl Iterator<Item = usize> + '_ {
+        let mut stack: Vec<usize> = self.row.nodes[index].children.clone();
+        std::iter::from_fn(move || {
+            let at = stack.pop()?;
+            stack.extend(self.row.nodes[at].children.iter().copied());
+            Some(at)
+        })
+    }
+}
+
+/// Whether each task of `row` or something below it matches, given `matches`.
+fn reaches(row: &Row<'_>, matches: &[bool]) -> Vec<bool> {
+    let mut reaches = matches.to_vec();
+    // Children come after their parent, so walking backwards settles every
+    // child before the parent that reads it.
+    for index in (0..row.nodes.len()).rev() {
+        if row.nodes[index]
+            .children
             .iter()
-            .filter(|sub| query.matches(&self.subtask_unit(sub), context))
-            .map(|sub| sub.subtask.id.as_str())
-            .collect();
-        (task, subtasks)
+            .any(|&child| reaches[child])
+        {
+            reaches[index] = true;
+        }
     }
+    reaches
 }
 
 /// Rebuilds the task model from the query, and the sidebar counts with it.
@@ -864,44 +1049,72 @@ pub(super) fn refresh_tasks(
         .map(|(project, list, task)| Row::new(&guard, project, list, task))
         .collect();
     // Stable, so the stored order stays the tiebreaker in every mode.
-    rows.sort_by(|a, b| ordering::compare(a.task, b.task, guard.task_sort));
+    rows.sort_by(|a, b| ordering::compare(a.nodes[0].task, b.nodes[0].task, guard.task_sort));
 
     let mut items: Vec<TaskItem> = Vec::new();
     for row in &rows {
-        let (task_matches, matched) = row.evaluate(&query, &context);
-        let just_added = guard.just_added.as_deref() == Some(row.task.id.as_str().as_str());
-        if !task_matches && matched.is_empty() && !just_added {
+        let root = row.nodes[0].task;
+        let matches = row.evaluate(&query, &context);
+        let reaches = reaches(row, &matches);
+        let just_added = guard.just_added.as_deref() == Some(root.id.as_str().as_str());
+        if !reaches[0] && !just_added {
             continue;
         }
-        if guard.hide_completed_tasks && row.task.status == DomainStatus::Completed && !just_added {
+        if guard.hide_completed_tasks && root.status == DomainStatus::Completed && !just_added {
             continue;
         }
-        // Listed only for its subtasks: shown receded and opened up.
-        let dimmed = filtering && !task_matches && !just_added;
-        let expanded = guard.task_ui.is_expanded(&row.task.id.as_str()) || dimmed;
-        let mut item = to_task_item(row.task, expanded, &context.now, &display, &row.tags);
-        if dimmed {
-            item.search_dimmed = true;
-            item.matched_subtask_count = i32::try_from(matched.len()).unwrap_or(i32::MAX);
-            let subtasks = item.subtasks.clone();
-            for index in 0..subtasks.row_count() {
-                if let Some(mut sub) = subtasks.row_data(index)
-                    && matched.iter().any(|id| sub.id == id.as_str())
-                {
-                    sub.search_match = true;
-                    subtasks.set_row_data(index, sub);
-                }
-            }
-        }
-        items.push(item);
+        let listing = Listing {
+            row,
+            matches,
+            reaches,
+            // A task just added stays listed as it is, even if it misses.
+            filtering: filtering && !just_added,
+            hide_completed: guard.hide_completed_tasks,
+        };
+        listing.publish(&guard, &context.now, &display, &mut items);
     }
 
-    tracing::debug!(tasks = items.len(), filtering, "publishing task list");
+    tracing::debug!(rows = items.len(), filtering, "publishing task list");
     let app_state = window.global::<AppState>();
     app_state.set_tasks(ModelRc::new(VecModel::from(items)));
     publish_counts(window, &rows, &context);
     drop(rows);
     drop(guard);
+}
+
+/// A task at any depth as the detail pane shows it, built from the cached
+/// tree for a task the list does not show.
+pub(super) fn task_item_from_tree(
+    state: &SharedState,
+    task_id: &str,
+    display: &DateTimeDisplaySettings,
+) -> Option<TaskItem> {
+    let (_, task) = state.task_with_project(task_id)?;
+    if task.deleted {
+        return None;
+    }
+    let ancestors = state.ancestors_of(task_id);
+    if ancestors.iter().any(|ancestor| ancestor.deleted) {
+        return None;
+    }
+    let root = ancestors.first().copied().unwrap_or(task);
+    let list_id = root.list_id.map(|id| id.as_str());
+    let mut tags = state.tag_names_of(task);
+    for ancestor in &ancestors {
+        tags.extend(state.tag_names_of(ancestor));
+    }
+    let placement = Placement {
+        list_id: list_id.as_deref(),
+        ancestors: &ancestors,
+    };
+    Some(to_task_item(
+        task,
+        placement,
+        state.task_ui.is_expanded(task_id),
+        &Utc::now(),
+        display,
+        &tags,
+    ))
 }
 
 /// Counts, for each due and state button, the rows its query alone would list.
@@ -911,8 +1124,9 @@ fn publish_counts(window: &AppWindow, rows: &[Row<'_>], context: &EvalContext) {
         let listed = rows
             .iter()
             .filter(|row| {
-                let (task, subtasks) = row.evaluate(&query, context);
-                task || !subtasks.is_empty()
+                row.evaluate(&query, context)
+                    .into_iter()
+                    .any(|matched| matched)
             })
             .count();
         i32::try_from(listed).unwrap_or(i32::MAX)
@@ -954,8 +1168,6 @@ fn publish_counts(window: &AppWindow, rows: &[Row<'_>], context: &EvalContext) {
 #[cfg(test)]
 mod tests {
     use chrono::TimeZone;
-    use flequit_model::models::task_projects::subtask::SubTaskTree;
-    use flequit_model::types::id_types::{SubTaskId, UserId};
 
     use super::super::tests::{list_named, project_named, task_named};
     use super::*;
@@ -1042,61 +1254,167 @@ mod tests {
     }
 
     #[test]
-    fn a_task_is_listed_for_a_subtask_that_matches_on_its_own() {
+    fn a_project_without_lists_takes_tasks_itself() {
         let mut state = state();
-        let now = Utc.with_ymd_and_hms(2026, 3, 1, 9, 0, 0).unwrap();
-        let subtask = SubTaskTree {
-            id: SubTaskId::new(),
-            task_id: state.trees[0].task_lists[0].tasks[0].id,
-            title: "Check the fridge".into(),
-            description: None,
-            status: DomainStatus::NotStarted,
-            priority: None,
-            plan_start_date: None,
-            plan_end_date: None,
-            do_start_date: None,
-            do_end_date: None,
-            is_range_date: None,
-            recurrence_rule: None,
-            order_index: 0,
-            completed: true,
-            created_at: now,
-            updated_at: now,
-            deleted: false,
-            updated_by: UserId::new(),
-            assigned_user_ids: Vec::new(),
-            tag_ids: Vec::new(),
+        let mut loose = project_named("Loose", Vec::new());
+        loose.tasks.push(task_named("Read"));
+        let loose_id = loose.id.as_str();
+        state.trees.push(loose);
+        state.search_index = build_index(&state);
+
+        search(&mut state, &format!("@project:{{{loose_id}}}"));
+        let target = default_add_target(&state).expect("a destination");
+        assert_eq!(target, project_target(&loose_id));
+        let resolved = destination(&state, &target).expect("a live destination");
+        assert_eq!(resolved.list_id, None);
+        assert_eq!(resolved.order_index, 1);
+
+        // A project chosen before stays the default when the query has none.
+        search(&mut state, "");
+        state.recent_add_targets = vec![target.clone()];
+        assert_eq!(default_add_target(&state), Some(target));
+    }
+
+    #[test]
+    fn an_old_destination_key_is_a_list_id() {
+        let state = state();
+        let inbox = list_id(&state, "Inbox");
+        let resolved = destination(&state, &inbox).expect("the list");
+        assert_eq!(resolved.list_id.map(|id| id.as_str()), Some(inbox));
+        assert!(destination(&state, "project:not-a-project").is_none());
+    }
+
+    /// Buy milk › Check the fridge (completed) › Wipe the shelf
+    fn nested() -> SharedState {
+        let mut state = state();
+        let root = &mut state.trees[0].task_lists[0].tasks[0];
+        let mut child = TaskTree {
+            list_id: None,
+            parent_task_id: Some(root.id),
+            status: DomainStatus::Completed,
+            ..task_named("Check the fridge")
         };
-        let subtask_id = subtask.id.as_str();
-        state.trees[0].task_lists[0].tasks[0]
-            .sub_tasks
-            .push(subtask);
+        child.sub_tasks.push(TaskTree {
+            list_id: None,
+            parent_task_id: Some(child.id),
+            ..task_named("Wipe the shelf")
+        });
+        root.sub_tasks.push(child);
+        state
+    }
+
+    /// The rows the task list shows for `query`, as (title, depth, dimmed, marked).
+    fn listed(state: &SharedState, query: &str) -> Vec<(String, i32, bool, bool)> {
         let context = EvalContext {
-            now,
+            now: Utc.with_ymd_and_hms(2026, 3, 1, 9, 0, 0).unwrap(),
             timezone: DisplayTimezone::Utc,
         };
-
-        let (project, list, task) = state.live_tasks().next().expect("a live task");
-        let row = Row::new(&state, project, list, task);
-        let query = |text: &str| {
-            let mut session = crate::viewmodels::search::SearchSession::default();
-            session.restore(text, &state.search_index, Lang::En);
-            session.prepared(&state.search_index)
+        let display = DateTimeDisplaySettings {
+            timezone: DisplayTimezone::Utc,
+            format: "%Y-%m-%d %H:%M".to_string(),
         };
+        let mut session = crate::viewmodels::search::SearchSession::default();
+        session.restore(query, &state.search_index, Lang::En);
+        let prepared = session.prepared(&state.search_index);
 
-        // The legacy `completed` flag counts as done even while the status lags.
+        let mut items = Vec::new();
+        for (project, list, task) in state.live_tasks() {
+            let row = Row::new(state, project, list, task);
+            let matches = row.evaluate(&prepared, &context);
+            let reaches = reaches(&row, &matches);
+            if !reaches[0] {
+                continue;
+            }
+            Listing {
+                row: &row,
+                matches,
+                reaches,
+                filtering: !prepared.is_empty(),
+                hide_completed: false,
+            }
+            .publish(state, &context.now, &display, &mut items);
+        }
+        items
+            .into_iter()
+            .map(|item| {
+                (
+                    item.title.to_string(),
+                    item.depth,
+                    item.search_dimmed,
+                    item.search_match,
+                )
+            })
+            .collect()
+    }
+
+    fn row(title: &str, depth: i32, dimmed: bool, marked: bool) -> (String, i32, bool, bool) {
+        (title.to_string(), depth, dimmed, marked)
+    }
+
+    #[test]
+    fn subtasks_are_rows_of_their_own_once_opened() {
+        let mut state = nested();
+        assert_eq!(listed(&state, ""), [row("Buy milk", 0, false, false)]);
+
+        let root = state.trees[0].task_lists[0].tasks[0].id.as_str();
+        state.task_ui.expand(&root);
         assert_eq!(
-            row.evaluate(&query("@done"), &context),
-            (false, vec![subtask_id.clone()])
+            listed(&state, ""),
+            [
+                row("Buy milk", 0, false, false),
+                row("Check the fridge", 1, false, false),
+            ]
         );
-        // The subtask inherits its parent's text, so both match.
+    }
+
+    #[test]
+    fn a_task_is_listed_for_a_subtask_that_matches_on_its_own() {
+        let state = nested();
+
+        // Only the subtask is done: the task is shown for it, receded and open.
         assert_eq!(
-            row.evaluate(&query("milk"), &context),
-            (true, vec![subtask_id])
+            listed(&state, "@done"),
+            [
+                row("Buy milk", 0, true, false),
+                row("Check the fridge", 1, false, true),
+            ]
         );
+        // The subtasks inherit the task's text, so the task itself matches and
+        // nothing below it is marked.
+        assert_eq!(listed(&state, "milk"), [row("Buy milk", 0, false, false)]);
+        assert!(listed(&state, "@done shelf").is_empty());
+    }
+
+    #[test]
+    fn a_deep_match_opens_the_way_down_to_it() {
+        let state = nested();
+
         assert_eq!(
-            row.evaluate(&query("@open fridge"), &context),
-            (false, vec![])
+            listed(&state, "wipe"),
+            [
+                row("Buy milk", 0, true, false),
+                row("Check the fridge", 1, true, false),
+                row("Wipe the shelf", 2, false, true),
+            ]
         );
+    }
+
+    #[test]
+    fn a_hidden_subtask_still_opens_in_the_pane_with_its_way_back_up() {
+        let state = nested();
+        let display = DateTimeDisplaySettings {
+            timezone: DisplayTimezone::Utc,
+            format: "%Y-%m-%d %H:%M".to_string(),
+        };
+        let root = &state.trees[0].task_lists[0].tasks[0];
+        let grandchild = root.sub_tasks[0].sub_tasks[0].id.as_str();
+
+        let item = task_item_from_tree(&state, &grandchild, &display).expect("loaded");
+
+        assert_eq!(item.depth, 2);
+        assert_eq!(item.parent_id, root.sub_tasks[0].id.as_str());
+        assert_eq!(item.list_id, root.list_id.unwrap().as_str());
+        let ancestors: Vec<String> = item.ancestors.iter().map(|a| a.title.to_string()).collect();
+        assert_eq!(ancestors, ["Buy milk", "Check the fridge"]);
     }
 }

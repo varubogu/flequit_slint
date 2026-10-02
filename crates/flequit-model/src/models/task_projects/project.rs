@@ -10,7 +10,7 @@
 //! - `ProjectTree`: タスクリストを含む階層構造
 
 use crate::types::{
-    id_types::{ProjectId, UserId},
+    id_types::{ProjectId, TaskId, UserId},
     project_types::ProjectStatus,
 };
 use async_trait::async_trait;
@@ -18,6 +18,7 @@ use chrono::{DateTime, Utc};
 use partially::Partial;
 use serde::{Deserialize, Serialize};
 
+use super::task::TaskTree;
 use super::task_list::TaskListTree;
 use crate::models::ModelConverter;
 use crate::traits::Trackable;
@@ -86,9 +87,10 @@ pub struct Project {
 /// # フィールド
 ///
 /// 基本的には`Project`と同じフィールドを持ちますが、
-/// 追加で`task_lists`フィールドにより階層構造を表現します。
+/// 追加で`task_lists`と`tasks`フィールドにより階層構造を表現します。
 ///
 /// * `task_lists` - 所属するタスクリスト一覧（タスク情報を含む）
+/// * `tasks` - タスクリストに属さない最上位のタスク一覧（プロジェクト直下）
 ///
 /// # 使用場面
 ///
@@ -128,6 +130,43 @@ pub struct ProjectTree {
     pub updated_by: UserId,
     /// 所属するタスクリスト一覧（タスク情報を含む）
     pub task_lists: Vec<TaskListTree>,
+    /// タスクリストに属さない最上位のタスク（プロジェクト直下、表示順序で並ぶ）
+    #[serde(default)]
+    pub tasks: Vec<TaskTree>,
+}
+
+impl ProjectTree {
+    /// 最上位のタスク（各タスクリストのタスクとプロジェクト直下のタスク）
+    pub fn root_tasks(&self) -> impl Iterator<Item = &TaskTree> {
+        self.task_lists
+            .iter()
+            .flat_map(|list| list.tasks.iter())
+            .chain(self.tasks.iter())
+    }
+
+    /// すべての階層のタスクを、最上位のタスクごとに行きがけ順でたどる
+    pub fn all_tasks(&self) -> impl Iterator<Item = &TaskTree> {
+        self.root_tasks().flat_map(TaskTree::walk)
+    }
+
+    /// すべての階層から `id` のタスクを探す
+    pub fn find_task(&self, id: &TaskId) -> Option<&TaskTree> {
+        self.root_tasks().find_map(|root| root.find(id))
+    }
+
+    /// すべての階層から `id` のタスクを探す（書き換え用）
+    pub fn find_task_mut(&mut self, id: &TaskId) -> Option<&mut TaskTree> {
+        self.task_lists
+            .iter_mut()
+            .flat_map(|list| list.tasks.iter_mut())
+            .chain(self.tasks.iter_mut())
+            .find_map(|root| root.find_mut(id))
+    }
+
+    /// `id` のタスクを含む最上位のタスク
+    pub fn root_of(&self, id: &TaskId) -> Option<&TaskTree> {
+        self.root_tasks().find(|root| root.find(id).is_some())
+    }
 }
 
 #[async_trait]

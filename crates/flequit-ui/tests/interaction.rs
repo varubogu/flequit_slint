@@ -14,9 +14,9 @@ use std::rc::Rc;
 
 use flequit_ui::bindings::DueUnit;
 use flequit_ui::bindings::{
-    Actions, AppState, AppWindow, BookmarkedTagItem, Capabilities, ColorOption, DueButtonSetting,
-    DueFilterItem, EditorKind, FailedSyncChangeItem, FilterHighlight, FilterKind, Layout,
-    ProjectItem, QueryEdit, RecurrenceEnd, RecurrenceMonthlyMode, RecurrencePresetSetting,
+    Actions, AncestorItem, AppState, AppWindow, BookmarkedTagItem, Capabilities, ColorOption,
+    DueButtonSetting, DueFilterItem, EditorKind, FailedSyncChangeItem, FilterHighlight, FilterKind,
+    Layout, ProjectItem, QueryEdit, RecurrenceEnd, RecurrenceMonthlyMode, RecurrencePresetSetting,
     RecurrenceState, RecurrenceUnit, RecurrenceWeekOfMonth, ReminderItem, ReminderPresetSetting,
     ReminderUnit, SearchSuggestion, SearchSuggestionKind, SettingsCategory, SettingsState,
     SubTaskItem, TagItem, TaskItem, TaskListItem, TaskPriority, TaskSort, TaskStatus, Theme,
@@ -62,6 +62,8 @@ fn task_item(id: &str, title: &str) -> TaskItem {
         id: SharedString::from(id),
         project_id: SharedString::from("p1"),
         list_id: SharedString::from("l1"),
+        parent_id: SharedString::default(),
+        depth: 0,
         title: SharedString::from(title),
         status: TaskStatus::NotStarted,
         priority: TaskPriority::None,
@@ -87,6 +89,7 @@ fn task_item(id: &str, title: &str) -> TaskItem {
         subtasks: ModelRc::new(VecModel::default()),
         subtask_count: 0,
         subtask_done_count: 0,
+        ancestors: ModelRc::new(VecModel::default()),
         has_recurrence: false,
         recurrence_unit: RecurrenceUnit::Day,
         recurrence_interval: 1,
@@ -97,27 +100,35 @@ fn task_item(id: &str, title: &str) -> TaskItem {
         expanded: false,
         search_dimmed: false,
         matched_subtask_count: 0,
+        search_match: false,
     }
 }
 
+/// A subtask of the test task "t1", as its parent's pane lists it.
 fn subtask_item(id: &str, title: &str) -> SubTaskItem {
     SubTaskItem {
         id: SharedString::from(id),
-        task_id: SharedString::from("t1"),
         title: SharedString::from(title),
-        status: TaskStatus::NotStarted,
-        priority: TaskPriority::None,
         completed: false,
-        notes: SharedString::default(),
         due_label: SharedString::default(),
         has_due: false,
         overdue: false,
-        due_year: 2026,
-        due_month: 9,
-        due_day: 6,
-        due_hour: 12,
-        due_minute: 0,
-        search_match: false,
+        subtask_count: 0,
+    }
+}
+
+/// The same subtask as a task of its own: a row below "t1", or the subject
+/// of the detail pane.
+fn subtask_task_item(id: &str, title: &str) -> TaskItem {
+    TaskItem {
+        parent_id: SharedString::from("t1"),
+        depth: 1,
+        ancestors: ModelRc::new(VecModel::from(vec![AncestorItem {
+            id: SharedString::from("t1"),
+            title: SharedString::from("Buy milk"),
+        }])),
+        reminders: ModelRc::new(VecModel::default()),
+        ..task_item(id, title)
     }
 }
 
@@ -1022,23 +1033,17 @@ fn task_list_empty_states_offer_a_next_action() {
 
     state.set_projects(ModelRc::new(VecModel::default()));
     state.set_selected_project_id(SharedString::default());
-    state.set_add_target_list_id(SharedString::default());
+    state.set_add_target(SharedString::default());
     settle();
     assert!(activate(&window, "Create project"));
     assert!(state.get_editor_open());
     assert_eq!(state.get_editor().kind, EditorKind::Project);
 
+    // A project takes tasks even before it has a list.
     state.set_editor_open(false);
     state.set_projects(ModelRc::new(VecModel::from(vec![project_item(true)])));
     state.set_selected_project_id("p1".into());
-    settle();
-    assert!(activate(&window, "Create task list"));
-    assert!(state.get_editor_open());
-    assert_eq!(state.get_editor().kind, EditorKind::TaskList);
-    assert_eq!(state.get_editor().project_id.as_str(), "p1");
-
-    state.set_editor_open(false);
-    state.set_add_target_list_id("l1".into());
+    state.set_add_target("project:p1".into());
     settle();
     assert!(activate(&window, "Add your first task"));
     assert!(
@@ -1795,12 +1800,13 @@ fn the_drag_handle_reaches_its_handler() {
             task_item("t2", "Pick up bread"),
         ])));
 
+    // One top-level row at a time, whatever subtask rows lie in between.
     let seen = Rc::new(RefCell::new(Vec::<(String, i32)>::new()));
     {
         let seen = Rc::clone(&seen);
         window
             .global::<Actions>()
-            .on_reorder_task(move |id, index| seen.borrow_mut().push((id.to_string(), index)));
+            .on_move_task_by(move |id, delta| seen.borrow_mut().push((id.to_string(), delta)));
     }
 
     assert!(
@@ -1812,7 +1818,7 @@ fn the_drag_handle_reaches_its_handler() {
 
     assert_eq!(
         seen.borrow().as_slice(),
-        [("t1".to_string(), 1), ("t2".to_string(), 0)]
+        [("t1".to_string(), 1), ("t2".to_string(), -1)]
     );
 }
 
@@ -1999,8 +2005,8 @@ fn the_repeat_editor_can_stop_a_schedule() {
     assert!(!window.global::<AppState>().get_recurrence_open());
 }
 
-/// A subtask row must read as a child of its task and expose pointer-operable
-/// controls for completion and opening the detail editor.
+/// A subtask is a row of its own below its task: indented, and completed
+/// through the same action as any task. Its parent's pane lists it and opens it.
 fn subtask_rows_reach_their_handlers() {
     let window = window_with_content();
     let state = window.global::<AppState>();
@@ -2011,7 +2017,8 @@ fn subtask_rows_reach_their_handlers() {
     task.subtasks = ModelRc::new(VecModel::from(vec![subtask_item("s1", "Pick up bread")]));
     task.subtask_count = 1;
     task.expanded = true;
-    state.set_tasks(ModelRc::new(VecModel::from(vec![task.clone()])));
+    let child = subtask_task_item("s1", "Pick up bread");
+    state.set_tasks(ModelRc::new(VecModel::from(vec![task.clone(), child])));
     state.set_selected_task_id(task.id.clone());
     state.set_selected_task(task);
     state.set_has_selected_task(true);
@@ -2024,80 +2031,80 @@ fn subtask_rows_reach_their_handlers() {
         let deleted = Rc::clone(&deleted);
         let opened = Rc::clone(&opened);
         let actions = window.global::<Actions>();
-        actions.on_toggle_subtask_completed(move |id| toggled.borrow_mut().push(id.to_string()));
-        actions.on_delete_subtask(move |id| deleted.borrow_mut().push(id.to_string()));
-        actions.on_select_subtask(move |id| opened.borrow_mut().push(id.to_string()));
+        actions.on_toggle_task_completed(move |id| toggled.borrow_mut().push(id.to_string()));
+        actions.on_delete_task(move |id| deleted.borrow_mut().push(id.to_string()));
+        actions.on_select_task(move |id| opened.borrow_mut().push(id.to_string()));
     }
 
     let task_checkbox = ElementHandle::find_by_accessible_label(&window, "Buy milk")
         .find(|element| element.accessible_checked().is_some())
         .expect("the parent task checkbox is not reachable");
-    let subtask_checkbox =
-        ElementHandle::find_by_accessible_label(&window, "Complete Pick up bread")
-            .find(|element| element.accessible_checked().is_some())
-            .expect("the subtask checkbox is not reachable");
+    let subtask_checkbox = ElementHandle::find_by_accessible_label(&window, "Pick up bread")
+        .find(|element| element.accessible_checked().is_some())
+        .expect("the subtask row checkbox is not reachable");
     assert!(
         subtask_checkbox.absolute_position().x > task_checkbox.absolute_position().x,
         "the subtask checkbox must be indented to the right of its parent"
     );
+    subtask_checkbox.invoke_accessible_default_action();
+    // The parent's pane lists it: completing, deleting and opening it.
     assert!(click(&window, "Complete Pick up bread"));
     assert!(activate(&window, "Delete subtask Pick up bread"));
-    assert!(click(&window, "Edit subtask Pick up bread"));
+    assert!(activate(&window, "Open subtask Pick up bread"));
 
-    assert_eq!(toggled.borrow().as_slice(), ["s1"]);
+    assert_eq!(toggled.borrow().as_slice(), ["s1", "s1"]);
     assert_eq!(deleted.borrow().as_slice(), ["s1"]);
     assert_eq!(opened.borrow().as_slice(), ["s1"]);
 }
 
-/// Selecting a subtask published an id that no view read, so the detail pane
-/// kept showing the parent task.
+/// A subtask opens in the task pane: it edits through the task actions, shows
+/// the way back up, and leaves out the repeat schedule only a task has.
 fn the_subtask_detail_pane_reaches_its_handlers() {
     let window = window_with_content();
     let state = window.global::<AppState>();
-    let mut task = state
-        .get_tasks()
-        .row_data(0)
-        .expect("the test task should exist");
-    let subtask = subtask_item("s1", "Pick up bread");
-    task.subtasks = ModelRc::new(VecModel::from(vec![subtask.clone()]));
-    state.set_selected_task_id(task.id.clone());
-    state.set_selected_task(task);
+    let subtask = subtask_task_item("s1", "Pick up bread");
+    state.set_selected_task_id(subtask.id.clone());
+    state.set_selected_task(subtask);
     state.set_has_selected_task(true);
-    state.set_selected_subtask_id(subtask.id.clone());
-    state.set_selected_subtask(subtask);
-    state.set_has_selected_subtask(true);
 
     let titles = Rc::new(RefCell::new(Vec::<(String, String)>::new()));
     let statuses = Rc::new(RefCell::new(Vec::<(String, TaskStatus)>::new()));
     let priorities = Rc::new(RefCell::new(Vec::<(String, TaskPriority)>::new()));
-    let back = Rc::new(RefCell::new(0));
+    let opened = Rc::new(RefCell::new(Vec::<String>::new()));
     {
         let titles = Rc::clone(&titles);
         let statuses = Rc::clone(&statuses);
         let priorities = Rc::clone(&priorities);
-        let back = Rc::clone(&back);
+        let opened = Rc::clone(&opened);
         let actions = window.global::<Actions>();
-        actions.on_update_subtask_title(move |id, title| {
+        actions.on_update_task_title(move |id, title| {
             titles
                 .borrow_mut()
                 .push((id.to_string(), title.to_string()));
         });
-        actions.on_update_subtask_status(move |id, status| {
+        actions.on_update_task_status(move |id, status| {
             statuses.borrow_mut().push((id.to_string(), status));
         });
-        actions.on_update_subtask_priority(move |id, priority| {
+        actions.on_update_task_priority(move |id, priority| {
             priorities.borrow_mut().push((id.to_string(), priority));
         });
-        actions.on_go_to_parent_task(move || *back.borrow_mut() += 1);
+        actions.on_select_task(move |id| opened.borrow_mut().push(id.to_string()));
     }
+    settle();
 
-    set_value(&window, "Subtask title", "Pick up rye bread");
+    set_value(&window, "Task title", "Pick up rye bread");
     select_next_option(&window, "Change status");
     select_next_option(&window, "Change priority");
     assert!(
-        activate(&window, "Back to Buy milk"),
+        activate(&window, "Open Buy milk"),
         "the parent-task link is not reachable: {:?}",
         accessible_labels(&window)
+    );
+    assert!(
+        ElementHandle::find_by_accessible_label(&window, "Edit the repeat schedule")
+            .next()
+            .is_none(),
+        "a subtask does not repeat on its own"
     );
 
     assert_eq!(
@@ -2112,7 +2119,7 @@ fn the_subtask_detail_pane_reaches_its_handlers() {
         priorities.borrow().as_slice(),
         [("s1".to_string(), TaskPriority::Low)]
     );
-    assert_eq!(*back.borrow(), 1);
+    assert_eq!(opened.borrow().as_slice(), ["t1"]);
 }
 
 /// The task detail pane offered only a due date, although the design and the
@@ -2667,7 +2674,6 @@ fn the_shell_responds_to_user_actions() {
     the_loading_veil_swallows_clicks();
     a_long_task_list_only_instantiates_visible_rows();
     the_detail_pane_follows_the_selection_after_an_edit();
-    the_subtask_detail_pane_follows_the_selection_after_an_edit();
     delete_keys_in_the_task_list_reach_the_delete_handler();
     the_undo_toast_reaches_its_handlers();
 }
@@ -2775,53 +2781,8 @@ fn the_detail_pane_follows_the_selection_after_an_edit() {
     );
 }
 
-/// The subtask pane carried the same defect as the task pane: its editors
-/// wrote back into `subtask`, so an edit cut the pane off from
-/// `AppState.selected-subtask`.
-fn the_subtask_detail_pane_follows_the_selection_after_an_edit() {
-    let window = window_with_content();
-    let state = window.global::<AppState>();
-    let mut task = state
-        .get_tasks()
-        .row_data(0)
-        .expect("the test task should exist");
-    let first = subtask_item("s1", "Pick up bread");
-    let second = subtask_item("s2", "Pick up cheese");
-    task.subtasks = ModelRc::new(VecModel::from(vec![first.clone(), second.clone()]));
-    state.set_selected_task_id(task.id.clone());
-    state.set_selected_task(task);
-    state.set_has_selected_task(true);
-
-    let select = |subtask: &SubTaskItem| {
-        state.set_selected_subtask_id(subtask.id.clone());
-        state.set_selected_subtask(subtask.clone());
-        state.set_has_selected_subtask(true);
-        settle();
-    };
-    let title = || {
-        ElementHandle::find_by_accessible_label(&window, "Subtask title")
-            .find(|element| element.accessible_value().is_some())
-            .expect("the subtask title field is not reachable")
-            .accessible_value()
-            .map(|value| value.to_string())
-    };
-
-    select(&first);
-    assert_eq!(title().as_deref(), Some("Pick up bread"));
-
-    set_value(&window, "Subtask title", "Pick up rye bread");
-
-    select(&second);
-    assert_eq!(
-        title().as_deref(),
-        Some("Pick up cheese"),
-        "the subtask pane still shows the previously edited subtask"
-    );
-}
-
-/// Delete and Backspace delete the selected task, but only while the list has
-/// the focus and no subtask is selected: a subtask looks selected to the user,
-/// and deleting its parent from under it would be a surprise.
+/// Delete and Backspace delete the selected task, at any depth, while the list
+/// has the focus.
 fn delete_keys_in_the_task_list_reach_the_delete_handler() {
     let window = window_with_content();
     let deleted = Rc::new(RefCell::new(Vec::<String>::new()));
@@ -2845,13 +2806,11 @@ fn delete_keys_in_the_task_list_reach_the_delete_handler() {
     assert_eq!(deleted.borrow().as_slice(), ["t1", "t1"]);
     deleted.borrow_mut().clear();
 
-    state.set_has_selected_subtask(true);
+    // The subtask that is selected, not its parent.
+    state.set_selected_task_id("s1".into());
     settle();
     press_key(&window, slint::platform::Key::Delete.into());
-    assert!(
-        deleted.borrow().is_empty(),
-        "Delete removed the parent task while a subtask was selected"
-    );
+    assert_eq!(deleted.borrow().as_slice(), ["s1"]);
 }
 
 fn the_undo_toast_reaches_its_handlers() {

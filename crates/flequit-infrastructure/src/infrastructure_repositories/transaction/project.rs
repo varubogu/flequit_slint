@@ -29,11 +29,9 @@ pub(super) async fn delete(
             .tasks()
             .find_ids_by_project_id(project_id)
             .await?;
+        // サブタスクも含むすべての階層のタスク。親を先に消すと子は外部キーで消えるので、
+        // 子に対する以降の削除は何もしない
         for task_id in task_ids {
-            sqlite_guard
-                .sub_tasks()
-                .remove_all_by_task_id_with_txn(txn.txn(), project_id, &task_id.to_string())
-                .await?;
             sqlite_guard
                 .task_tags
                 .remove_all_by_task_id_with_txn(txn.txn(), project_id, &task_id)
@@ -64,10 +62,6 @@ pub(super) async fn delete(
             sqlite_guard
                 .task_tags
                 .remove_all_by_tag_id_with_txn(txn.txn(), project_id, &tag_id)
-                .await?;
-            sqlite_guard
-                .subtask_tags
-                .remove_all_by_tag_id_with_txn(txn.txn(), &tag_id)
                 .await?;
             sqlite_guard
                 .tags()

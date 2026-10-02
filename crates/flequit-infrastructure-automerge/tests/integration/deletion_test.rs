@@ -40,7 +40,8 @@ fn make_test_task(project_id: &ProjectId, task_list_id: &TaskListId, user_id: &U
     Task {
         id: TaskId::new(),
         project_id: *project_id,
-        list_id: *task_list_id,
+        list_id: Some(*task_list_id),
+        parent_task_id: None,
         title: "Test Task".to_string(),
         reminders: vec![],
         description: None,
@@ -929,4 +930,76 @@ async fn test_cascade_logical_delete_flow() {
 
     // スナップショットはこのテストの参考情報として保持（直接利用しない）
     let _ = snapshot;
+}
+
+// ========== サブタスク（子孫）の論理削除と復元 ==========
+
+fn make_child(parent: &Task) -> Task {
+    Task {
+        id: TaskId::new(),
+        list_id: None,
+        parent_task_id: Some(parent.id),
+        title: format!("Child of {}", parent.title),
+        ..parent.clone()
+    }
+}
+
+/// タスクを消すと子孫も同じ時刻で削除済みになり、復元で一緒に戻る。
+/// 先に個別に消した子孫（とその下）は削除済みのまま残る。
+#[tokio::test]
+async fn test_task_deletion_and_restore_follow_descendants() {
+    let (repo, _) = create_repo("test_task_deletion_and_restore_follow_descendants").await;
+    let user_id = UserId::new();
+    let project_id = ProjectId::new();
+    repo.create_empty_project_document(&make_test_project(&project_id, &user_id))
+        .await
+        .unwrap();
+    let list = make_test_task_list(&project_id, &user_id);
+    repo.add_task_list(&project_id, &list).await.unwrap();
+
+    let root = make_test_task(&project_id, &list.id, &user_id);
+    let child = make_child(&root);
+    let grandchild = make_child(&child);
+    let removed_before = make_child(&root);
+    let under_removed = make_child(&removed_before);
+    for task in [&root, &child, &grandchild, &removed_before, &under_removed] {
+        repo.add_task(&project_id, task).await.unwrap();
+    }
+
+    // 先に 1 つの子を個別に消しておく（その下も一緒に消える）
+    let earlier = Utc::now() - chrono::Duration::minutes(5);
+    repo.mark_task_deleted(&project_id, &removed_before.id, &user_id, &earlier)
+        .await
+        .unwrap();
+
+    let deleted_at = Utc::now();
+    repo.mark_task_deleted(&project_id, &root.id, &user_id, &deleted_at)
+        .await
+        .unwrap();
+    let tasks = repo.get_tasks(&project_id).await.unwrap();
+    let find = |id: TaskId| tasks.iter().find(|task| task.id == id).unwrap().clone();
+    assert!(tasks.iter().all(|task| task.deleted));
+    assert_eq!(find(grandchild.id).updated_at, deleted_at);
+    assert_eq!(find(under_removed.id).updated_at, earlier);
+
+    // SQLite へ戻すのは同じ削除で消えたものだけ（親が先）
+    let subtree = repo
+        .get_deleted_task_subtree(&project_id, &root.id)
+        .await
+        .unwrap()
+        .expect("deleted root");
+    let ids: Vec<TaskId> = subtree.iter().map(|task| task.id).collect();
+    assert_eq!(ids, vec![root.id, child.id, grandchild.id]);
+
+    let restored_at = Utc::now();
+    repo.restore_task(&project_id, &root.id, &user_id, &restored_at)
+        .await
+        .unwrap();
+    let tasks = repo.get_tasks(&project_id).await.unwrap();
+    let find = |id: TaskId| tasks.iter().find(|task| task.id == id).unwrap().clone();
+    assert!(!find(root.id).deleted);
+    assert!(!find(child.id).deleted);
+    assert!(!find(grandchild.id).deleted);
+    assert!(find(removed_before.id).deleted);
+    assert!(find(under_removed.id).deleted);
 }

@@ -26,9 +26,10 @@ export component TaskListView inherits Rectangle {
     // while it is sorted manually. The derived orderings ignore it.
     private property <bool> reorderable: AppState.task-sort == TaskSort.manual;
 
-    // A drop inside the list, rather than on a list in the sidebar.
+    // A drop inside the list, rather than on a list or project in the sidebar.
     private property <bool> reordering: AppState.is-dragging
         && AppState.drop-list-id == ""
+        && AppState.drop-project-id == ""
         && root.reorderable;
 
     // Where the pointer currently is, as a row index. Rows are assumed to be
@@ -45,6 +46,7 @@ export component TaskListView inherits Rectangle {
         AppState.dragging-task-id = task.id;
         AppState.dragging-project-id = task.project-id;
         AppState.drop-list-id = "";
+        AppState.drop-project-id = "";
         AppState.drag-x = x;
         AppState.drag-y = y;
     }
@@ -52,12 +54,15 @@ export component TaskListView inherits Rectangle {
     function finish-drag(task-id: string, index: int) {
         if (AppState.drop-list-id != "") {
             Actions.move-task-to-list(task-id, AppState.drop-list-id);
+        } else if (AppState.drop-project-id != "") {
+            Actions.move-task-to-project(task-id);
         } else if (root.reordering && root.drop-index != index) {
             Actions.reorder-task(task-id, root.drop-index);
         }
         AppState.dragging-task-id = "";
         AppState.dragging-project-id = "";
         AppState.drop-list-id = "";
+        AppState.drop-project-id = "";
     }
 
     function create-project() {
@@ -65,18 +70,6 @@ export component TaskListView inherits Rectangle {
             kind: EditorKind.project,
             target-id: "",
             project-id: "",
-            name: "",
-            color: "",
-            archived: false,
-        };
-        AppState.editor-open = true;
-    }
-
-    function create-task-list() {
-        AppState.editor = {
-            kind: EditorKind.task-list,
-            target-id: "",
-            project-id: AppState.selected-project-id,
             name: "",
             color: "",
             archived: false,
@@ -114,7 +107,7 @@ export component TaskListView inherits Rectangle {
                 AppState.focus-detail-request += 1;
                 return accept;
             } else if ((event.text == Key.Delete || event.text == Key.Backspace)
-                && AppState.has-selected-task && !AppState.has-selected-subtask) {
+                && AppState.has-selected-task) {
                 // Text fields consume both keys themselves, so this only fires
                 // with the list focused. The toast offers the way back.
                 Actions.delete-task(AppState.selected-task-id);
@@ -179,8 +172,6 @@ export component TaskListView inherits Rectangle {
                 clicked => { Actions.select-task(task.id); }
                 toggle-completed => { Actions.toggle-task-completed(task.id); }
                 toggle-expansion => { Actions.toggle-task-expansion(task.id); }
-                subtask-clicked(id) => { Actions.select-subtask(id); }
-                subtask-toggled(id) => { Actions.toggle-subtask-completed(id); }
                 drag-started(x, y) => { root.start-drag(task, x, y); }
                 dragged(x, y) => {
                     AppState.drag-x = x;
@@ -188,10 +179,10 @@ export component TaskListView inherits Rectangle {
                 }
                 drag-finished => { root.finish-drag(task.id, index); }
                 move-earlier => {
-                    if (root.reorderable) { Actions.reorder-task(task.id, index - 1); }
+                    if (root.reorderable) { Actions.move-task-by(task.id, -1); }
                 }
                 move-later => {
-                    if (root.reorderable) { Actions.reorder-task(task.id, index + 1); }
+                    if (root.reorderable) { Actions.move-task-by(task.id, 1); }
                 }
             }
         }
@@ -209,9 +200,7 @@ export component TaskListView inherits Rectangle {
                         ? @tr("TaskList" => "No tasks match your search.")
                         : AppState.projects.length == 0
                             ? @tr("TaskList" => "Create a project to get started.")
-                            : AppState.add-target-list-id == ""
-                                ? @tr("TaskList" => "Create a task list to add tasks to.")
-                                : @tr("TaskList" => "Add your first task.");
+                            : @tr("TaskList" => "Add your first task.");
                     color: Theme.text-muted;
                     font-size: Theme.font-size-base;
                     horizontal-alignment: center;
@@ -232,15 +221,7 @@ export component TaskListView inherits Rectangle {
                     clicked => { root.create-project(); }
                 }
 
-                if AppState.search-query == ""
-                    && AppState.projects.length > 0
-                    && AppState.add-target-list-id == "": DialogButton {
-                    label: @tr("TaskList" => "Create task list");
-                    primary: true;
-                    clicked => { root.create-task-list(); }
-                }
-
-                if AppState.search-query == "" && AppState.add-target-list-id != "": DialogButton {
+                if AppState.search-query == "" && AppState.add-target != "": DialogButton {
                     label: @tr("TaskList" => "Add your first task");
                     primary: true;
                     clicked => { new-task.focus(); }
@@ -271,13 +252,13 @@ export component TaskListView inherits Rectangle {
                         if (self.enabled) { self.focus(); }
                     }
                     horizontal-stretch: 1;
-                    enabled: AppState.add-target-list-id != "";
-                    placeholder-text: AppState.add-target-list-id == ""
-                        ? @tr("TaskList" => "Select a list to add a task")
+                    enabled: AppState.add-target != "";
+                    placeholder-text: AppState.add-target == ""
+                        ? @tr("TaskList" => "Create a project to add a task")
                         : @tr("TaskList" => "Add a task");
                     accepted(value) => {
                         if (value != "") {
-                            Actions.add-task(AppState.add-target-list-id, value);
+                            Actions.add-task(AppState.add-target, value);
                             self.text = "";
                         }
                     }
@@ -287,7 +268,7 @@ export component TaskListView inherits Rectangle {
                     width: Layout.touch-target;
                     height: Layout.touch-target;
                     border-radius: Theme.radius-sm;
-                    background: AppState.add-target-list-id == "" ? Theme.border : Theme.accent;
+                    background: AppState.add-target == "" ? Theme.border : Theme.accent;
 
                     Icon {
                         name: IconName.plus;
@@ -297,10 +278,10 @@ export component TaskListView inherits Rectangle {
                     }
 
                     TouchArea {
-                        enabled: AppState.add-target-list-id != "";
+                        enabled: AppState.add-target != "";
                         clicked => {
                             if (new-task.text != "") {
-                                Actions.add-task(AppState.add-target-list-id, new-task.text);
+                                Actions.add-task(AppState.add-target, new-task.text);
                                 new-task.text = "";
                             }
                         }
@@ -309,7 +290,7 @@ export component TaskListView inherits Rectangle {
                     accessible-label: @tr("TaskList" => "Add a task");
                     accessible-action-default => {
                         if (new-task.text != "") {
-                            Actions.add-task(AppState.add-target-list-id, new-task.text);
+                            Actions.add-task(AppState.add-target, new-task.text);
                             new-task.text = "";
                         }
                     }

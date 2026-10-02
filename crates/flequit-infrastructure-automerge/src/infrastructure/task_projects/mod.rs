@@ -1,12 +1,9 @@
 pub mod date_condition;
+pub mod legacy_subtasks;
 pub mod member;
 pub mod project;
 pub mod project_list_repository;
 pub mod recurrence_rule;
-pub mod subtask;
-pub mod subtask_assignments;
-pub mod subtask_recurrence;
-pub mod subtask_tag;
 pub mod tag;
 pub mod task;
 pub mod task_assignments;

@@ -16,10 +16,17 @@ use flequit_repository::repositories::project_repository_trait::ProjectRepositor
 use flequit_repository::repositories::task_projects::task_repository_trait::TaskRepositoryTrait;
 use flequit_types::errors::repository_error::RepositoryError;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, PaginatorTrait,
+    QueryFilter, QueryOrder, Statement,
 };
 use std::sync::Arc;
 use tokio::sync::RwLock;
+
+/// 子孫をたどる深さの上限
+///
+/// 階層の深さに決まりは無いが、保存済みのデータが輪になっていると再帰 CTE の
+/// `depth` が増え続けるため、現実に起こりえない深さで打ち切る。
+const MAX_SUBTREE_DEPTH: i64 = 10_000;
 
 #[derive(Debug)]
 pub struct TaskLocalSqliteRepository {
@@ -163,6 +170,53 @@ impl TaskLocalSqliteRepository {
             .await
             .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
         Ok(())
+    }
+
+    /// `task_id` の子孫（自分を含まない）の ID をトランザクション内で集める
+    ///
+    /// 深い順（子より孫が先）に返す。保存済みのデータが輪になっていても、
+    /// 同じ ID は一度しかたどらないので止まる。
+    pub async fn find_descendant_ids_with_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        project_id: &ProjectId,
+        task_id: &TaskId,
+    ) -> Result<Vec<TaskId>, RepositoryError> {
+        let statement = Statement::from_sql_and_values(
+            DbBackend::Sqlite,
+            "WITH RECURSIVE subtree(id, depth) AS ( \
+               SELECT id, 1 FROM tasks WHERE project_id = ? AND parent_task_id = ? \
+               UNION \
+               SELECT tasks.id, subtree.depth + 1 FROM tasks \
+               JOIN subtree ON tasks.parent_task_id = subtree.id \
+               WHERE tasks.project_id = ? AND subtree.depth < ? \
+             ) \
+             SELECT id, MAX(depth) AS depth FROM subtree WHERE id <> ? \
+             GROUP BY id ORDER BY depth DESC, id",
+            [
+                project_id.to_string().into(),
+                task_id.to_string().into(),
+                project_id.to_string().into(),
+                MAX_SUBTREE_DEPTH.into(),
+                task_id.to_string().into(),
+            ],
+        );
+        let rows = txn
+            .query_all(statement)
+            .await
+            .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
+        rows.into_iter()
+            .map(|row| {
+                let id: String = row
+                    .try_get("", "id")
+                    .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
+                TaskId::try_from_str(&id).map_err(|e| {
+                    RepositoryError::from(SQLiteError::ConversionError(format!(
+                        "Invalid task id {id}: {e}"
+                    )))
+                })
+            })
+            .collect()
     }
 
     /// 指定プロジェクトの全タスクのIDリストを取得

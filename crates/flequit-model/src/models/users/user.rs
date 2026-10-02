@@ -17,9 +17,7 @@
 //! - **編集権限**: 自分のAccount.user_idにマッチするプロフィールのみ編集可能
 
 use crate::models::ModelConverter;
-use crate::models::task_projects::{
-    subtask_assignment::SubTaskAssignment, task_assignment::TaskAssignment,
-};
+use crate::models::task_projects::task_assignment::TaskAssignment;
 use crate::types::id_types::UserId;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -136,8 +134,7 @@ pub struct User {
 /// * `updated_at` - プロフィール最終更新日時
 /// * `deleted` - 削除フラグ（論理削除）
 /// * `updated_by` - 最終更新者のユーザーID
-/// * `task_assignments` - このユーザーに割り当てられたタスクの一覧
-/// * `subtask_assignments` - このユーザーに割り当てられたサブタスクの一覧
+/// * `task_assignments` - このユーザーに割り当てられたタスク（サブタスクを含む）の一覧
 ///
 /// # 使用例
 ///
@@ -160,7 +157,6 @@ pub struct User {
 ///     deleted: false,
 ///     updated_by: UserId::new(),
 ///     task_assignments: vec![],
-///     subtask_assignments: vec![],
 /// };
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -189,16 +185,14 @@ pub struct UserTree {
     pub deleted: bool,
     /// 最終更新者のユーザーID
     pub updated_by: UserId,
-    /// このユーザーに割り当てられたタスクの一覧
+    /// このユーザーに割り当てられたタスク（サブタスクを含む）の一覧
     pub task_assignments: Vec<TaskAssignment>,
-    /// このユーザーに割り当てられたサブタスクの一覧
-    pub subtask_assignments: Vec<SubTaskAssignment>,
 }
 
 #[async_trait]
 impl ModelConverter<User> for UserTree {
     async fn to_model(&self) -> Result<User, String> {
-        // UserTreeからUser基本構造体に変換（関連データのtask_assignments, subtask_assignmentsは除く）
+        // UserTreeからUser基本構造体に変換（関連データのtask_assignmentsは除く）
         Ok(User {
             id: self.id,
             handle_id: self.handle_id.clone(),

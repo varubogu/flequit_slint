@@ -173,12 +173,12 @@ impl ProjectRepository<Task, TaskId> for TaskUnifiedRepository {
         if let Some(queued) = &self.queued_sqlite {
             let txn = queued
                 .queue
-                .begin(vec![AutomergeChange::Task(ProjectChange::Save {
+                .begin(vec![AutomergeChange::Task(Box::new(ProjectChange::Save {
                     project_id: *project_id,
                     entity: entity.clone(),
                     user_id: *user_id,
                     timestamp: *timestamp,
-                })])
+                }))])
                 .await?;
             let result = queued
                 .sqlite
@@ -230,10 +230,12 @@ impl ProjectRepository<Task, TaskId> for TaskUnifiedRepository {
             }
             let txn = queued
                 .queue
-                .begin(vec![AutomergeChange::Task(ProjectChange::Delete {
-                    project_id: *project_id,
-                    id: *id,
-                })])
+                .begin(vec![AutomergeChange::Task(Box::new(
+                    ProjectChange::Delete {
+                        project_id: *project_id,
+                        id: *id,
+                    },
+                ))])
                 .await?;
             let result = queued
                 .sqlite

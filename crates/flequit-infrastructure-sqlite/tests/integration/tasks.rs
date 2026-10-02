@@ -89,7 +89,8 @@ async fn test_task_create_operation() -> Result<(), Box<dyn std::error::Error>> 
     let task = Task {
         id: task_id,
         project_id,
-        list_id: task_list_id,
+        list_id: Some(task_list_id),
+        parent_task_id: None,
         title: "Create操作SQLiteタスク".to_string(),
         reminders: vec![timestamp + chrono::Duration::hours(1)],
         description: Some("Create操作SQLiteテスト用タスク".to_string()),
@@ -197,7 +198,8 @@ async fn test_task_read_operation() -> Result<(), Box<dyn std::error::Error>> {
     let task1 = Task {
         id: task_id1,
         project_id,
-        list_id: task_list_id,
+        list_id: Some(task_list_id),
+        parent_task_id: None,
         title: "Read操作SQLiteタスク1".to_string(),
         reminders: vec![],
         description: Some("Read操作SQLiteテスト用タスク1".to_string()),
@@ -225,7 +227,8 @@ async fn test_task_read_operation() -> Result<(), Box<dyn std::error::Error>> {
     let task2 = Task {
         id: task_id2,
         project_id,
-        list_id: task_list_id,
+        list_id: Some(task_list_id),
+        parent_task_id: None,
         title: "Read操作SQLiteタスク2".to_string(),
         reminders: vec![],
         description: Some("Read操作SQLiteテスト用タスク2".to_string()),
@@ -338,7 +341,8 @@ async fn test_task_update_operation() -> Result<(), Box<dyn std::error::Error>> 
     let task1 = Task {
         id: task_id1,
         project_id,
-        list_id: task_list_id,
+        list_id: Some(task_list_id),
+        parent_task_id: None,
         title: "Update操作SQLiteタスク1".to_string(),
         reminders: vec![],
         description: Some("Update操作SQLiteテスト用タスク1".to_string()),
@@ -366,7 +370,8 @@ async fn test_task_update_operation() -> Result<(), Box<dyn std::error::Error>> 
     let task2 = Task {
         id: task_id2,
         project_id,
-        list_id: task_list_id,
+        list_id: Some(task_list_id),
+        parent_task_id: None,
         title: "Update操作SQLiteタスク2".to_string(),
         reminders: vec![],
         description: Some("Update操作SQLiteテスト用タスク2".to_string()),
@@ -492,7 +497,8 @@ async fn test_task_delete_operation() -> Result<(), Box<dyn std::error::Error>> 
     let task1 = Task {
         id: task_id1,
         project_id,
-        list_id: task_list_id,
+        list_id: Some(task_list_id),
+        parent_task_id: None,
         title: "Delete操作SQLiteタスク1".to_string(),
         reminders: vec![],
         description: Some("Delete操作SQLiteテスト用タスク1".to_string()),
@@ -520,7 +526,8 @@ async fn test_task_delete_operation() -> Result<(), Box<dyn std::error::Error>> 
     let task2 = Task {
         id: task_id2,
         project_id,
-        list_id: task_list_id,
+        list_id: Some(task_list_id),
+        parent_task_id: None,
         title: "Delete操作SQLiteタスク2".to_string(),
         reminders: vec![],
         description: Some("Delete操作SQLiteテスト用タスク2".to_string()),

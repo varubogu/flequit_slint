@@ -91,7 +91,7 @@
 
 ## RecurrenceRule — recurrence_rules
 
-**役割**: タスク／サブタスクの繰り返し実行パターンを定義。RFC5545 (iCalendar) 準拠。複数タスクから参照可能な共有ルール。
+**役割**: タスクの繰り返し実行パターンを定義（繰り返しを持つのは最上位のタスクだけ）。RFC5545 (iCalendar) 準拠。複数タスクから参照可能な共有ルール。
 
 ### フィールド
 
@@ -116,7 +116,7 @@
 
 ### 関連
 
-- task_recurrences, subtask_recurrences
+- task_recurrences
 
 ---
 

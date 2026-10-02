@@ -14,13 +14,10 @@ pub mod users;
 pub use accounts::account;
 pub use task_projects::{
     date_condition, member, project, recurrence_adjustment, recurrence_date_condition,
-    recurrence_days_of_week, recurrence_detail, recurrence_rule, recurrence_weekday_condition,
-    subtask, subtask_assignments, subtask_recurrence, subtask_tag, tag, task, task_assignments,
-    task_list, task_recurrence, task_tag, weekday_condition,
+    recurrence_days_of_week, recurrence_detail, recurrence_rule, recurrence_weekday_condition, tag,
+    task, task_assignments, task_list, task_recurrence, task_tag, weekday_condition,
 };
 pub use users::user;
 
 // 再エクスポートして使いやすくする
-pub use task_projects::{
-    project::*, subtask::*, subtask_tag::*, tag::*, task::*, task_list::*, task_tag::*,
-};
+pub use task_projects::{project::*, tag::*, task::*, task_list::*, task_tag::*};

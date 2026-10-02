@@ -7,9 +7,6 @@ use crate::errors::automerge_error::AutomergeError;
 use crate::infrastructure::{
     accounts::account::AccountLocalAutomergeRepository, document_manager::DocumentManager,
     task_projects::project::ProjectLocalAutomergeRepository,
-    task_projects::subtask::SubTaskLocalAutomergeRepository,
-    task_projects::subtask_assignments::SubtaskAssignmentLocalAutomergeRepository,
-    task_projects::subtask_tag::SubtaskTagLocalAutomergeRepository,
     task_projects::tag::TagLocalAutomergeRepository,
     task_projects::task::TaskLocalAutomergeRepository,
     task_projects::task_assignments::TaskAssignmentLocalAutomergeRepository,
@@ -30,12 +27,9 @@ pub struct LocalAutomergeRepositories {
     pub projects: ProjectLocalAutomergeRepository,
     pub task_lists: TaskListLocalAutomergeRepository,
     pub tasks: TaskLocalAutomergeRepository,
-    pub sub_tasks: SubTaskLocalAutomergeRepository,
     pub tags: TagLocalAutomergeRepository,
     pub task_tags: TaskTagLocalAutomergeRepository,
     pub task_assignments: TaskAssignmentLocalAutomergeRepository,
-    pub subtask_tags: SubtaskTagLocalAutomergeRepository,
-    pub subtask_assignments: SubtaskAssignmentLocalAutomergeRepository,
     pub accounts: AccountLocalAutomergeRepository,
     pub users: UserLocalAutomergeRepository,
     pub tag_bookmarks: TagBookmarkLocalAutomergeRepository,
@@ -48,13 +42,9 @@ impl LocalAutomergeRepositories {
             projects: ProjectLocalAutomergeRepository::new(base_path.clone()).await?,
             task_lists: TaskListLocalAutomergeRepository::new(base_path.clone()).await?,
             tasks: TaskLocalAutomergeRepository::new(base_path.clone()).await?,
-            sub_tasks: SubTaskLocalAutomergeRepository::new(base_path.clone()).await?,
             tags: TagLocalAutomergeRepository::new(base_path.clone()).await?,
             task_tags: TaskTagLocalAutomergeRepository::new(base_path.clone()).await?,
             task_assignments: TaskAssignmentLocalAutomergeRepository::new(base_path.clone())
-                .await?,
-            subtask_tags: SubtaskTagLocalAutomergeRepository::new(base_path.clone()).await?,
-            subtask_assignments: SubtaskAssignmentLocalAutomergeRepository::new(base_path.clone())
                 .await?,
             accounts: AccountLocalAutomergeRepository::new(base_path.clone()).await?,
             users: UserLocalAutomergeRepository::new(base_path.clone()).await?,
@@ -81,20 +71,10 @@ impl LocalAutomergeRepositories {
             )
             .await?,
             tasks: TaskLocalAutomergeRepository::new_with_manager(document_manager.clone()).await?,
-            sub_tasks: SubTaskLocalAutomergeRepository::new_with_manager(document_manager.clone())
-                .await?,
             tags: TagLocalAutomergeRepository::new_with_manager(document_manager.clone()).await?,
             task_tags: TaskTagLocalAutomergeRepository::new_with_manager(document_manager.clone())
                 .await?,
             task_assignments: TaskAssignmentLocalAutomergeRepository::new_with_manager(
-                document_manager.clone(),
-            )
-            .await?,
-            subtask_tags: SubtaskTagLocalAutomergeRepository::new_with_manager(
-                document_manager.clone(),
-            )
-            .await?,
-            subtask_assignments: SubtaskAssignmentLocalAutomergeRepository::new_with_manager(
                 document_manager.clone(),
             )
             .await?,
@@ -121,11 +101,6 @@ impl LocalAutomergeRepositories {
         &self.tasks
     }
 
-    /// サブタスクリポジトリへのアクセス
-    pub fn sub_tasks(&self) -> &SubTaskLocalAutomergeRepository {
-        &self.sub_tasks
-    }
-
     /// タグリポジトリへのアクセス
     pub fn tags(&self) -> &TagLocalAutomergeRepository {
         &self.tags
@@ -144,11 +119,6 @@ impl LocalAutomergeRepositories {
     /// タスクアサインリポジトリへのアクセス
     pub fn task_assignments(&self) -> &TaskAssignmentLocalAutomergeRepository {
         &self.task_assignments
-    }
-
-    /// サブタスクアサインリポジトリへのアクセス
-    pub fn subtask_assignments(&self) -> &SubtaskAssignmentLocalAutomergeRepository {
-        &self.subtask_assignments
     }
 
     /// タグブックマークリポジトリへのアクセス

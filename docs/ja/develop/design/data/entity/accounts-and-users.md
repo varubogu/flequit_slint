@@ -65,4 +65,4 @@
 
 ### 関連
 
-- accounts (内部アカウント), members (プロジェクト参加), task_assignments, subtask_assignments
+- accounts (内部アカウント), members (プロジェクト参加), task_assignments（サブタスクを含む）

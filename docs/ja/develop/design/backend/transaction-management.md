@@ -42,7 +42,7 @@ ViewModel → Facade ──┐
 2. Facade が `TransactionalDeletionPort::delete_tag_transactionally` に委譲する
 3. インフラ層がトランザクションを開始し、最初の文で Automerge 同期キューへ
    「タグの論理削除」を登録する
-4. 同じトランザクションで SQLite の関連 (tag_bookmark, task_tag, subtask_tag) とタグ本体を削除する
+4. 同じトランザクションで SQLite の関連 (tag_bookmark, task_tag) とタグ本体を削除する
 5. 全成功 → `commit`（コミット後にワーカーへ通知）／ 失敗 → `rollback`（キューの行も消える）
 
 実装参照: `crates/flequit-core/src/facades/tag_facades.rs` の `delete_tag`、

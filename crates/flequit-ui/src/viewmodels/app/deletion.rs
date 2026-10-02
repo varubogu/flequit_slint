@@ -5,9 +5,10 @@
 //! another deletion takes its place, or the app suspends or quits. "Undo" then
 //! simply cancels the write that has not happened yet.
 //!
-//! Deleting and then restoring from the trash would not be exact: storage drops
-//! the task's subtasks, tag links, assignments and repeat rule along with it,
-//! while a trash restore brings back the task row alone.
+//! A task is deleted with every subtask below it, at any depth. Deleting and
+//! then restoring from the trash would not be exact: storage drops the tag
+//! links, assignments and repeat rule along with the tasks, while a trash
+//! restore brings back the tasks alone.
 
 use std::future::Future;
 use std::sync::{Arc, Mutex};
@@ -23,8 +24,8 @@ use slint::{ComponentHandle, Model, SharedString, Weak};
 use tokio::runtime::Handle;
 
 use super::{
-    SharedState, clear_selection, clear_subtask_selection, indexed_task_row, refresh_projects,
-    refresh_tasks, reload_projects, report_error, select_task,
+    SharedState, clear_selection, indexed_task_row, open_task, refresh_projects, refresh_tasks,
+    reload_projects, report_error, select_task,
 };
 use crate::UiError;
 use crate::adapters::datetime::DisplayTimezone;
@@ -41,8 +42,9 @@ pub(super) struct PendingDeletion {
     task_id: TaskId,
     project_id: ProjectId,
     user_id: UserId,
-    /// Scheduled notifications to cancel once the task is gone.
-    reminders: Vec<DateTime<Utc>>,
+    /// Scheduled notifications to cancel once the task and its subtasks are
+    /// gone, by the task each belongs to.
+    reminders: Vec<(TaskId, DateTime<Utc>)>,
 }
 
 /// Everything the handlers and the background commit need.
@@ -165,12 +167,23 @@ where
         return;
     };
 
-    let (token, title, previous) = {
+    let (token, title, parent, previous) = {
         let mut guard = deps.state.lock().expect("shared state poisoned");
-        let found = guard
-            .task_with_project(task_id)
-            .map(|(project, task)| (project.id, task.title.clone(), task.reminders.clone()));
-        let (Some((project_id, title, reminders)), Some(user_id)) = (found, guard.current_user)
+        let found = guard.task_with_project(task_id).map(|(project, task)| {
+            let reminders: Vec<(TaskId, DateTime<Utc>)> = task
+                .walk()
+                .filter(|task| !task.deleted)
+                .flat_map(|task| task.reminders.iter().map(|at| (task.id, *at)))
+                .collect();
+            (
+                project.id,
+                task.title.clone(),
+                task.parent_task_id,
+                reminders,
+            )
+        });
+        let (Some((project_id, title, parent, reminders)), Some(user_id)) =
+            (found, guard.current_user)
         else {
             drop(guard);
             tracing::error!(%task_id, "cannot delete a task: unknown project or user");
@@ -190,7 +203,7 @@ where
             reminders,
         });
         set_hidden(&mut guard.trees, &parsed_id, true);
-        (token, title, previous)
+        (token, title, parent, previous)
     };
     if let Some(previous) = previous {
         spawn_commit(deps, previous);
@@ -202,7 +215,16 @@ where
     refresh_projects(&window, &deps.state);
     refresh_tasks(&window, &deps.state, deps.timezone);
     if was_selected {
-        select_neighbour(&window, removed_index);
+        match parent {
+            // A subtask deleted from its own pane goes back to its parent.
+            Some(parent) if removed_index.is_none() => open_task(
+                &window,
+                &deps.state,
+                &SharedString::from(parent.as_str()),
+                deps.timezone,
+            ),
+            _ => select_neighbour(&window, removed_index),
+        }
     }
 
     app_state.set_undo_delete_title(title.into());
@@ -246,7 +268,6 @@ fn undo<R>(deps: &Deps<R>) {
     refresh_tasks(&window, &deps.state, deps.timezone);
     // The query may have changed since; the task is back either way.
     if indexed_task_row(&window, &task_id).is_some() {
-        clear_subtask_selection(&window);
         select_task(&window, &task_id);
         app_state.set_active_pane(Pane::List);
     }
@@ -262,7 +283,6 @@ fn select_neighbour(window: &AppWindow, removed_index: Option<usize>) {
         .and_then(|index| tasks.row_data(index.min(tasks.row_count() - 1)));
     match next {
         Some(task) => {
-            clear_subtask_selection(window);
             select_task(window, &task.id);
             app_state.set_active_pane(Pane::List);
         }
@@ -327,8 +347,8 @@ where
     .await
     .map_err(UiError::from)?;
 
-    let task_id = pending.task_id.as_str();
-    for reminder in &pending.reminders {
+    for (task_id, reminder) in &pending.reminders {
+        let task_id = task_id.as_str();
         let id = NotificationId::scheduled(&task_id, reminder);
         if let Err(error) = platform.cancel_notification(&id).await {
             tracing::warn!(%error, %task_id, "failed to cancel deleted task reminder");
@@ -338,12 +358,11 @@ where
 }
 
 /// Marks the task deleted in the cached tree only, which is all the views read.
+/// Its subtasks go out of view with it.
 fn set_hidden(trees: &mut [ProjectTree], task_id: &TaskId, hidden: bool) {
     if let Some(task) = trees
         .iter_mut()
-        .flat_map(|tree| tree.task_lists.iter_mut())
-        .flat_map(|list| list.tasks.iter_mut())
-        .find(|task| task.id == *task_id)
+        .find_map(|tree| tree.find_task_mut(task_id))
     {
         task.deleted = hidden;
     }
@@ -353,6 +372,7 @@ fn set_hidden(trees: &mut [ProjectTree], task_id: &TaskId, hidden: bool) {
 mod tests {
     use super::super::tests::{list_named, project_named, task_named};
     use super::*;
+    use flequit_model::models::task_projects::task::TaskTree;
 
     fn state_with(titles: &[&str]) -> SharedState {
         let tasks = titles.iter().map(|title| task_named(title)).collect();
@@ -410,5 +430,32 @@ mod tests {
         let mut state = state_with(&["Buy milk"]);
         hide_pending(&mut state);
         assert_eq!(live_titles(&state), ["Buy milk"]);
+    }
+
+    #[test]
+    fn a_hidden_subtask_takes_its_own_subtasks_out_of_view() {
+        let mut state = state_with(&["Buy milk"]);
+        let root = &mut state.trees[0].task_lists[0].tasks[0];
+        let mut child = TaskTree {
+            id: TaskId::new(),
+            list_id: None,
+            parent_task_id: Some(root.id),
+            title: "Check the fridge".to_string(),
+            ..root.clone()
+        };
+        child.sub_tasks.push(TaskTree {
+            id: TaskId::new(),
+            parent_task_id: Some(child.id),
+            title: "Wipe the shelf".to_string(),
+            ..child.clone()
+        });
+        let child_id = child.id;
+        root.sub_tasks.push(child);
+
+        set_hidden(&mut state.trees, &child_id, true);
+
+        let root = &state.trees[0].task_lists[0].tasks[0];
+        assert_eq!(live_titles(&state), ["Buy milk"]);
+        assert_eq!(crate::adapters::task::live_children(root).count(), 0);
     }
 }

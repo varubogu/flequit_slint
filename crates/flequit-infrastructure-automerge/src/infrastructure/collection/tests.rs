@@ -245,10 +245,9 @@ fn collections_keep_the_keys_that_existing_documents_use() {
     use crate::infrastructure::accounts::account::ACCOUNTS;
     use crate::infrastructure::task_projects::{
         date_condition::DATE_CONDITIONS, member::MEMBERS, project_list_repository::PROJECTS,
-        recurrence_rule::RECURRENCE_RULES, subtask::SUBTASKS,
-        subtask_assignments::SUBTASK_ASSIGNMENTS, subtask_recurrence::SUBTASK_RECURRENCES,
-        subtask_tag::SUBTASK_TAGS, tag::TAGS, task::TASKS, task_assignments::TASK_ASSIGNMENTS,
-        task_list::TASK_LISTS, task_recurrence::TASK_RECURRENCES, task_tag::TASK_TAGS,
+        recurrence_rule::RECURRENCE_RULES, tag::TAGS, task::TASKS,
+        task_assignments::TASK_ASSIGNMENTS, task_list::TASK_LISTS,
+        task_recurrence::TASK_RECURRENCES, task_tag::TASK_TAGS,
         weekday_condition::WEEKDAY_CONDITIONS,
     };
     use crate::infrastructure::users::user::USERS;
@@ -260,18 +259,14 @@ fn collections_keep_the_keys_that_existing_documents_use() {
         PROJECTS.name(),
         TASK_LISTS.name(),
         TASKS.name(),
-        SUBTASKS.name(),
         TAGS.name(),
         MEMBERS.name(),
         RECURRENCE_RULES.name(),
         DATE_CONDITIONS.name(),
         WEEKDAY_CONDITIONS.name(),
         TASK_TAGS.name(),
-        SUBTASK_TAGS.name(),
         TASK_ASSIGNMENTS.name(),
-        SUBTASK_ASSIGNMENTS.name(),
         TASK_RECURRENCES.name(),
-        SUBTASK_RECURRENCES.name(),
     ];
     assert_eq!(
         names,
@@ -281,18 +276,14 @@ fn collections_keep_the_keys_that_existing_documents_use() {
             "projects",
             "task_lists",
             "tasks",
-            "subtasks",
             "tags",
             "members",
             "recurrence_rules",
             "date_conditions",
             "weekday_conditions",
             "task_tags",
-            "subtask_tags",
             "task_assignments",
-            "subtask_assignments",
             "task_recurrences",
-            "subtask_recurrences",
         ]
     );
 }

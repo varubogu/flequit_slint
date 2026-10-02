@@ -1,7 +1,6 @@
-//! `TaskTree` / `SubTaskTree` → Slint UI types.
+//! `TaskTree` → Slint UI types.
 
 use chrono::{DateTime, Utc};
-use flequit_model::models::task_projects::subtask::SubTaskTree;
 use flequit_model::models::task_projects::task::TaskTree;
 use flequit_model::types::task_types::TaskStatus as DomainStatus;
 use slint::{ModelRc, SharedString, VecModel};
@@ -9,7 +8,7 @@ use slint::{ModelRc, SharedString, VecModel};
 use super::datetime::{DateTimeDisplaySettings, format_due, is_overdue, to_display_parts};
 use super::recurrence::to_unit;
 use crate::bindings::{
-    RecurrenceUnit, ReminderItem, SubTaskItem, TaskItem, TaskPriority, TaskStatus,
+    AncestorItem, RecurrenceUnit, ReminderItem, SubTaskItem, TaskItem, TaskPriority, TaskStatus,
 };
 
 /// Maps the domain status enum to its UI counterpart.
@@ -58,42 +57,42 @@ pub fn to_priority(priority: i32) -> TaskPriority {
     }
 }
 
-/// Converts a subtask for display.
-///
-/// A subtask carries the same schedule fields as its parent, so its due date is
-/// resolved exactly like `to_task_item` does: pre-formatted for the label, and
-/// broken into local calendar parts for the picker.
+/// The subtasks a task shows: deleted ones are gone from every view.
+pub fn live_children(task: &TaskTree) -> impl Iterator<Item = &TaskTree> {
+    task.sub_tasks.iter().filter(|child| !child.deleted)
+}
+
+/// Converts a direct child for the list of subtasks in its parent's pane.
 pub fn to_subtask_item(
-    sub: &SubTaskTree,
+    child: &TaskTree,
     now: &DateTime<Utc>,
     display: &DateTimeDisplaySettings,
 ) -> SubTaskItem {
-    let due = sub.plan_end_date.as_ref();
-    let due_parts = to_display_parts(due.unwrap_or(now), display.timezone);
-
+    let completed = matches!(child.status, DomainStatus::Completed);
+    let due = child.plan_end_date.as_ref();
     SubTaskItem {
-        id: SharedString::from(sub.id.as_str()),
-        task_id: SharedString::from(sub.task_id.as_str()),
-        title: SharedString::from(sub.title.clone()),
-        status: to_status(&sub.status),
-        priority: to_priority(sub.priority.unwrap_or(0)),
-        completed: sub.completed,
-        notes: SharedString::from(sub.description.clone().unwrap_or_default()),
+        id: SharedString::from(child.id.as_str()),
+        title: SharedString::from(child.title.clone()),
+        completed,
         due_label: due
             .map(|d| SharedString::from(format_due(d, display)))
             .unwrap_or_default(),
         has_due: due.is_some(),
-        overdue: is_overdue(due, sub.completed, now),
-        due_year: due_parts.year,
-        due_month: due_parts.month,
-        due_day: due_parts.day,
-        due_hour: due_parts.hour,
-        due_minute: due_parts.minute,
-        search_match: false,
+        overdue: is_overdue(due, completed, now),
+        subtask_count: live_children(child).count() as i32,
     }
 }
 
-/// Converts a task and its subtasks for display.
+/// Where a task sits in the tree.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Placement<'a> {
+    /// The list of the task's top-level task, `None` directly under the project.
+    pub list_id: Option<&'a str>,
+    /// The tasks above it, top-level first. Empty for a top-level task.
+    pub ancestors: &'a [&'a TaskTree],
+}
+
+/// Converts a task at any depth for display.
 ///
 /// `expanded` comes from the UI-state ViewModel rather than the domain, since
 /// accordion state is not persisted (yet) and is not part of the task.
@@ -103,6 +102,7 @@ pub fn to_subtask_item(
 /// load.
 pub fn to_task_item(
     task: &TaskTree,
+    placement: Placement<'_>,
     expanded: bool,
     now: &DateTime<Utc>,
     display: &DateTimeDisplaySettings,
@@ -114,12 +114,18 @@ pub fn to_task_item(
     let start = task.plan_start_date.as_ref();
     let start_parts = to_display_parts(start.or(due).unwrap_or(now), display.timezone);
 
-    let subtasks: Vec<SubTaskItem> = task
-        .sub_tasks
-        .iter()
-        .map(|sub| to_subtask_item(sub, now, display))
+    let subtasks: Vec<SubTaskItem> = live_children(task)
+        .map(|child| to_subtask_item(child, now, display))
         .collect();
     let done_count = subtasks.iter().filter(|s| s.completed).count();
+    let ancestors: Vec<AncestorItem> = placement
+        .ancestors
+        .iter()
+        .map(|ancestor| AncestorItem {
+            id: SharedString::from(ancestor.id.as_str()),
+            title: SharedString::from(ancestor.title.clone()),
+        })
+        .collect();
     let mut reminder_dates = task.reminders.clone();
     reminder_dates.sort_unstable();
     let reminders = reminder_dates
@@ -133,7 +139,13 @@ pub fn to_task_item(
     TaskItem {
         id: SharedString::from(task.id.as_str()),
         project_id: SharedString::from(task.project_id.as_str()),
-        list_id: SharedString::from(task.list_id.as_str()),
+        list_id: SharedString::from(placement.list_id.unwrap_or_default()),
+        parent_id: placement
+            .ancestors
+            .last()
+            .map(|parent| SharedString::from(parent.id.as_str()))
+            .unwrap_or_default(),
+        depth: placement.ancestors.len() as i32,
         title: SharedString::from(task.title.clone()),
         status: to_status(&task.status),
         priority: to_priority(task.priority),
@@ -169,6 +181,7 @@ pub fn to_task_item(
         subtask_count: subtasks.len() as i32,
         subtask_done_count: done_count as i32,
         subtasks: ModelRc::new(VecModel::from(subtasks)),
+        ancestors: ModelRc::new(VecModel::from(ancestors)),
         has_recurrence: task.recurrence_rule.is_some(),
         recurrence_unit: task
             .recurrence_rule
@@ -182,6 +195,7 @@ pub fn to_task_item(
         expanded,
         search_dimmed: false,
         matched_subtask_count: 0,
+        search_match: false,
     }
 }
 

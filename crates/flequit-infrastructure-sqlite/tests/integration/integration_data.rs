@@ -5,15 +5,14 @@
 use chrono::{DateTime, Utc};
 use flequit_infrastructure_sqlite::infrastructure::database_manager::DatabaseManager;
 use flequit_infrastructure_sqlite::infrastructure::task_projects::{
-    project::ProjectLocalSqliteRepository, subtask::SubTaskLocalSqliteRepository,
-    tag::TagLocalSqliteRepository, task::TaskLocalSqliteRepository,
-    task_list::TaskListLocalSqliteRepository,
+    project::ProjectLocalSqliteRepository, tag::TagLocalSqliteRepository,
+    task::TaskLocalSqliteRepository, task_list::TaskListLocalSqliteRepository,
 };
 use flequit_model::models::{
-    task_projects::project::Project, task_projects::subtask::SubTask, task_projects::tag::Tag,
-    task_projects::task::Task, task_projects::task_list::TaskList,
+    task_projects::project::Project, task_projects::tag::Tag, task_projects::task::Task,
+    task_projects::task_list::TaskList,
 };
-use flequit_model::types::id_types::{ProjectId, SubTaskId, TagId, TaskId, TaskListId, UserId};
+use flequit_model::types::id_types::{ProjectId, TagId, TaskId, TaskListId, UserId};
 use flequit_model::types::project_types::ProjectStatus;
 use flequit_model::types::task_types::TaskStatus;
 use flequit_repository::project_repository_trait::ProjectRepository;
@@ -45,7 +44,6 @@ async fn test_multiple_entities_crud_operations() -> Result<(), Box<dyn std::err
     let project_repo = ProjectLocalSqliteRepository::new(db_manager_arc.clone());
     let task_list_repo = TaskListLocalSqliteRepository::new(db_manager_arc.clone());
     let task_repo = TaskLocalSqliteRepository::new(db_manager_arc.clone());
-    let subtask_repo = SubTaskLocalSqliteRepository::new(db_manager_arc.clone());
     let tag_repo = TagLocalSqliteRepository::new(db_manager_arc);
 
     // === プロジェクトを2件作成 ===
@@ -154,7 +152,8 @@ async fn test_multiple_entities_crud_operations() -> Result<(), Box<dyn std::err
     let task1 = Task {
         id: task_id1,
         project_id: project_id1,
-        list_id: task_list_id1,
+        list_id: Some(task_list_id1),
+        parent_task_id: None,
         title: "マルチエンティティテストタスク1".to_string(),
         reminders: vec![],
         description: Some("複数エンティティテスト用タスク1".to_string()),
@@ -182,7 +181,8 @@ async fn test_multiple_entities_crud_operations() -> Result<(), Box<dyn std::err
     let task2 = Task {
         id: task_id2,
         project_id: project_id2,
-        list_id: task_list_id2,
+        list_id: Some(task_list_id2),
+        parent_task_id: None,
         title: "マルチエンティティテストタスク2".to_string(),
         reminders: vec![],
         description: Some("複数エンティティテスト用タスク2".to_string()),
@@ -219,17 +219,20 @@ async fn test_multiple_entities_crud_operations() -> Result<(), Box<dyn std::err
     assert_eq!(retrieved_task1.unwrap().title, task1.title);
     assert_eq!(retrieved_task2.unwrap().title, task2.title);
 
-    // === サブタスクを2件作成 ===
-    let subtask_id1 = SubTaskId::from(Uuid::new_v4());
+    // === サブタスク（親を持つタスク）を2件作成 ===
+    let subtask_id1 = TaskId::from(Uuid::new_v4());
     let user_id1 = UserId::from(Uuid::new_v4());
     let timestamp1 = DateTime::<Utc>::from_timestamp(1717708800, 0).unwrap();
-    let subtask1 = SubTask {
+    let subtask1 = Task {
         id: subtask_id1,
-        task_id: task_id1,
+        project_id: project_id1,
+        list_id: None,
+        parent_task_id: Some(task_id1),
         title: "マルチエンティティテストサブタスク1".to_string(),
+        reminders: vec![],
         description: Some("複数エンティティテスト用サブタスク1".to_string()),
         status: TaskStatus::NotStarted,
-        priority: Some(2),
+        priority: 2,
         plan_start_date: None,
         plan_end_date: None,
         do_start_date: None,
@@ -239,53 +242,64 @@ async fn test_multiple_entities_crud_operations() -> Result<(), Box<dyn std::err
         assigned_user_ids: vec![],
         tag_ids: vec![],
         order_index: 1,
-        completed: false,
+        is_archived: false,
         created_at: timestamp1,
         updated_at: timestamp1,
         deleted: false,
         updated_by: user_id1,
     };
 
-    let subtask_id2 = SubTaskId::from(Uuid::new_v4());
+    // 孫（サブタスクのサブタスク）
+    let subtask_id2 = TaskId::from(Uuid::new_v4());
     let user_id2 = UserId::from(Uuid::new_v4());
     let timestamp2 = DateTime::<Utc>::from_timestamp(1717708800, 0).unwrap();
-    let subtask2 = SubTask {
+    let subtask2 = Task {
         id: subtask_id2,
-        task_id: task_id2,
+        project_id: project_id1,
+        list_id: None,
+        parent_task_id: Some(subtask_id1),
         title: "マルチエンティティテストサブタスク2".to_string(),
+        reminders: vec![],
         description: Some("複数エンティティテスト用サブタスク2".to_string()),
         status: TaskStatus::Completed,
-        priority: Some(1),
+        priority: 1,
         plan_start_date: None,
         plan_end_date: None,
         do_start_date: None,
-        do_end_date: Some(chrono::Utc::now()),
+        do_end_date: None,
         is_range_date: None,
         recurrence_rule: None,
         assigned_user_ids: vec![],
         tag_ids: vec![],
         order_index: 1,
-        completed: true,
+        is_archived: false,
         created_at: timestamp2,
         updated_at: timestamp2,
         deleted: false,
         updated_by: user_id2,
     };
 
-    subtask_repo
+    task_repo
         .save(&project_id1, &subtask1, &user_id1, &timestamp1)
         .await?;
-    subtask_repo
-        .save(&project_id2, &subtask2, &user_id2, &timestamp2)
+    task_repo
+        .save(&project_id1, &subtask2, &user_id2, &timestamp2)
         .await?;
 
-    // サブタスク取得確認
-    let retrieved_subtask1 = subtask_repo.find_by_id(&project_id1, &subtask_id1).await?;
-    let retrieved_subtask2 = subtask_repo.find_by_id(&project_id2, &subtask_id2).await?;
-    assert!(retrieved_subtask1.is_some());
-    assert!(retrieved_subtask2.is_some());
-    assert_eq!(retrieved_subtask1.unwrap().title, subtask1.title);
-    assert_eq!(retrieved_subtask2.unwrap().title, subtask2.title);
+    // サブタスク取得確認（親とリストの関係を保つ）
+    let retrieved_subtask1 = task_repo
+        .find_by_id(&project_id1, &subtask_id1)
+        .await?
+        .expect("subtask1");
+    let retrieved_subtask2 = task_repo
+        .find_by_id(&project_id1, &subtask_id2)
+        .await?
+        .expect("subtask2");
+    assert_eq!(retrieved_subtask1.title, subtask1.title);
+    assert_eq!(retrieved_subtask1.parent_task_id, Some(task_id1));
+    assert_eq!(retrieved_subtask1.list_id, None);
+    assert_eq!(retrieved_subtask2.title, subtask2.title);
+    assert_eq!(retrieved_subtask2.parent_task_id, Some(subtask_id1));
 
     // === タグを2件作成 ===
     let tag_id1 = TagId::from(Uuid::new_v4());
@@ -351,9 +365,7 @@ async fn test_multiple_entities_crud_operations() -> Result<(), Box<dyn std::err
     tag_repo.delete(&project_id1, &tag_id1).await?;
     tag_repo.delete(&project_id2, &tag_id2).await?;
 
-    subtask_repo.delete(&project_id1, &subtask_id1).await?;
-    subtask_repo.delete(&project_id2, &subtask_id2).await?;
-
+    // 親を消すと子孫も消える
     task_repo.delete(&project_id1, &task_id1).await?;
     task_repo.delete(&project_id2, &task_id2).await?;
 
@@ -391,14 +403,14 @@ async fn test_multiple_entities_crud_operations() -> Result<(), Box<dyn std::err
             .is_none()
     );
     assert!(
-        subtask_repo
+        task_repo
             .find_by_id(&project_id1, &subtask_id1)
             .await?
             .is_none()
     );
     assert!(
-        subtask_repo
-            .find_by_id(&project_id2, &subtask_id2)
+        task_repo
+            .find_by_id(&project_id1, &subtask_id2)
             .await?
             .is_none()
     );

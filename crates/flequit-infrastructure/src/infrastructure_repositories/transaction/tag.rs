@@ -36,10 +36,6 @@ pub(super) async fn delete(
             .remove_all_by_tag_id_with_txn(txn.txn(), project_id, tag_id)
             .await?;
         sqlite_guard
-            .subtask_tags
-            .remove_all_by_tag_id_with_txn(txn.txn(), tag_id)
-            .await?;
-        sqlite_guard
             .tags()
             .delete_with_txn(txn.txn(), project_id, tag_id)
             .await?;

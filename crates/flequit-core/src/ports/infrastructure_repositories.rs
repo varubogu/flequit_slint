@@ -3,10 +3,6 @@ use chrono::{DateTime, Utc};
 use flequit_model::models::accounts::account::Account;
 use flequit_model::models::task_projects::project::Project;
 use flequit_model::models::task_projects::recurrence_rule::RecurrenceRule;
-use flequit_model::models::task_projects::subtask::SubTask;
-use flequit_model::models::task_projects::subtask_assignment::SubTaskAssignment;
-use flequit_model::models::task_projects::subtask_recurrence::SubTaskRecurrence;
-use flequit_model::models::task_projects::subtask_tag::SubTaskTag;
 use flequit_model::models::task_projects::tag::Tag;
 use flequit_model::models::task_projects::task::Task;
 use flequit_model::models::task_projects::task_assignment::TaskAssignment;
@@ -16,8 +12,7 @@ use flequit_model::models::task_projects::task_tag::TaskTag;
 use flequit_model::models::user_preferences::tag_bookmark::TagBookmark;
 use flequit_model::models::users::user::User;
 use flequit_model::types::id_types::{
-    AccountId, ProjectId, RecurrenceRuleId, SubTaskId, TagBookmarkId, TagId, TaskId, TaskListId,
-    UserId,
+    AccountId, ProjectId, RecurrenceRuleId, TagBookmarkId, TagId, TaskId, TaskListId, UserId,
 };
 use flequit_repository::repositories::base_repository_trait::Repository;
 use flequit_repository::repositories::patchable_trait::Patchable;
@@ -112,16 +107,6 @@ pub trait SqliteTaskRepositoryPort: Send + Sync {
 }
 
 #[async_trait]
-pub trait SqliteSubTaskRepositoryPort: Send + Sync {
-    async fn remove_all_by_task_id_with_txn(
-        &self,
-        txn: &DatabaseTransaction,
-        project_id: &ProjectId,
-        task_id: &str,
-    ) -> Result<(), RepositoryError>;
-}
-
-#[async_trait]
 pub trait SqliteTagRepositoryPort: Send + Sync {
     async fn find_ids_by_project_id(
         &self,
@@ -171,15 +156,6 @@ pub trait SqliteTaskRecurrenceRepositoryPort: Send + Sync {
 }
 
 #[async_trait]
-pub trait SqliteSubtaskTagRepositoryPort: Send + Sync {
-    async fn remove_all_by_tag_id_with_txn(
-        &self,
-        txn: &DatabaseTransaction,
-        tag_id: &TagId,
-    ) -> Result<(), RepositoryError>;
-}
-
-#[async_trait]
 pub trait SqliteTagBookmarkRepositoryPort: Send + Sync {
     async fn remove_all_by_tag_id_with_txn(
         &self,
@@ -193,23 +169,19 @@ pub trait SqliteRepositoriesPort: Send + Sync {
     type ProjectsRepository: SqliteProjectRepositoryPort;
     type TaskListsRepository: SqliteTaskListRepositoryPort;
     type TasksRepository: SqliteTaskRepositoryPort;
-    type SubTasksRepository: SqliteSubTaskRepositoryPort;
     type TagsRepository: SqliteTagRepositoryPort;
     type TaskTagsRepository: SqliteTaskTagRepositoryPort;
     type TaskAssignmentsRepository: SqliteTaskAssignmentRepositoryPort;
     type TaskRecurrencesRepository: SqliteTaskRecurrenceRepositoryPort;
-    type SubtaskTagsRepository: SqliteSubtaskTagRepositoryPort;
     type TagBookmarksRepository: SqliteTagBookmarkRepositoryPort;
 
     fn projects_repo(&self) -> &Self::ProjectsRepository;
     fn task_lists_repo(&self) -> &Self::TaskListsRepository;
     fn tasks_repo(&self) -> &Self::TasksRepository;
-    fn sub_tasks_repo(&self) -> &Self::SubTasksRepository;
     fn tags_repo(&self) -> &Self::TagsRepository;
     fn task_tags_repo(&self) -> &Self::TaskTagsRepository;
     fn task_assignments_repo(&self) -> &Self::TaskAssignmentsRepository;
     fn task_recurrences_repo(&self) -> &Self::TaskRecurrencesRepository;
-    fn subtask_tags_repo(&self) -> &Self::SubtaskTagsRepository;
     fn tag_bookmarks_repo(&self) -> &Self::TagBookmarksRepository;
 }
 
@@ -226,6 +198,7 @@ pub trait TransactionalDeletionPort: Send + Sync {
         timestamp: &DateTime<Utc>,
     ) -> Result<(), RepositoryError>;
 
+    /// タスクを子孫ごと削除する
     async fn delete_task_transactionally(
         &self,
         project_id: &ProjectId,
@@ -264,6 +237,7 @@ pub trait TransactionalRestorePort: Send + Sync {
         timestamp: &DateTime<Utc>,
     ) -> Result<(), RepositoryError>;
 
+    /// タスクと、同じ削除で消えた子孫を戻す
     async fn restore_task_transactionally(
         &self,
         project_id: &ProjectId,
@@ -361,23 +335,13 @@ pub trait InfrastructureRepositoriesTrait:
     type TagsRepository: ProjectRepository<Tag, TagId> + TagRepositoryExt + Send + Sync;
     type TasksRepository: ProjectPatchable<Task, TaskId> + Send + Sync;
     type TaskListsRepository: ProjectPatchable<TaskList, TaskListId> + Send + Sync;
-    type SubTasksRepository: ProjectPatchable<SubTask, SubTaskId> + Send + Sync;
     type UsersRepository: Repository<User, UserId> + Send + Sync;
     type RecurrenceRulesRepository: ProjectPatchable<RecurrenceRule, RecurrenceRuleId> + Send + Sync;
     type TaskAssignmentsRepository: ProjectRelationRepository<TaskAssignment, TaskId, UserId>
         + Send
         + Sync;
-    type SubtaskAssignmentsRepository: ProjectRelationRepository<SubTaskAssignment, SubTaskId, UserId>
-        + Send
-        + Sync;
     type TaskTagsRepository: ProjectRelationRepository<TaskTag, TaskId, TagId> + Send + Sync;
-    type SubtaskTagsRepository: ProjectRelationRepository<SubTaskTag, SubTaskId, TagId>
-        + Send
-        + Sync;
     type TaskRecurrencesRepository: ProjectRelationRepository<TaskRecurrence, TaskId, RecurrenceRuleId>
-        + Send
-        + Sync;
-    type SubtaskRecurrencesRepository: ProjectRelationRepository<SubTaskRecurrence, SubTaskId, RecurrenceRuleId>
         + Send
         + Sync;
 
@@ -390,15 +354,11 @@ pub trait InfrastructureRepositoriesTrait:
     fn tags(&self) -> &Self::TagsRepository;
     fn tasks(&self) -> &Self::TasksRepository;
     fn task_lists(&self) -> &Self::TaskListsRepository;
-    fn sub_tasks(&self) -> &Self::SubTasksRepository;
     fn users(&self) -> &Self::UsersRepository;
     fn recurrence_rules(&self) -> &Self::RecurrenceRulesRepository;
     fn task_assignments(&self) -> &Self::TaskAssignmentsRepository;
-    fn subtask_assignments(&self) -> &Self::SubtaskAssignmentsRepository;
     fn task_tags(&self) -> &Self::TaskTagsRepository;
-    fn subtask_tags(&self) -> &Self::SubtaskTagsRepository;
     fn task_recurrences(&self) -> &Self::TaskRecurrencesRepository;
-    fn subtask_recurrences(&self) -> &Self::SubtaskRecurrencesRepository;
 
     fn tag_bookmarks(&self) -> &Self::TagBookmarksRepository;
 

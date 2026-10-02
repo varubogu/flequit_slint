@@ -26,27 +26,31 @@ pub(super) async fn delete(
         })])
         .await?;
 
+    // 子孫（深い順）から消し、最後にタスク自身を消す
     let sqlite_result: Result<(), RepositoryError> = async {
-        sqlite_guard
-            .sub_tasks()
-            .remove_all_by_task_id_with_txn(txn.txn(), project_id, &task_id.to_string())
-            .await?;
-        sqlite_guard
-            .task_tags
-            .remove_all_by_task_id_with_txn(txn.txn(), project_id, task_id)
-            .await?;
-        sqlite_guard
-            .task_assignments()
-            .remove_all_by_task_id_with_txn(txn.txn(), task_id)
-            .await?;
-        sqlite_guard
-            .task_recurrences
-            .remove_all_with_txn(txn.txn(), project_id, task_id)
-            .await?;
-        sqlite_guard
+        let mut doomed = sqlite_guard
             .tasks()
-            .delete_with_txn(txn.txn(), project_id, task_id)
+            .find_descendant_ids_with_txn(txn.txn(), project_id, task_id)
             .await?;
+        doomed.push(*task_id);
+        for id in &doomed {
+            sqlite_guard
+                .task_tags
+                .remove_all_by_task_id_with_txn(txn.txn(), project_id, id)
+                .await?;
+            sqlite_guard
+                .task_assignments()
+                .remove_all_by_task_id_with_txn(txn.txn(), id)
+                .await?;
+            sqlite_guard
+                .task_recurrences
+                .remove_all_with_txn(txn.txn(), project_id, id)
+                .await?;
+            sqlite_guard
+                .tasks()
+                .delete_with_txn(txn.txn(), project_id, id)
+                .await?;
+        }
         Ok(())
     }
     .await;

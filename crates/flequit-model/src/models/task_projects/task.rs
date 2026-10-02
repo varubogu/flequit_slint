@@ -6,7 +6,13 @@
 //!
 //! タスク管理では以下2つの主要構造体を提供：
 //! - `Task`: 基本タスク情報（軽量、一般的な操作用）
-//! - `TaskWithSubTasks`: サブタスクとタグ情報を含む完全なタスク構造
+//! - `TaskTree`: 子孫のタスクとタグ情報を含む完全なタスク構造
+//!
+//! ## 階層
+//!
+//! サブタスクは「親を持つタスク」で、深さに制限はない（`parent_task_id`）。
+//! タスクリストへの所属は最上位のタスク（親なし）だけが持ち、子は `list_id = None` とする。
+//! 最上位のタスクも `list_id = None` ならプロジェクト直下に置かれる。
 
 use super::recurrence_rule::RecurrenceRule;
 use crate::types::{
@@ -19,7 +25,6 @@ use partially::Partial;
 use serde::{Deserialize, Serialize};
 
 use crate::models::ModelConverter;
-use crate::models::task_projects::subtask::SubTaskTree;
 use crate::traits::Trackable;
 use crate::types::id_types::ProjectId;
 
@@ -32,9 +37,9 @@ use crate::types::id_types::ProjectId;
 ///
 /// ## 基本情報
 /// * `id` - タスクの一意識別子
-/// * `sub_task_id` - 親サブタスクID（タスクがサブタスクの一部の場合）
 /// * `project_id` - 所属プロジェクトID
-/// * `list_id` - 所属タスクリストID
+/// * `list_id` - 所属タスクリストID（最上位のタスクだけ。`None` はプロジェクト直下）
+/// * `parent_task_id` - 親タスクID（`None` は最上位のタスク）
 /// * `title` - タスクタイトル（必須）
 /// * `description` - タスクの詳細説明
 ///
@@ -79,7 +84,13 @@ pub struct Task {
     /// 所属プロジェクトID
     pub project_id: ProjectId,
     /// 所属タスクリストID
-    pub list_id: TaskListId,
+    ///
+    /// 最上位のタスクだけが持つ。`None` はリストに属さずプロジェクト直下に置かれるタスクと、
+    /// 子のタスク（位置は最上位の祖先から決まる）
+    pub list_id: Option<TaskListId>,
+    /// 親タスクID（`None` は最上位のタスク）
+    #[serde(default)]
+    pub parent_task_id: Option<TaskId>,
     /// タスクタイトル（必須）
     pub title: String,
     /// タスクの詳細説明
@@ -121,17 +132,17 @@ pub struct Task {
     pub updated_by: UserId,
 }
 
-/// サブタスクとタグ情報を含む完全なタスクツリー構造体
+/// 子孫のタスクとタグ情報を含む完全なタスクツリー構造体
 ///
 /// タスクの詳細表示や編集画面で使用される、関連データを含む完全な構造体です。
-/// サブタスクとタグの実体情報を含むため、詳細画面での一括表示に最適化されています。
+/// 子のタスクを `sub_tasks` に再帰的に持つため、任意の深さの階層を表せます。
 ///
 /// # 基本フィールド
 ///
 /// `Task`構造体と同様のフィールドに加えて、以下の関連データを含みます：
 ///
 /// ## 関連データ
-/// * `sub_tasks` - 所属するサブタスクの配列（SubTask構造体）
+/// * `sub_tasks` - 子のタスクの配列（`TaskTree`、表示順序で並ぶ）
 /// * `tags` - 付与されたタグの配列（Tag構造体の実体）
 ///
 /// # 使用場面
@@ -149,7 +160,7 @@ pub struct Task {
 /// # データ整合性
 ///
 /// - `tag_ids`と`tags`の内容は一致する必要があります
-/// - `sub_tasks`は該当タスクに所属するもののみ含まれます
+/// - `sub_tasks`は`parent_task_id`がこのタスクを指すもののみ含まれます
 ///
 /// # 使用例
 ///
@@ -163,7 +174,8 @@ pub struct Task {
 /// let detailed_task = TaskTree {
 ///     id: TaskId::new(),
 ///     project_id: ProjectId::new(),
-///     list_id: TaskListId::new(),
+///     list_id: Some(TaskListId::new()),
+///     parent_task_id: None,
 ///     title: "新機能の実装".to_string(),
 ///     description: Some("ユーザー管理機能を実装".to_string()),
 ///     status: TaskStatus::InProgress,
@@ -192,8 +204,11 @@ pub struct TaskTree {
     pub id: TaskId,
     /// 所属プロジェクトID
     pub project_id: ProjectId,
-    /// 所属タスクリストID
-    pub list_id: TaskListId,
+    /// 所属タスクリストID（最上位のタスクだけ。`None` はプロジェクト直下）
+    pub list_id: Option<TaskListId>,
+    /// 親タスクID（`None` は最上位のタスク）
+    #[serde(default)]
+    pub parent_task_id: Option<TaskId>,
     /// タスクタイトル（必須）
     pub title: String,
     /// タスクの詳細説明
@@ -231,10 +246,77 @@ pub struct TaskTree {
     pub deleted: bool,
     /// 最終更新者のユーザーID（必須、作成・更新・削除・復元すべての操作で記録）
     pub updated_by: UserId,
-    /// 所属するサブタスクの配列（SubTask構造体）
-    pub sub_tasks: Vec<SubTaskTree>,
+    /// 子のタスク（表示順序で並ぶ）
+    pub sub_tasks: Vec<TaskTree>,
     /// 付与されたタグIDの配列
     pub tag_ids: Vec<TagId>,
+}
+
+impl Task {
+    /// 親を持たない（最上位の）タスクか
+    pub fn is_root(&self) -> bool {
+        self.parent_task_id.is_none()
+    }
+}
+
+impl TaskTree {
+    /// 親を持たない（最上位の）タスクか
+    pub fn is_root(&self) -> bool {
+        self.parent_task_id.is_none()
+    }
+
+    /// このタスクと子孫を行きがけ順（親 → 子を表示順）にたどる
+    pub fn walk(&self) -> TaskTreeWalk<'_> {
+        TaskTreeWalk { stack: vec![self] }
+    }
+
+    /// 子孫（自分を含まない）を行きがけ順にたどる
+    pub fn descendants(&self) -> impl Iterator<Item = &TaskTree> {
+        self.walk().skip(1)
+    }
+
+    /// このタスクか子孫のうち `id` のもの
+    pub fn find(&self, id: &TaskId) -> Option<&TaskTree> {
+        self.walk().find(|task| task.id == *id)
+    }
+
+    /// このタスクか子孫のうち `id` のもの（書き換え用）
+    pub fn find_mut(&mut self, id: &TaskId) -> Option<&mut TaskTree> {
+        if self.id == *id {
+            return Some(self);
+        }
+        self.sub_tasks
+            .iter_mut()
+            .find_map(|child| child.find_mut(id))
+    }
+
+    /// `id` のタスクまでの道筋（自分から `id` の親まで）。見つからなければ `None`
+    pub fn path_to(&self, id: &TaskId) -> Option<Vec<&TaskTree>> {
+        if self.id == *id {
+            return Some(Vec::new());
+        }
+        self.sub_tasks.iter().find_map(|child| {
+            child.path_to(id).map(|mut path| {
+                path.insert(0, self);
+                path
+            })
+        })
+    }
+}
+
+/// [`TaskTree::walk`] の反復子
+pub struct TaskTreeWalk<'a> {
+    stack: Vec<&'a TaskTree>,
+}
+
+impl<'a> Iterator for TaskTreeWalk<'a> {
+    type Item = &'a TaskTree;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let task = self.stack.pop()?;
+        self.stack.extend(task.sub_tasks.iter().rev());
+        Some(task)
+    }
 }
 
 #[async_trait]
@@ -245,6 +327,7 @@ impl ModelConverter<Task> for TaskTree {
             id: self.id,
             project_id: self.project_id,
             list_id: self.list_id,
+            parent_task_id: self.parent_task_id,
             title: self.title.clone(),
             description: self.description.clone(),
             status: self.status.clone(),

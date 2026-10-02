@@ -106,7 +106,7 @@ fn populate(window: &AppWindow) {
     state.set_projects(ModelRc::new(VecModel::from(projects)));
     state.set_tasks(ModelRc::new(VecModel::from(tasks)));
     state.set_selected_project_id(SharedString::from("project-demo"));
-    state.set_add_target_list_id(SharedString::from("list-inbox"));
+    state.set_add_target(SharedString::from("list-inbox"));
     state.set_add_target_project_name(SharedString::from("Demo"));
     state.set_add_target_list_name(SharedString::from("Inbox"));
     state.set_selected_task_id(selected.id.clone());

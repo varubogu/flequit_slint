@@ -9,11 +9,11 @@ import { ThemeMode } from "theme.slint";
 
 export global Actions {
     // --- Navigation ---
+    // Any task, at any depth. A task hidden under a collapsed parent is opened
+    // up so the list shows where it is.
     callback select-task(string /* task_id */);
     callback move-task-selection(int /* delta */);
     callback select-task-boundary(bool /* first */);
-    callback select-subtask(string /* subtask_id */);
-    callback go-to-parent-task();
     callback toggle-project-expansion(string /* project_id */);
     callback toggle-task-expansion(string /* task_id */);
 
@@ -36,9 +36,11 @@ export global Actions {
     callback change-show-completed-tasks(bool /* show */);
 
     // --- Task mutations ---
-    callback add-task(string /* list_id */, string /* title */);
+    // `target` is a list id, or `project:{id}` for a task under the project
+    // itself (see AddTargetItem.key).
+    callback add-task(string /* target */, string /* title */);
     // Quick-add destination picker.
-    callback choose-add-target(string /* list_id */);
+    callback choose-add-target(string /* target */);
     callback filter-add-targets(string /* query */);
     callback toggle-task-completed(string /* task_id */);
     callback update-task-title(string /* task_id */, string /* title */);
@@ -59,10 +61,15 @@ export global Actions {
     callback undo-delete-task();
     // Closes the undo toast, deleting the task from storage right away.
     callback dismiss-undo-delete();
-    // Moves a task to `target_index` in the currently visible order.
+    // Moves a top-level task to `target_index` in the currently visible rows.
+    // A subtask's row stands for its top-level task; subtasks move with it.
     callback reorder-task(string /* task_id */, int /* target_index */);
+    // Moves a top-level task by `delta` visible top-level rows.
+    callback move-task-by(string /* task_id */, int /* delta */);
     // Moves a task to the end of another list in the same project.
     callback move-task-to-list(string /* task_id */, string /* list_id */);
+    // Takes a task out of its list, leaving it directly under its project.
+    callback move-task-to-project(string /* task_id */);
 
     // --- Recurrence ---
     // Fills in `AppState.recurrence` from the task's rule and opens the editor.
@@ -82,17 +89,10 @@ export global Actions {
     callback remove-reminder(string /* task_id */, string /* reminder_key */);
     callback request-notification-permission();
 
-    // --- Subtask mutations ---
-    callback add-subtask(string /* task_id */, string /* title */);
-    callback toggle-subtask-completed(string /* subtask_id */);
-    callback update-subtask-title(string /* subtask_id */, string /* title */);
-    callback update-subtask-notes(string /* subtask_id */, string /* notes */);
-    callback update-subtask-status(string /* subtask_id */, TaskStatus /* status */);
-    callback update-subtask-priority(string /* subtask_id */, TaskPriority /* priority */);
-    callback update-subtask-due(string /* subtask_id */, int /* year */, int /* month */,
-                                int /* day */, int /* hour */, int /* minute */);
-    callback clear-subtask-due(string /* subtask_id */);
-    callback delete-subtask(string /* subtask_id */);
+    // --- Subtasks ---
+    // A subtask is a task with a parent, so every task action above applies to
+    // it as well. Only creating one needs the parent.
+    callback add-subtask(string /* parent_task_id */, string /* title */);
 
     // --- Project and task list mutations ---
     callback create-project(string /* name */, string /* color */);

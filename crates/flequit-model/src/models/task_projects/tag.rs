@@ -7,7 +7,6 @@
 //! `Tag`構造体は、タスクやプロジェクトに付与するラベル情報を管理します。
 //! カテゴリ分けや検索性の向上、視覚的な識別に活用されます。
 
-use super::subtask_tag::SubTaskTag;
 use super::task_tag::TaskTag;
 use crate::models::ModelConverter;
 use crate::traits::Trackable;
@@ -109,8 +108,7 @@ pub struct Tag {
 /// * `order_index` - 表示順序（昇順ソート用）
 /// * `created_at` - タグ作成日時
 /// * `updated_at` - 最終更新日時
-/// * `task_tags` - このタグが付与されたタスクとの関連付け情報一覧
-/// * `subtask_tags` - このタグが付与されたサブタスクとの関連付け情報一覧
+/// * `task_tags` - このタグが付与されたタスク（サブタスクを含む）との関連付け情報一覧
 ///
 /// # 使用例
 ///
@@ -139,7 +137,6 @@ pub struct Tag {
 ///             updated_by: UserId::new(),
 ///         }
 ///     ],
-///     subtask_tags: vec![],
 /// };
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -160,16 +157,14 @@ pub struct TagTree {
     pub deleted: bool,
     /// 最終更新者のユーザーID（必須、作成・更新・削除・復元すべての操作で記録）
     pub updated_by: UserId,
-    /// このタグが付与されたタスクとの関連付け情報一覧
+    /// このタグが付与されたタスク（サブタスクを含む）との関連付け情報一覧
     pub task_tags: Vec<TaskTag>,
-    /// このタグが付与されたサブタスクとの関連付け情報一覧
-    pub subtask_tags: Vec<SubTaskTag>,
 }
 
 #[async_trait]
 impl ModelConverter<Tag> for TagTree {
     async fn to_model(&self) -> Result<Tag, String> {
-        // TagTreeからTag基本構造体に変換（関連データのtask_tags, subtask_tagsは除く）
+        // TagTreeからTag基本構造体に変換（関連データのtask_tagsは除く）
         Ok(Tag {
             id: self.id,
             name: self.name.clone(),

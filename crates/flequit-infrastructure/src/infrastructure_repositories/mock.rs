@@ -27,15 +27,11 @@ pub struct MockInfrastructureRepositories {
     pub tags: TagUnifiedRepository,
     pub tasks: TaskUnifiedRepository,
     pub task_lists: TaskListUnifiedRepository,
-    pub sub_tasks: SubTaskUnifiedRepository,
     pub users: UserUnifiedRepository,
     pub recurrence_rules: RecurrenceRuleUnifiedRepository,
     pub task_assignments: TaskAssignmentUnifiedRepository,
-    pub subtask_assignments: SubTaskAssignmentUnifiedRepository,
     pub task_tags: TaskTagUnifiedRepository,
-    pub subtask_tags: SubTaskTagUnifiedRepository,
     pub task_recurrences: TaskRecurrenceUnifiedRepository,
-    pub subtask_recurrences: SubTaskRecurrenceUnifiedRepository,
     pub tag_bookmarks: TagBookmarkLocalSqliteRepository,
     pub unified_manager: UnifiedManager,
 }
@@ -55,15 +51,11 @@ impl MockInfrastructureRepositories {
             tags: TagUnifiedRepository::default(),
             tasks: TaskUnifiedRepository::default(),
             task_lists: TaskListUnifiedRepository::default(),
-            sub_tasks: SubTaskUnifiedRepository::default(),
             users: UserUnifiedRepository::default(),
             recurrence_rules: RecurrenceRuleUnifiedRepository::default(),
             task_assignments: TaskAssignmentUnifiedRepository::default(),
-            subtask_assignments: SubTaskAssignmentUnifiedRepository::default(),
             task_tags: TaskTagUnifiedRepository::default(),
-            subtask_tags: SubTaskTagUnifiedRepository::default(),
             task_recurrences: TaskRecurrenceUnifiedRepository::default(),
-            subtask_recurrences: SubTaskRecurrenceUnifiedRepository::default(),
             tag_bookmarks: TagBookmarkLocalSqliteRepository::new(Arc::new(RwLock::new(
                 DatabaseManager::new_for_test("/tmp/flequit-placeholder.sqlite"),
             ))),
@@ -220,15 +212,11 @@ impl InfrastructureRepositoriesTrait for MockInfrastructureRepositories {
     type TagsRepository = TagUnifiedRepository;
     type TasksRepository = TaskUnifiedRepository;
     type TaskListsRepository = TaskListUnifiedRepository;
-    type SubTasksRepository = SubTaskUnifiedRepository;
     type UsersRepository = UserUnifiedRepository;
     type RecurrenceRulesRepository = RecurrenceRuleUnifiedRepository;
     type TaskAssignmentsRepository = TaskAssignmentUnifiedRepository;
-    type SubtaskAssignmentsRepository = SubTaskAssignmentUnifiedRepository;
     type TaskTagsRepository = TaskTagUnifiedRepository;
-    type SubtaskTagsRepository = SubTaskTagUnifiedRepository;
     type TaskRecurrencesRepository = TaskRecurrenceUnifiedRepository;
-    type SubtaskRecurrencesRepository = SubTaskRecurrenceUnifiedRepository;
     type TagBookmarksRepository = TagBookmarkLocalSqliteRepository;
     type SqliteRepositories = LocalSqliteRepositories;
 
@@ -261,11 +249,6 @@ impl InfrastructureRepositoriesTrait for MockInfrastructureRepositories {
         &self.task_lists
     }
 
-    fn sub_tasks(&self) -> &Self::SubTasksRepository {
-        self.log_call("sub_tasks");
-        &self.sub_tasks
-    }
-
     fn users(&self) -> &Self::UsersRepository {
         self.log_call("users");
         &self.users
@@ -281,29 +264,14 @@ impl InfrastructureRepositoriesTrait for MockInfrastructureRepositories {
         &self.task_assignments
     }
 
-    fn subtask_assignments(&self) -> &Self::SubtaskAssignmentsRepository {
-        self.log_call("subtask_assignments");
-        &self.subtask_assignments
-    }
-
     fn task_tags(&self) -> &Self::TaskTagsRepository {
         self.log_call("task_tags");
         &self.task_tags
     }
 
-    fn subtask_tags(&self) -> &Self::SubtaskTagsRepository {
-        self.log_call("subtask_tags");
-        &self.subtask_tags
-    }
-
     fn task_recurrences(&self) -> &Self::TaskRecurrencesRepository {
         self.log_call("task_recurrences");
         &self.task_recurrences
-    }
-
-    fn subtask_recurrences(&self) -> &Self::SubtaskRecurrencesRepository {
-        self.log_call("subtask_recurrences");
-        &self.subtask_recurrences
     }
 
     fn tag_bookmarks(&self) -> &Self::TagBookmarksRepository {

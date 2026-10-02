@@ -110,7 +110,7 @@ facade に渡している。編集前後の UI 型を突き合わせて差分を
 | 1: 基盤 | `partially` クレート追加、`Task` への `Partial` derive、基本パッチ更新 facade |
 | 2: 機能拡張 | 頻用フィールド専用 facade 追加、ViewModel 変更検知、バリデーション強化 |
 | 3: 最適化 | パフォーマンス測定・調整、Repository SQL 最適化、Automerge 同期効率化 |
-| 4: 他エンティティ展開 | Project / Subtask / Tag 等へ適用、統一パターン確立 |
+| 4: 他エンティティ展開 | Project / TaskList / Tag 等へ適用、統一パターン確立 |
 
 ## 7. テスト戦略
 

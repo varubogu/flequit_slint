@@ -3,12 +3,12 @@ import { Layout } from "../globals/layout.slint";
 import { TaskItem, TaskPriority } from "../globals/types.slint";
 import { TaskRowMeta } from "task-row-meta.slint";
 import { DragHandle } from "drag-handle.slint";
-import { SubTaskRow } from "subtask-row.slint";
 
-// One row in the task list, including its collapsible subtasks.
+// One row in the task list: a task at any depth.
 //
-// Holds no state: `expanded` and `completed` arrive from the model and every
-// interaction is reported upward as a callback.
+// Subtasks are rows of their own, following their parent and indented by
+// `task.depth`. Holds no state: `expanded` and `completed` arrive from the
+// model and every interaction is reported upward as a callback.
 export component TaskRow inherits Rectangle {
     in property <TaskItem> task;
     in property <bool> selected: false;
@@ -20,11 +20,10 @@ export component TaskRow inherits Rectangle {
     callback clicked();
     callback toggle-completed();
     callback toggle-expansion();
-    callback subtask-clicked(string /* subtask_id */);
-    callback subtask-toggled(string /* subtask_id */);
 
     // Dragging is reported in window coordinates so the caller can resolve a
-    // drop target outside this row, such as a list in the sidebar.
+    // drop target outside this row, such as a list in the sidebar. Only a
+    // top-level task can be dragged: a subtask moves with its parent.
     callback drag-started(length /* window_x */, length /* window_y */);
     callback dragged(length /* window_x */, length /* window_y */);
     callback drag-finished();
@@ -32,147 +31,148 @@ export component TaskRow inherits Rectangle {
     callback move-earlier();
     callback move-later();
 
+    // Deep levels stop indenting further, so a narrow window keeps room for
+    // the title. The order of the rows still shows the hierarchy.
+    private property <int> indent-levels: Math.min(root.task.depth,
+        Layout.is-compact ? 2 : 4);
+
     height: layout.preferred-height;
     opacity: root.dragging ? 0.5 : 1.0;
+    // A subtask the search found while the task above it did not match is
+    // marked, since it is the reason the rows above it are listed.
     background: root.selected ? Theme.surface-selected
         : row-touch.has-hover ? Theme.surface-hover
+        : root.task.search-match ? Theme.surface-selected
         : transparent;
     border-radius: Theme.radius-sm;
 
-    layout := VerticalLayout {
-        spacing: 0px;
+    layout := HorizontalLayout {
+        padding-left: Theme.space-sm + root.indent-levels * Layout.touch-target;
+        padding-right: Theme.space-sm;
+        spacing: Theme.space-sm;
+        alignment: stretch;
 
-        // --- Main row ---
-        HorizontalLayout {
-            padding-left: Theme.space-sm;
-            padding-right: Theme.space-sm;
-            spacing: Theme.space-sm;
-            alignment: stretch;
+        if root.task.depth == 0: DragHandle {
+            action-label: @tr("TaskList" => "Reorder {0}", root.task.title);
+            drag-started(x, y) => { root.drag-started(x, y); }
+            dragged(x, y) => { root.dragged(x, y); }
+            drag-finished => { root.drag-finished(); }
+            move-earlier => { root.move-earlier(); }
+            move-later => { root.move-later(); }
+        }
 
-            DragHandle {
-                action-label: @tr("TaskList" => "Reorder {0}", root.task.title);
-                drag-started(x, y) => { root.drag-started(x, y); }
-                dragged(x, y) => { root.dragged(x, y); }
-                drag-finished => { root.drag-finished(); }
-                move-earlier => { root.move-earlier(); }
-                move-later => { root.move-later(); }
+        // Keeps a subtask's controls in line with where a handle would be.
+        if root.task.depth > 0: Rectangle {
+            width: Theme.space-lg;
+        }
+
+        // Expand / collapse. Occupies space even with no subtasks so
+        // titles stay aligned.
+        Rectangle {
+            width: Layout.touch-target;
+            height: Layout.touch-target;
+            border-radius: Theme.radius-sm;
+            background: expand-touch.has-hover && root.task.subtask-count > 0
+                ? Theme.surface-hover : transparent;
+
+            if root.task.subtask-count > 0: Text {
+                text: root.task.expanded ? "▾" : "▸";
+                color: Theme.text-muted;
+                font-size: Theme.font-size-base;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                width: 100%;
+                height: 100%;
             }
 
-            // Expand / collapse. Occupies space even with no subtasks so
-            // titles stay aligned.
-            Rectangle {
-                width: Layout.touch-target;
-                height: Layout.touch-target;
-                border-radius: Theme.radius-sm;
-                background: expand-touch.has-hover && root.task.subtask-count > 0
-                    ? Theme.surface-hover : transparent;
+            expand-touch := TouchArea {
+                enabled: root.task.subtask-count > 0;
+                clicked => { root.toggle-expansion(); }
+            }
 
-                if root.task.subtask-count > 0: Text {
-                    text: root.task.expanded ? "▾" : "▸";
-                    color: Theme.text-muted;
-                    font-size: Theme.font-size-base;
+            accessible-role: button;
+            accessible-enabled: root.task.subtask-count > 0;
+            accessible-expandable: root.task.subtask-count > 0;
+            accessible-expanded: root.task.expanded;
+            accessible-label: @tr("TaskList" => "Show subtasks of {0}", root.task.title);
+            accessible-action-default => {
+                if (root.task.subtask-count > 0) { root.toggle-expansion(); }
+            }
+        }
+
+        // Completion checkbox
+        Rectangle {
+            width: Layout.touch-target;
+            height: Layout.touch-target;
+
+            Rectangle {
+                width: root.task.depth == 0 ? 18px : 14px;
+                height: self.width;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                border-radius: Theme.radius-sm;
+                border-width: 1px;
+                border-color: root.task.completed ? Theme.accent : Theme.border;
+                background: root.task.completed ? Theme.accent : transparent;
+
+                Text {
+                    text: root.task.completed ? "✓" : "";
+                    color: Theme.text-on-accent;
+                    font-size: Theme.font-size-sm;
                     horizontal-alignment: center;
                     vertical-alignment: center;
                     width: 100%;
                     height: 100%;
                 }
-
-                expand-touch := TouchArea {
-                    enabled: root.task.subtask-count > 0;
-                    clicked => { root.toggle-expansion(); }
-                }
             }
 
-            // Completion checkbox
-            Rectangle {
-                width: Layout.touch-target;
-                height: Layout.touch-target;
+            check-touch := TouchArea {
+                clicked => { root.toggle-completed(); }
+            }
+            accessible-role: checkbox;
+            accessible-checkable: true;
+            accessible-checked: root.task.completed;
+            accessible-label: root.task.title;
+            accessible-action-default => { root.toggle-completed(); }
+        }
 
-                Rectangle {
-                    width: 18px;
-                    height: 18px;
-                    x: (parent.width - self.width) / 2;
-                    y: (parent.height - self.height) / 2;
-                    border-radius: Theme.radius-sm;
-                    border-width: 1px;
-                    border-color: root.task.completed ? Theme.accent : Theme.border;
-                    background: root.task.completed ? Theme.accent : transparent;
+        // Title and metadata
+        VerticalLayout {
+            horizontal-stretch: 1;
+            padding-top: Theme.space-xs;
+            padding-bottom: Theme.space-xs;
+            spacing: 2px;
+            alignment: center;
 
-                    Text {
-                        text: root.task.completed ? "✓" : "";
-                        color: Theme.text-on-accent;
-                        font-size: Theme.font-size-sm;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                        width: 100%;
-                        height: 100%;
-                    }
-                }
-
-                check-touch := TouchArea {
-                    clicked => { root.toggle-completed(); }
-                }
-                accessible-role: checkbox;
-                accessible-checked: root.task.completed;
-                accessible-label: root.task.title;
-                accessible-action-default => { root.toggle-completed(); }
+            Text {
+                text: root.task.title;
+                // Listed only because subtasks match: shown, but receded.
+                color: root.task.completed || root.task.search-dimmed
+                    ? Theme.text-muted : Theme.text;
+                font-size: root.task.depth == 0 ? Theme.font-size-base : Theme.font-size-sm;
+                overflow: elide;
             }
 
-            // Title and metadata
-            VerticalLayout {
-                horizontal-stretch: 1;
-                padding-top: Theme.space-xs;
-                padding-bottom: Theme.space-xs;
-                spacing: 2px;
-                alignment: center;
-
-                Text {
-                    text: root.task.title;
-                    // Listed only because subtasks match: shown, but receded.
-                    color: root.task.completed || root.task.search-dimmed
-                        ? Theme.text-muted : Theme.text;
-                    font-size: Theme.font-size-base;
-                    overflow: elide;
-                }
-
-                if root.task.search-dimmed: Text {
-                    text: @tr("TaskList" => "{0} matching subtasks", root.task.matched-subtask-count);
-                    color: Theme.text-muted;
-                    font-size: Theme.font-size-sm;
-                    overflow: elide;
-                }
-
-                if root.task.has-due || root.task.subtask-count > 0
-                    || root.task.tag-labels.length > 0: TaskRowMeta {
-                    task: root.task;
-                }
+            if root.task.search-dimmed: Text {
+                text: @tr("TaskList" => "{0} matching subtasks", root.task.matched-subtask-count);
+                color: Theme.text-muted;
+                font-size: Theme.font-size-sm;
+                overflow: elide;
             }
 
-            // Priority marker
-            if root.task.priority != TaskPriority.none: Rectangle {
-                width: 4px;
-                border-radius: 2px;
-                background: root.task.priority == TaskPriority.high ? Theme.priority-high
-                    : root.task.priority == TaskPriority.medium ? Theme.priority-medium
-                    : Theme.priority-low;
+            if root.task.has-due || root.task.subtask-count > 0
+                || root.task.tag-labels.length > 0: TaskRowMeta {
+                task: root.task;
             }
         }
 
-        // --- Subtasks ---
-        if root.task.expanded: VerticalLayout {
-            // Begin children beyond the parent's checkbox. This keeps the
-            // hierarchy visible even though the parent also has drag and
-            // expansion controls before its checkbox.
-            padding-left: Theme.space-lg + 2 * Theme.space-sm
-                + 2 * Layout.touch-target;
-            padding-bottom: Theme.space-xs;
-            spacing: 0px;
-
-            for sub in root.task.subtasks: SubTaskRow {
-                subtask: sub;
-                clicked => { root.subtask-clicked(sub.id); }
-                toggled => { root.subtask-toggled(sub.id); }
-            }
+        // Priority marker
+        if root.task.priority != TaskPriority.none: Rectangle {
+            width: 4px;
+            border-radius: 2px;
+            background: root.task.priority == TaskPriority.high ? Theme.priority-high
+                : root.task.priority == TaskPriority.medium ? Theme.priority-medium
+                : Theme.priority-low;
         }
     }
 
@@ -191,7 +191,9 @@ export component TaskRow inherits Rectangle {
     }
 
     accessible-role: list-item;
-    accessible-label: root.task.title;
+    accessible-label: root.task.search-match
+        ? @tr("TaskList" => "{0}, matches the search", root.task.title)
+        : root.task.title;
     accessible-item-selected: root.selected;
     accessible-item-selectable: true;
     accessible-action-default => { root.clicked(); }

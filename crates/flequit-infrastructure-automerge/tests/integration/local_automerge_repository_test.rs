@@ -12,16 +12,14 @@ use flequit_testing::TestPathGenerator;
 
 use flequit_infrastructure_automerge::infrastructure::task_projects::project::ProjectLocalAutomergeRepository;
 use flequit_infrastructure_automerge::infrastructure::task_projects::project_list_repository::ProjectListLocalAutomergeRepository;
-use flequit_infrastructure_automerge::infrastructure::task_projects::subtask::SubTaskLocalAutomergeRepository;
 use flequit_infrastructure_automerge::infrastructure::task_projects::tag::TagLocalAutomergeRepository;
 use flequit_infrastructure_automerge::infrastructure::task_projects::task::TaskLocalAutomergeRepository;
 use flequit_infrastructure_automerge::infrastructure::task_projects::task_list::TaskListLocalAutomergeRepository;
 use flequit_model::models::task_projects::project::Project;
-use flequit_model::models::task_projects::subtask::SubTask;
 use flequit_model::models::task_projects::tag::Tag;
 use flequit_model::models::task_projects::task::Task;
 use flequit_model::models::task_projects::task_list::TaskList;
-use flequit_model::types::id_types::{ProjectId, SubTaskId, TagId, TaskId, TaskListId, UserId};
+use flequit_model::types::id_types::{ProjectId, TagId, TaskId, TaskListId, UserId};
 use flequit_model::types::task_types::TaskStatus;
 use flequit_repository::project_repository_trait::ProjectRepository;
 use flequit_repository::repositories::base_repository_trait::Repository;
@@ -1048,7 +1046,8 @@ async fn test_task_repository_crud_operations() -> Result<(), Box<dyn std::error
     let task = Task {
         id: task_id,
         project_id,
-        list_id: task_list_id,
+        list_id: Some(task_list_id),
+        parent_task_id: None,
         title: "統合テスト用タスク".to_string(),
         reminders: vec![timestamp + chrono::Duration::hours(1)],
         description: Some("Automerge Repository統合テストのためのタスク".to_string()),
@@ -1160,143 +1159,6 @@ async fn test_task_repository_crud_operations() -> Result<(), Box<dyn std::error
         &temp_dir_path,
         &persistent_dir,
         "test_task_repository_crud_operations",
-    )?;
-
-    Ok(())
-}
-
-/// SubTaskリポジトリのCRUD操作テスト
-#[tokio::test]
-async fn test_subtask_repository_crud_operations() -> Result<(), Box<dyn std::error::Error>> {
-    let temp_dir_path = TestPathGenerator::generate_test_dir(file!(), "test_automerge");
-    std::fs::create_dir_all(&temp_dir_path)?;
-    let persistent_dir = create_persistent_test_dir("test_subtask_repository_crud_operations");
-    let automerge_dir = &temp_dir_path.join("automerge_data");
-    std::fs::create_dir_all(automerge_dir)?;
-
-    // SubTaskリポジトリを作成
-    let repository = SubTaskLocalAutomergeRepository::new(automerge_dir.clone()).await?;
-
-    // テスト用SubTaskデータを作成
-    let project_id = ProjectId::new();
-    let subtask_id = SubTaskId::new();
-    let task_id = TaskId::new();
-    let user_id = UserId::new();
-    let timestamp = Utc::now();
-    let subtask = SubTask {
-        id: subtask_id,
-        task_id,
-        title: "統合テスト用サブタスク".to_string(),
-        description: Some("Automerge Repository統合テストのためのサブタスク".to_string()),
-        status: TaskStatus::NotStarted,
-        priority: Some(1),
-        plan_start_date: None,
-        plan_end_date: None,
-        do_start_date: None,
-        do_end_date: None,
-        is_range_date: None,
-        recurrence_rule: None,
-        assigned_user_ids: vec![],
-        tag_ids: vec![],
-        order_index: 1,
-        completed: false,
-        created_at: timestamp,
-        updated_at: timestamp,
-        deleted: false,
-        updated_by: user_id,
-    };
-
-    println!("Creating subtask: {:?}", subtask.title);
-
-    // Create操作テスト
-    repository
-        .save(&project_id, &subtask, &user_id, &timestamp)
-        .await?;
-    println!("✅ SubTask created successfully");
-
-    // Read操作テスト
-    let retrieved_subtask = repository.find_by_id(&project_id, &subtask_id).await?;
-    assert!(retrieved_subtask.is_some());
-    let retrieved = retrieved_subtask.unwrap();
-    assert_eq!(retrieved.title, subtask.title);
-    assert_eq!(retrieved.task_id, subtask.task_id);
-    assert_eq!(retrieved.status, subtask.status);
-    println!("✅ SubTask retrieved successfully: {}", retrieved.title);
-
-    // Update操作テスト
-    let mut updated_subtask = subtask.clone();
-    let update_user_id = UserId::new();
-    let update_timestamp = Utc::now();
-    updated_subtask.title = "更新された統合テスト用サブタスク".to_string();
-    updated_subtask.description = Some("更新されたサブタスク説明".to_string());
-    updated_subtask.status = TaskStatus::Completed;
-    updated_subtask.order_index = 2;
-    updated_subtask.updated_at = update_timestamp;
-    updated_subtask.updated_by = update_user_id;
-
-    repository
-        .save(
-            &project_id,
-            &updated_subtask,
-            &update_user_id,
-            &update_timestamp,
-        )
-        .await?;
-    println!("✅ SubTask updated successfully");
-
-    // 更新確認
-    let updated_retrieved = repository.find_by_id(&project_id, &subtask_id).await?;
-    assert!(updated_retrieved.is_some());
-    let updated = updated_retrieved.unwrap();
-    assert_eq!(updated.title, "更新された統合テスト用サブタスク");
-    assert_eq!(updated.status, TaskStatus::Completed);
-    assert_eq!(updated.order_index, 2);
-    // updated_at が更新されていることを確認
-    assert_ne!(
-        updated.updated_at, timestamp,
-        "updated_at should be updated"
-    );
-    // updated_by が正しく設定されていることを確認
-    assert_eq!(
-        updated.updated_by, update_user_id,
-        "updated_by should match the update user"
-    );
-
-    // List操作テスト
-    let all_subtasks = repository.find_all(&project_id).await?;
-    assert!(!all_subtasks.is_empty());
-    assert!(all_subtasks.iter().any(|st| st.id == subtask_id));
-    println!(
-        "✅ SubTask list retrieved: {} subtasks found",
-        all_subtasks.len()
-    );
-
-    // TODO: 詳細変更履歴をエクスポート（一時的にスキップ）
-    // export_subtask_changes_history は現在のAPIで利用できないため、一時的にスキップ
-    let _changes_history_dir = &temp_dir_path.join("detailed_changes_history");
-    println!("📝 Skipped subtask changes history export (not implemented)");
-
-    // Delete操作テスト
-    repository.delete(&project_id, &subtask_id).await?;
-    println!("✅ SubTask deleted successfully");
-
-    // 削除確認
-    let deleted_check = repository.find_by_id(&project_id, &subtask_id).await?;
-    assert!(deleted_check.is_none());
-    println!("✅ SubTask deletion confirmed");
-
-    // automergeファイルを永続保存ディレクトリにコピー
-    copy_to_persistent_storage(
-        automerge_dir,
-        &persistent_dir,
-        "test_subtask_repository_crud_operations",
-    )?;
-
-    // エクスポートしたJSONファイルも永続保存にコピー
-    copy_to_persistent_storage(
-        &temp_dir_path,
-        &persistent_dir,
-        "test_subtask_repository_crud_operations",
     )?;
 
     Ok(())

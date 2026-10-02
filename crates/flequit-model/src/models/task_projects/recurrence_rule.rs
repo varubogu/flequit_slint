@@ -1,6 +1,5 @@
 use super::recurrence_adjustment::RecurrenceAdjustment;
 use super::recurrence_details::RecurrenceDetails;
-use super::subtask_recurrence::SubTaskRecurrence;
 use super::task_recurrence::TaskRecurrence;
 use crate::models::ModelConverter;
 use crate::traits::Trackable;
@@ -166,7 +165,6 @@ pub struct RecurrenceRule {
 /// * `end_date` - 終了日（指定日まで繰り返し）
 /// * `max_occurrences` - 最大回数（指定回数まで繰り返し）
 /// * `task_recurrences` - このルールが適用されたタスクとの関連付け情報一覧
-/// * `subtask_recurrences` - このルールが適用されたサブタスクとの関連付け情報一覧
 ///
 /// # 使用例
 ///
@@ -201,7 +199,6 @@ pub struct RecurrenceRule {
 ///             updated_by: UserId::new(),
 ///         }
 ///     ],
-///     subtask_recurrences: vec![],
 /// };
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -232,14 +229,12 @@ pub struct RecurrenceRuleTree {
     pub updated_by: UserId,
     /// このルールが適用されたタスクとの関連付け情報一覧
     pub task_recurrences: Vec<TaskRecurrence>,
-    /// このルールが適用されたサブタスクとの関連付け情報一覧
-    pub subtask_recurrences: Vec<SubTaskRecurrence>,
 }
 
 #[async_trait]
 impl ModelConverter<RecurrenceRule> for RecurrenceRuleTree {
     async fn to_model(&self) -> Result<RecurrenceRule, String> {
-        // RecurrenceRuleTreeからRecurrenceRule基本構造体に変換（関連データのtask_recurrences, subtask_recurrencesは除く）
+        // RecurrenceRuleTreeからRecurrenceRule基本構造体に変換（関連データのtask_recurrencesは除く）
         Ok(RecurrenceRule {
             id: self.id,
             unit: self.unit.clone(),

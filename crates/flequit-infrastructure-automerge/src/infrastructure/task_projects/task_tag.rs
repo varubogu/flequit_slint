@@ -16,12 +16,12 @@ use tokio::sync::Mutex;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct TaskTagRelation {
-    task_id: String,
-    tag_id: String,
-    created_at: chrono::DateTime<Utc>,
-    updated_at: chrono::DateTime<Utc>,
-    deleted: bool,
-    updated_by: String,
+    pub(crate) task_id: String,
+    pub(crate) tag_id: String,
+    pub(crate) created_at: chrono::DateTime<Utc>,
+    pub(crate) updated_at: chrono::DateTime<Utc>,
+    pub(crate) deleted: bool,
+    pub(crate) updated_by: String,
 }
 
 /// プロジェクトドキュメント内のタスクとタグの関連（キーは `{task_id}:{tag_id}`）

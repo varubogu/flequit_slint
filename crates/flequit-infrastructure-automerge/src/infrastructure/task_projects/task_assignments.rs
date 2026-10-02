@@ -17,12 +17,12 @@ use tokio::sync::Mutex;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct TaskAssignmentRelation {
-    task_id: String,
-    user_id: String,
-    created_at: chrono::DateTime<Utc>,
-    updated_at: chrono::DateTime<Utc>,
-    updated_by: String,
-    deleted: bool,
+    pub(crate) task_id: String,
+    pub(crate) user_id: String,
+    pub(crate) created_at: chrono::DateTime<Utc>,
+    pub(crate) updated_at: chrono::DateTime<Utc>,
+    pub(crate) updated_by: String,
+    pub(crate) deleted: bool,
 }
 
 /// プロジェクトドキュメント内のタスクとユーザーの割り当て（キーは `{task_id}:{user_id}`）

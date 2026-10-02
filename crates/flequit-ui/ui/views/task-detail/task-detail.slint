@@ -15,10 +15,11 @@ import { ReminderEditor } from "reminder-editor.slint";
 import { TaskTagEditor } from "task-tag-editor.slint";
 
 
-// Task detail pane.
+// Task detail pane, for a task at any depth.
 //
 // In the compact breakpoint this is a full-screen view reached from the list,
-// so it shows a back affordance; the caller decides via `show-back`.
+// so it shows a back affordance; the caller decides via `show-back`. A subtask
+// additionally shows the tasks above it, each of which opens that task.
 export component TaskDetailView inherits Rectangle {
     in property <bool> show-back: false;
     callback back();
@@ -59,7 +60,9 @@ export component TaskDetailView inherits Rectangle {
             }
 
             Text {
-                text: @tr("TaskDetail" => "Task");
+                text: root.task.depth == 0
+                    ? @tr("TaskDetail" => "Task")
+                    : @tr("TaskDetail" => "Subtask");
                 color: Theme.text-muted;
                 font-size: Theme.font-size-sm;
                 vertical-alignment: center;
@@ -68,8 +71,53 @@ export component TaskDetailView inherits Rectangle {
 
             IconButton {
                 icon: IconName.trash;
-                tooltip: @tr("TaskDetail" => "Delete task");
+                tooltip: root.task.depth == 0
+                    ? @tr("TaskDetail" => "Delete task")
+                    : @tr("TaskDetail" => "Delete subtask");
                 clicked => { Actions.delete-task(root.task.id); }
+            }
+        }
+
+        // The tasks above a subtask, top-level first. Each opens that task.
+        if root.task.ancestors.length > 0: HorizontalLayout {
+            spacing: Theme.space-xs;
+            alignment: start;
+
+            for ancestor[index] in root.task.ancestors: HorizontalLayout {
+                spacing: Theme.space-xs;
+
+                if index > 0: Text {
+                    text: "›";
+                    color: Theme.text-muted;
+                    font-size: Theme.font-size-sm;
+                    vertical-alignment: center;
+                }
+
+                Rectangle {
+                    height: Layout.touch-target;
+                    border-radius: Theme.radius-sm;
+                    background: crumb-touch.has-hover ? Theme.surface-hover : transparent;
+
+                    HorizontalLayout {
+                        padding-left: Theme.space-xs;
+                        padding-right: Theme.space-xs;
+
+                        Text {
+                            text: ancestor.title;
+                            color: Theme.accent;
+                            font-size: Theme.font-size-sm;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+                    }
+
+                    crumb-touch := TouchArea {
+                        clicked => { Actions.select-task(ancestor.id); }
+                    }
+                    accessible-role: button;
+                    accessible-label: @tr("TaskDetail" => "Open {0}", ancestor.title);
+                    accessible-action-default => { Actions.select-task(ancestor.id); }
+                }
             }
         }
 
@@ -216,7 +264,9 @@ export component TaskDetailView inherits Rectangle {
                         }
                     }
 
-                    HorizontalLayout {
+                    // Only a top-level task repeats; its subtasks are copied along
+                    // into each new occurrence.
+                    if root.task.depth == 0: HorizontalLayout {
                         spacing: Theme.space-sm;
                         Text {
                             text: @tr("TaskDetail" => "Repeat");
@@ -378,7 +428,7 @@ export component TaskDetailView inherits Rectangle {
                     background: sub-touch.has-hover ? Theme.surface-hover : transparent;
 
                     sub-touch := TouchArea {
-                        clicked => { Actions.select-subtask(sub.id); }
+                        clicked => { Actions.select-task(sub.id); }
                     }
 
                     HorizontalLayout {
@@ -399,13 +449,13 @@ export component TaskDetailView inherits Rectangle {
                                 height: 100%;
                             }
                             TouchArea {
-                                clicked => { Actions.toggle-subtask-completed(sub.id); }
+                                clicked => { Actions.toggle-task-completed(sub.id); }
                             }
                             accessible-role: checkbox;
                             accessible-checkable: true;
                             accessible-checked: sub.completed;
                             accessible-label: @tr("TaskDetail" => "Complete {0}", sub.title);
-                            accessible-action-default => { Actions.toggle-subtask-completed(sub.id); }
+                            accessible-action-default => { Actions.toggle-task-completed(sub.id); }
                         }
 
                         Text {
@@ -424,16 +474,24 @@ export component TaskDetailView inherits Rectangle {
                             vertical-alignment: center;
                         }
 
+                        // A subtask with subtasks of its own leads further down.
+                        if sub.subtask-count > 0: Text {
+                            text: @tr("TaskDetail" => "{0} subtasks", sub.subtask-count);
+                            color: Theme.text-muted;
+                            font-size: Theme.font-size-sm;
+                            vertical-alignment: center;
+                        }
+
                         IconButton {
                             icon: IconName.trash;
                             tooltip: @tr("TaskDetail" => "Delete subtask {0}", sub.title);
-                            clicked => { Actions.delete-subtask(sub.id); }
+                            clicked => { Actions.delete-task(sub.id); }
                         }
                     }
 
                     accessible-role: button;
                     accessible-label: @tr("TaskDetail" => "Open subtask {0}", sub.title);
-                    accessible-action-default => { Actions.select-subtask(sub.id); }
+                    accessible-action-default => { Actions.select-task(sub.id); }
                 }
 
                 Rectangle {

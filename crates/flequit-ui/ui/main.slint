@@ -6,7 +6,7 @@ import { Actions } from "globals/actions.slint";
 import { Capabilities } from "globals/capabilities.slint";
 import { I18n } from "globals/i18n.slint";
 import { SettingsState } from "globals/settings.slint";
-import { TaskItem, ProjectItem, TaskListItem, SubTaskItem, DueFilterItem, LocaleItem,
+import { TaskItem, ProjectItem, TaskListItem, SubTaskItem, AncestorItem, DueFilterItem, LocaleItem,
          ColorOption, DateTimeFormatSetting, DueButtonSetting, ReminderItem, EditorState, SettingsCategory, TaskStatus,
          TaskPriority, TaskSort, EditorKind, Pane, TagItem, BookmarkedTagItem, RecurrenceState,
          RecurrenceUnit, RecurrenceMonthlyMode, RecurrenceWeekOfMonth, RecurrenceEnd,
@@ -17,7 +17,6 @@ import { ItemEditor } from "views/sidebar/item-editor.slint";
 import { TagManager } from "views/tags/tag-manager.slint";
 import { TaskListView } from "views/task-list/task-list.slint";
 import { TaskDetailView } from "views/task-detail/task-detail.slint";
-import { SubTaskDetailView } from "views/task-detail/subtask-detail.slint";
 import { RecurrenceEditor } from "views/task-detail/recurrence-editor.slint";
 import { ErrorBanner } from "components/error-banner.slint";
 import { IconButton } from "components/icon-button.slint";
@@ -27,7 +26,7 @@ import { Toast } from "components/toast.slint";
 
 // Re-export globals so Rust can reach them through the generated bindings.
 export { Theme, Layout, AppState, Actions, Capabilities, I18n, SettingsState }
-export { TaskItem, ProjectItem, TaskListItem, SubTaskItem, DueFilterItem, LocaleItem,
+export { TaskItem, ProjectItem, TaskListItem, SubTaskItem, AncestorItem, DueFilterItem, LocaleItem,
          ColorOption, DateTimeFormatSetting, DueButtonSetting, ReminderItem, EditorState, SettingsCategory, TaskStatus,
          TaskPriority, TaskSort, EditorKind, Pane, TagItem, BookmarkedTagItem, ThemeMode, Breakpoint,
          SearchSuggestion, SearchSuggestionKind, FilterHighlight, FilterKind, QueryEdit,
@@ -301,15 +300,8 @@ export component AppWindow inherits Window {
                     background: Theme.border;
                 }
 
-                // A selected subtask takes over the detail pane; its own back
-                // button returns to the parent task rather than to the list.
-                if root.show-detail && AppState.has-selected-subtask: SubTaskDetailView {
-                    horizontal-stretch: 1;
-                    subtask: AppState.selected-subtask;
-                    parent-title: AppState.selected-task.title;
-                }
-
-                if root.show-detail && !AppState.has-selected-subtask: TaskDetailView {
+                // Subtasks open in the same pane; it shows the way back up.
+                if root.show-detail: TaskDetailView {
                     horizontal-stretch: 1;
                     show-back: Layout.is-compact;
                     has-task: AppState.has-selected-task;

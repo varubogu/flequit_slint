@@ -1,9 +1,10 @@
 //! Evaluates a parsed query against tasks and subtasks.
 //!
-//! Tasks and subtasks are evaluated as separate units against the whole query.
-//! A subtask inherits where its parent lives, its parent's tags and its
-//! parent's text, but not its due date, state or assignees: "a subtask due
-//! today" has to find the subtask, not every subtask of a task due today.
+//! Every task, at any depth, is evaluated as a separate unit against the whole
+//! query. A subtask inherits where its top-level task lives, and the tags and
+//! text of every task above it, but not their due date, state or assignees:
+//! "a subtask due today" has to find the subtask, not every subtask of a task
+//! due today.
 
 use std::cell::OnceCell;
 use std::ops::Range;
@@ -20,18 +21,21 @@ use crate::adapters::datetime::DisplayTimezone;
 #[derive(Debug, Clone, Copy)]
 pub struct SearchUnit<'a> {
     pub project_id: &'a str,
+    /// Empty when the top-level task belongs to no list.
     pub list_id: &'a str,
     pub title: &'a str,
     pub notes: Option<&'a str>,
-    /// For a subtask: its parent task's title and notes.
-    pub parent: Option<UnitText<'a>>,
-    /// For a task: its subtasks' titles and notes, searched by `@subtask:`.
-    pub children: &'a [UnitText<'a>],
+    /// For a subtask: the titles and notes of the tasks above it. Empty for a
+    /// top-level task.
+    pub ancestors: &'a [UnitText<'a>],
+    /// For a top-level task: the titles and notes of every subtask below it,
+    /// searched by `@subtask:`.
+    pub descendants: &'a [UnitText<'a>],
     pub due: Option<&'a DateTime<Utc>>,
     pub status: UnitStatus,
     /// `UserId`s of the assignees.
     pub assignees: &'a [String],
-    /// Tag names. A subtask's include its parent's.
+    /// Tag names. A subtask's include those of every task above it.
     pub tags: &'a [&'a str],
 }
 
@@ -161,9 +165,10 @@ fn is_active(span: &Range<usize>, active: Option<usize>) -> bool {
 struct Folded<'a> {
     unit: &'a SearchUnit<'a>,
     own: OnceCell<Vec<String>>,
-    parent: OnceCell<Vec<String>>,
-    children_titles: OnceCell<Vec<String>>,
-    children_notes: OnceCell<Vec<String>>,
+    ancestor_titles: OnceCell<Vec<String>>,
+    ancestor_notes: OnceCell<Vec<String>>,
+    descendant_titles: OnceCell<Vec<String>>,
+    descendant_notes: OnceCell<Vec<String>>,
     tags: OnceCell<Vec<String>>,
 }
 
@@ -172,9 +177,10 @@ impl<'a> Folded<'a> {
         Self {
             unit,
             own: OnceCell::new(),
-            parent: OnceCell::new(),
-            children_titles: OnceCell::new(),
-            children_notes: OnceCell::new(),
+            ancestor_titles: OnceCell::new(),
+            ancestor_notes: OnceCell::new(),
+            descendant_titles: OnceCell::new(),
+            descendant_notes: OnceCell::new(),
             tags: OnceCell::new(),
         }
     }
@@ -185,34 +191,26 @@ impl<'a> Folded<'a> {
             .get_or_init(|| text_of(self.unit.title, self.unit.notes))
     }
 
-    /// Title then notes of the parent task, empty for a task.
-    fn parent(&self) -> &[String] {
-        self.parent.get_or_init(|| {
-            self.unit
-                .parent
-                .map(|parent| text_of(parent.title, parent.notes))
-                .unwrap_or_default()
-        })
+    /// Titles of the tasks above it, empty for a top-level task.
+    fn ancestor_titles(&self) -> &[String] {
+        self.ancestor_titles
+            .get_or_init(|| titles_of(self.unit.ancestors))
     }
 
-    fn children_titles(&self) -> &[String] {
-        self.children_titles.get_or_init(|| {
-            self.unit
-                .children
-                .iter()
-                .map(|child| fold(child.title))
-                .collect()
-        })
+    /// Notes of the tasks above it, empty for a top-level task.
+    fn ancestor_notes(&self) -> &[String] {
+        self.ancestor_notes
+            .get_or_init(|| notes_of(self.unit.ancestors))
     }
 
-    fn children_notes(&self) -> &[String] {
-        self.children_notes.get_or_init(|| {
-            self.unit
-                .children
-                .iter()
-                .filter_map(|child| child.notes.map(fold))
-                .collect()
-        })
+    fn descendant_titles(&self) -> &[String] {
+        self.descendant_titles
+            .get_or_init(|| titles_of(self.unit.descendants))
+    }
+
+    fn descendant_notes(&self) -> &[String] {
+        self.descendant_notes
+            .get_or_init(|| notes_of(self.unit.descendants))
     }
 
     fn tags(&self) -> &[String] {
@@ -225,6 +223,17 @@ fn text_of(title: &str, notes: Option<&str>) -> Vec<String> {
     let mut values = vec![fold(title)];
     values.extend(notes.map(fold));
     values
+}
+
+fn titles_of(texts: &[UnitText<'_>]) -> Vec<String> {
+    texts.iter().map(|text| fold(text.title)).collect()
+}
+
+fn notes_of(texts: &[UnitText<'_>]) -> Vec<String> {
+    texts
+        .iter()
+        .filter_map(|text| text.notes.map(fold))
+        .collect()
 }
 
 fn contains(haystacks: &[String], needle: &str) -> bool {
@@ -288,21 +297,23 @@ impl Leaf {
         Some(match self {
             Self::Ignore => return None,
             Self::Text(needle) => {
-                contains(folded.own(), needle) || contains(folded.parent(), needle)
+                contains(folded.own(), needle)
+                    || contains(folded.ancestor_titles(), needle)
+                    || contains(folded.ancestor_notes(), needle)
             }
             Self::Tag(prefix) => folded
                 .tags()
                 .iter()
                 .any(|tag| tag.starts_with(prefix.as_str())),
             Self::Field(field, needle) => {
-                let is_subtask = unit.parent.is_some();
+                let is_subtask = !unit.ancestors.is_empty();
                 let values: &[String] = match (field, is_subtask) {
                     (TextField::Task, false) => &folded.own()[..1],
                     (TextField::Note, false) => &folded.own()[1..],
-                    (TextField::Task, true) => folded.parent().get(..1).unwrap_or_default(),
-                    (TextField::Note, true) => folded.parent().get(1..).unwrap_or_default(),
-                    (TextField::Subtask, false) => folded.children_titles(),
-                    (TextField::SubtaskNote, false) => folded.children_notes(),
+                    (TextField::Task, true) => folded.ancestor_titles(),
+                    (TextField::Note, true) => folded.ancestor_notes(),
+                    (TextField::Subtask, false) => folded.descendant_titles(),
+                    (TextField::SubtaskNote, false) => folded.descendant_notes(),
                     (TextField::Subtask, true) => &folded.own()[..1],
                     (TextField::SubtaskNote, true) => &folded.own()[1..],
                 };
@@ -350,9 +361,20 @@ mod tests {
         Utc.with_ymd_and_hms(2026, 3, 2, 15, 0, 0).unwrap()
     }
 
-    const CHILDREN: &[UnitText<'static>] = &[UnitText {
-        title: "Check the fridge",
-        notes: Some("bottom shelf"),
+    const CHILDREN: &[UnitText<'static>] = &[
+        UnitText {
+            title: "Check the fridge",
+            notes: Some("bottom shelf"),
+        },
+        UnitText {
+            title: "Wipe the shelf",
+            notes: None,
+        },
+    ];
+
+    const PARENT: &[UnitText<'static>] = &[UnitText {
+        title: "Buy milk",
+        notes: Some("Semi-skimmed"),
     }];
 
     fn task<'a>(due: Option<&'a DateTime<Utc>>, assignees: &'a [String]) -> SearchUnit<'a> {
@@ -361,8 +383,8 @@ mod tests {
             list_id: "l-inbox",
             title: "Buy milk",
             notes: Some("Semi-skimmed"),
-            parent: None,
-            children: CHILDREN,
+            ancestors: &[],
+            descendants: CHILDREN,
             due,
             status: UnitStatus::NotStarted,
             assignees,
@@ -376,11 +398,8 @@ mod tests {
             list_id: "l-inbox",
             title: "Check the fridge",
             notes: Some("bottom shelf"),
-            parent: Some(UnitText {
-                title: "Buy milk",
-                notes: Some("Semi-skimmed"),
-            }),
-            children: &[],
+            ancestors: PARENT,
+            descendants: &[],
             due,
             status: UnitStatus::Completed,
             assignees,
@@ -492,5 +511,35 @@ mod tests {
         let prepared = Prepared::new(&parse(&document), &index(), None);
         assert!(prepared.matches(&unit, &context()));
         assert_eq!(prepared.unresolved, vec!["@project:x*".to_string()]);
+    }
+
+    #[test]
+    fn a_deeper_subtask_inherits_from_every_task_above_it() {
+        const ABOVE: &[UnitText<'static>] = &[
+            UnitText {
+                title: "Buy milk",
+                notes: Some("Semi-skimmed"),
+            },
+            UnitText {
+                title: "Check the fridge",
+                notes: Some("bottom shelf"),
+            },
+        ];
+        let grandchild = SearchUnit {
+            title: "Wipe the shelf",
+            notes: None,
+            ancestors: ABOVE,
+            ..subtask(None, &[])
+        };
+
+        assert!(matches("milk shelf wipe", &grandchild));
+        assert!(matches("@task:fridge", &grandchild));
+        assert!(matches("@task:milk", &grandchild));
+        assert!(matches("@subtask:wipe", &grandchild));
+        assert!(!matches("@subtask:fridge", &grandchild));
+        assert!(
+            matches("@subtask:wipe", &task(None, &[])),
+            "a task reaches every level below"
+        );
     }
 }

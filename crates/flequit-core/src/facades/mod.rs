@@ -4,8 +4,6 @@ pub mod initialization_facades;
 pub mod project_facades;
 pub mod recurrence_facades;
 pub mod setting_facades;
-pub mod subtask_assignment_facades;
-pub mod subtask_facades;
 pub mod sync_diagnostics_facades;
 pub mod tag_bookmark_facades;
 pub mod tag_facades;

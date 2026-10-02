@@ -156,32 +156,43 @@ export enum QueryEdit {
 // The kind of sidebar item a query edit comes from.
 export enum FilterKind { due, status, project, task-list, tag }
 
+// A direct child of a task, as the detail pane lists it.
+//
+// A subtask is a task with a parent; selecting it opens it as a TaskItem.
+// This summary only carries what the list in the parent's pane shows.
 export struct SubTaskItem {
     id: string,
-    task-id: string,
     title: string,
-    status: TaskStatus,
-    priority: TaskPriority,
     completed: bool,
-    notes: string,
     // Pre-formatted in the user's timezone and format preference, like TaskItem.
     due-label: string,
     has-due: bool,
     overdue: bool,
-    // Local display values consumed by DateTimePicker.
-    due-year: int,
-    due-month: int,
-    due-day: int,
-    due-hour: int,
-    due-minute: int,
-    // The search matched this subtask while its parent task did not.
-    search-match: bool,
+    // Its own direct children, so the row can show that it leads further down.
+    subtask-count: int,
 }
 
+// A task above the one shown in the detail pane, top-level first.
+export struct AncestorItem {
+    id: string,
+    title: string,
+}
+
+// One task at any depth: a row of the task list and the detail pane's subject.
+//
+// The list is a flat sequence of rows in display order; a subtask's row follows
+// its parent's and carries a larger `depth`. Slint structs cannot nest
+// themselves, so the hierarchy is expressed by `depth` and `parent-id`.
 export struct TaskItem {
     id: string,
     project-id: string,
+    // The list its top-level task belongs to; empty when directly under the
+    // project.
     list-id: string,
+    // Empty for a top-level task.
+    parent-id: string,
+    // 0 for a top-level task, 1 for its subtasks, and so on.
+    depth: int,
     title: string,
     status: TaskStatus,
     priority: TaskPriority,
@@ -207,9 +218,12 @@ export struct TaskItem {
     start-minute: int,
     notes: string,
     tag-labels: [string],
+    // Direct children only; deeper levels are reached by opening a child.
     subtasks: [SubTaskItem],
     subtask-count: int,
     subtask-done-count: int,
+    // The tasks above this one, top-level first. Empty for a top-level task.
+    ancestors: [AncestorItem],
     // Recurrence, summarised by `I18n.recurrence-summary`. The unit and the
     // interval are passed separately because the sentence is built in .slint.
     has-recurrence: bool,
@@ -219,9 +233,12 @@ export struct TaskItem {
     // Accordion state, owned by TaskListUiViewModel and mirrored here. Also
     // true while the search shows the row only for its matching subtasks.
     expanded: bool,
-    // The task itself does not match the search; only its subtasks do.
+    // The task itself does not match the search; only tasks below it do.
     search-dimmed: bool,
+    // How many tasks below it match, while it is dimmed.
     matched-subtask-count: int,
+    // It matches the search while the task above it does not.
+    search-match: bool,
 }
 
 // Which kind of item the sidebar editor is working on.
@@ -319,9 +336,13 @@ export struct StatusFilterItem {
 }
 
 // A task list the quick-add field can add to.
+// A place the quick-add field can put a task: a task list, or a project
+// itself for a task that belongs to no list.
 export struct AddTargetItem {
-    list-id: string,
+    // The list id, or `project:{id}` for the project itself.
+    key: string,
     project-name: string,
+    // Empty for the project itself.
     list-name: string,
     color-brush: brush,
     has-color: bool,

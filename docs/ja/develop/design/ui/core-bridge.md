@@ -49,7 +49,7 @@ flequit-infrastructure-{sqlite,automerge}
 
 ## 取り扱うエンティティ
 
-`project`, `tasklist`, `task`, `subtask`, `tag`, `settings`, `account`, `user`
+`project`, `tasklist`, `task`（サブタスクを含む）, `tag`, `settings`, `account`, `user`
 
 ## facade の操作パターン
 
@@ -65,7 +65,7 @@ flequit-infrastructure-{sqlite,automerge}
 
 注意:
 
-- `project`, `tasklist`, `task`, `subtask`, `tag`: 1 件と複数件の **両方** を提供
+- `project`, `tasklist`, `task`, `tag`: 1 件と複数件の **両方** を提供
 - `settings`, `account`: 1 件のみ提供
 - Create は Tauri 版の `bool` ではなく **生成されたエンティティを返す**。
   ID 採番結果を UI が即座に使えるようにするため
@@ -125,7 +125,8 @@ Slint Model / property を更新
 
 ### 親 → 子へのアクセス
 
-リスト構造・オブジェクト構造により不要。例: `Project` は `task_lists: Vec<TaskList>` を持つ。
+リスト構造・オブジェクト構造により不要。例: `ProjectTree` は `task_lists` とリストに属さない
+`tasks` を持ち、`TaskTree` は子のタスクを `sub_tasks` に持つ。
 
 ### 子 → 親へのアクセス
 
@@ -136,10 +137,12 @@ project (project_id)
   ↓
 tasklist (tasklist_id, project_id を保持)
   ↓
-task (task_id, list_id を保持)
+task (task_id, project_id と list_id を保持。list_id は任意で、無ければプロジェクト直下)
   ↓
-subtask (subtask_id, task_id を保持)
+task (task_id, project_id と parent_task_id を保持。任意の深さ)
 ```
+
+タスクは階層によらずプロジェクトの ID を持つ（Automerge のドキュメントがプロジェクト単位のため）。
 
 理由: データの正規化と依存関係の明確化。
 

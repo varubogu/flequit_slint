@@ -1,5 +1,6 @@
 import { Theme } from "../../globals/theme.slint";
 import { Layout } from "../../globals/layout.slint";
+import { AppState } from "../../globals/app-state.slint";
 import { FilterHighlight, ProjectItem, QueryEdit } from "../../globals/types.slint";
 import { RowButton } from "../../components/row-button.slint";
 import { Icon, IconName } from "../../components/icon.slint";
@@ -9,6 +10,8 @@ import { FilterStyle, FilterTarget } from "../../components/filter-target.slint"
 //
 // Expanding and filtering are separate targets: a single click on the chevron
 // opens the list of task lists, a click on the name filters by the project.
+// A dragged task dropped here leaves its list and stays directly under the
+// project.
 export component ProjectRow inherits Rectangle {
     in property <ProjectItem> project;
     in property <bool> collapsed: false;
@@ -18,14 +21,37 @@ export component ProjectRow inherits Rectangle {
     callback edit();
     callback add-list();
 
+    // Only a task of this project can be dropped here; moving across projects
+    // is a different operation.
+    property <bool> drop-target:
+        AppState.is-dragging
+        && AppState.dragging-project-id == root.project.id
+        && AppState.drag-x >= self.absolute-position.x
+        && AppState.drag-x < self.absolute-position.x + self.width
+        && AppState.drag-y >= self.absolute-position.y
+        && AppState.drag-y < self.absolute-position.y + self.height;
+
+    // The dragged row keeps the pointer grab, so the target it is over has to
+    // publish itself rather than wait for a drop event of its own.
+    changed drop-target => {
+        if (self.drop-target) {
+            AppState.drop-project-id = root.project.id;
+        } else if (AppState.drop-project-id == root.project.id) {
+            AppState.drop-project-id = "";
+        }
+    }
+
     height: Layout.touch-target;
     border-radius: Theme.radius-sm;
+    border-width: self.drop-target ? 1px : 0px;
+    border-color: Theme.accent;
     // An archived project stays listed while archived ones are shown, but reads
     // as set aside.
     opacity: root.project.is-archived ? 0.5 : 1.0;
     // Hover is rendered by the inner targets: an id declared inside an `if` is
     // not visible here.
-    background: FilterStyle.background(root.project.highlight, false);
+    background: self.drop-target ? Theme.surface-hover
+        : FilterStyle.background(root.project.highlight, false);
 
     HorizontalLayout {
         padding-right: Theme.space-sm;

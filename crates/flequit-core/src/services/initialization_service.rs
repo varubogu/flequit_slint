@@ -294,12 +294,10 @@ where
 
     // 2. 各プロジェクトに対してTaskListTreeを取得してProjectTreeを構築
     for project in projects {
-        // TaskListTreeを取得
-        let task_lists = crate::services::task_list_service::get_task_lists_with_tasks(
-            repositories,
-            &project.id,
-        )
-        .await?;
+        // タスクリストとタスクの木を取得
+        let project_tasks =
+            crate::services::task_tree_service::load_project_tasks(repositories, &project.id)
+                .await?;
 
         let project_tree = ProjectTree {
             id: project.id,
@@ -314,7 +312,8 @@ where
             updated_at: project.updated_at,
             deleted: project.deleted,
             updated_by: project.updated_by,
-            task_lists,
+            task_lists: project_tasks.task_lists,
+            tasks: project_tasks.tasks,
         };
 
         project_trees.push(project_tree);

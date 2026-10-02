@@ -2,8 +2,8 @@ use crate::infrastructure::collection::Collection;
 use crate::infrastructure::document::Document;
 
 use super::super::document_manager::{DocumentManager, DocumentType};
+use super::legacy_subtasks::{self, LegacySubtaskMigration};
 use super::member::MEMBERS;
-use super::subtask::SUBTASKS;
 use super::tag::TAGS;
 use super::task::TASKS;
 use super::task_list::TASK_LISTS;
@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use flequit_model::models::task_projects::member::Member;
 use flequit_model::models::task_projects::{
-    project::Project, subtask::SubTask, tag::Tag, task::Task, task_list::TaskList,
+    project::Project, tag::Tag, task::Task, task_list::TaskList,
 };
 use flequit_model::traits::Trackable;
 use flequit_model::types::id_types::{ProjectId, TagId, TaskId, TaskListId, UserId};
@@ -59,10 +59,8 @@ pub struct ProjectDocument {
     // プロジェクト内のエンティティ
     /// タスクリスト配列
     pub task_lists: Vec<TaskList>,
-    /// タスク配列
+    /// タスク配列（サブタスクは親を持つタスクとしてここに入る）
     pub tasks: Vec<Task>,
-    /// サブタスク配列
-    pub subtasks: Vec<SubTask>,
     /// タグ配列
     pub tags: Vec<Tag>,
     /// メンバー配列
@@ -150,7 +148,6 @@ impl ProjectLocalAutomergeRepository {
             deleted: project.deleted,
             task_lists: document.load_collection(&TASK_LISTS).await?,
             tasks: document.load_collection(&TASKS).await?,
-            subtasks: document.load_collection(&SUBTASKS).await?,
             tags: document.load_collection(&TAGS).await?,
             members: document.load_collection(&MEMBERS).await?,
         }))
@@ -188,9 +185,6 @@ impl ProjectLocalAutomergeRepository {
             .await?;
         document
             .replace_collection(&TASKS, &project_document.tasks)
-            .await?;
-        document
-            .replace_collection(&SUBTASKS, &project_document.subtasks)
             .await?;
         document
             .replace_collection(&TAGS, &project_document.tags)
@@ -329,15 +323,6 @@ impl ProjectLocalAutomergeRepository {
         self.add_entity(project_id, &TASKS, task).await
     }
 
-    /// サブタスクを追加
-    pub async fn add_subtask(
-        &self,
-        project_id: &ProjectId,
-        subtask: &SubTask,
-    ) -> Result<(), RepositoryError> {
-        self.add_entity(project_id, &SUBTASKS, subtask).await
-    }
-
     /// タグを追加
     pub async fn add_tag(&self, project_id: &ProjectId, tag: &Tag) -> Result<(), RepositoryError> {
         self.add_entity(project_id, &TAGS, tag).await
@@ -368,18 +353,6 @@ impl ProjectLocalAutomergeRepository {
     ) -> Result<Vec<TaskList>, RepositoryError> {
         if let Some(document) = self.get_project_document(project_id).await? {
             Ok(document.task_lists)
-        } else {
-            Ok(Vec::new())
-        }
-    }
-
-    /// プロジェクト内の全サブタスクを取得
-    pub async fn get_subtasks(
-        &self,
-        project_id: &ProjectId,
-    ) -> Result<Vec<SubTask>, RepositoryError> {
-        if let Some(document) = self.get_project_document(project_id).await? {
-            Ok(document.subtasks)
         } else {
             Ok(Vec::new())
         }
@@ -753,7 +726,10 @@ impl ProjectLocalAutomergeRepository {
         .await
     }
 
-    /// 個別タスクの論理削除
+    /// 個別タスクを子孫ごと論理削除する
+    ///
+    /// 子孫は同じ時刻で削除済みにする（[`Self::restore_task`] が一緒に戻す目印になる）。
+    /// すでに削除済みの子孫は、前の削除の時刻を残すため触らない。
     pub async fn mark_task_deleted(
         &self,
         project_id: &ProjectId,
@@ -761,17 +737,24 @@ impl ProjectLocalAutomergeRepository {
         user_id: &UserId,
         timestamp: &DateTime<Utc>,
     ) -> Result<(), RepositoryError> {
-        self.update_one(
-            project_id,
-            &TASKS,
-            &task_id.to_string(),
-            || RepositoryError::NotFound(format!("Task not found: {}", task_id)),
-            |task: &mut Task| {
-                task.mark_deleted(*user_id, *timestamp);
-                Ok(())
-            },
-        )
-        .await
+        let document = self.existing_document(project_id).await?;
+        let tasks: Vec<Task> = document.load_collection(&TASKS).await?;
+        if !tasks.iter().any(|task| task.id == *task_id) {
+            return Err(RepositoryError::NotFound(format!(
+                "Task not found: {}",
+                task_id
+            )));
+        }
+        let mut changed: Vec<Task> = subtree(&tasks, task_id)
+            .into_iter()
+            .filter(|task| task.id == *task_id || !task.is_deleted())
+            .cloned()
+            .collect();
+        for task in &mut changed {
+            task.mark_deleted(*user_id, *timestamp);
+        }
+        document.put_entries(&TASKS, &changed).await?;
+        Ok(())
     }
 
     /// 個別タグの論理削除
@@ -816,7 +799,10 @@ impl ProjectLocalAutomergeRepository {
         .await
     }
 
-    /// 個別タスクの復元
+    /// 個別タスクを、同じ削除で消えた子孫と一緒に復元する
+    ///
+    /// 戻す子孫は、タスクと同じ時刻に削除されたもの（[`Self::mark_task_deleted`] が一緒に
+    /// 削除したもの）。それより前に個別に削除された子孫と、その下は削除済みのまま残す。
     pub async fn restore_task(
         &self,
         project_id: &ProjectId,
@@ -824,16 +810,72 @@ impl ProjectLocalAutomergeRepository {
         user_id: &UserId,
         timestamp: &DateTime<Utc>,
     ) -> Result<(), RepositoryError> {
-        self.update_one(
-            project_id,
-            &TASKS,
-            &task_id.to_string(),
-            || RepositoryError::NotFound(format!("Task not found: {}", task_id)),
-            |task: &mut Task| {
-                restore_deleted(task, "Task", &task_id.to_string(), user_id, timestamp)
-            },
-        )
-        .await
+        let document = self.existing_document(project_id).await?;
+        let tasks: Vec<Task> = document.load_collection(&TASKS).await?;
+        let Some(root) = tasks.iter().find(|task| task.id == *task_id) else {
+            return Err(RepositoryError::NotFound(format!(
+                "Task not found: {}",
+                task_id
+            )));
+        };
+        let mut root = root.clone();
+        restore_deleted(&mut root, "Task", &task_id.to_string(), user_id, timestamp)?;
+
+        let deleted_at = tasks
+            .iter()
+            .find(|task| task.id == *task_id)
+            .map(|task| task.updated_at);
+        let mut restored = vec![root];
+        for task in deleted_together(&tasks, task_id, deleted_at) {
+            if task.id == *task_id || !task.is_deleted() {
+                continue;
+            }
+            let mut task = task.clone();
+            task.mark_restored(*user_id, *timestamp);
+            restored.push(task);
+        }
+        document.put_entries(&TASKS, &restored).await?;
+        Ok(())
+    }
+
+    /// 削除済みのタスクと、それを戻すときに SQLite へ戻すべき子孫（親が先）
+    ///
+    /// SQLite は削除時に子孫も消しているので、同じ削除で消えた子孫に加えて、
+    /// Automerge では削除済みになっていない子孫（旧形式から移したサブタスク）も含める。
+    /// タスクが無いか削除済みでなければ `None`。
+    pub async fn get_deleted_task_subtree(
+        &self,
+        project_id: &ProjectId,
+        task_id: &TaskId,
+    ) -> Result<Option<Vec<Task>>, RepositoryError> {
+        let document = self.get_or_create_document(project_id).await?;
+        if load_project(&document).await?.is_none() {
+            return Ok(None);
+        }
+        let tasks: Vec<Task> = document.load_collection(&TASKS).await?;
+        let Some(root) = tasks
+            .iter()
+            .find(|task| task.id == *task_id && task.is_deleted())
+        else {
+            return Ok(None);
+        };
+        Ok(Some(
+            deleted_together(&tasks, task_id, Some(root.updated_at))
+                .into_iter()
+                .cloned()
+                .collect(),
+        ))
+    }
+
+    /// プロジェクトドキュメントの旧形式のサブタスクをタスクへ移す
+    ///
+    /// ドキュメントへ書き込む前に呼ぶ（[`legacy_subtasks`] 参照）。何度呼んでもよい。
+    pub async fn migrate_legacy_subtasks(
+        &self,
+        project_id: &ProjectId,
+    ) -> Result<LegacySubtaskMigration, RepositoryError> {
+        let document = self.get_or_create_document(project_id).await?;
+        legacy_subtasks::migrate(&document, project_id).await
     }
 
     /// 個別タグの復元
@@ -1073,3 +1115,47 @@ impl Repository<Project, ProjectId> for ProjectLocalAutomergeRepository {
 
 #[async_trait]
 impl ProjectRepositoryTrait for ProjectLocalAutomergeRepository {}
+
+/// `root_id` のタスクと子孫（親が先、兄弟は保存順）
+///
+/// 保存済みのデータが輪になっていても、同じタスクは一度しかたどらない。
+fn subtree<'a>(tasks: &'a [Task], root_id: &TaskId) -> Vec<&'a Task> {
+    walk_subtree(tasks, root_id, |_| true)
+}
+
+/// `root_id` のタスクと、それと一緒に戻す子孫（親が先）
+///
+/// 子は、削除されていないか `deleted_at` に削除されたものだけをたどる。
+/// それ以外の時刻に削除された子は、別の操作で削除されたものなので、その下ごと除く。
+fn deleted_together<'a>(
+    tasks: &'a [Task],
+    root_id: &TaskId,
+    deleted_at: Option<DateTime<Utc>>,
+) -> Vec<&'a Task> {
+    walk_subtree(tasks, root_id, |task| {
+        !task.is_deleted() || Some(task.updated_at) == deleted_at
+    })
+}
+
+fn walk_subtree<'a>(
+    tasks: &'a [Task],
+    root_id: &TaskId,
+    follow: impl Fn(&Task) -> bool,
+) -> Vec<&'a Task> {
+    let Some(root) = tasks.iter().find(|task| task.id == *root_id) else {
+        return Vec::new();
+    };
+    let mut seen = std::collections::HashSet::from([root.id]);
+    let mut found = vec![root];
+    let mut at = 0;
+    while at < found.len() {
+        let parent = found[at].id;
+        for task in tasks {
+            if task.parent_task_id == Some(parent) && follow(task) && seen.insert(task.id) {
+                found.push(task);
+            }
+        }
+        at += 1;
+    }
+    found
+}

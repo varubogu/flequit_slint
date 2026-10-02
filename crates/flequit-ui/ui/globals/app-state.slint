@@ -1,4 +1,4 @@
-import { TaskItem, SubTaskItem, ProjectItem, DueFilterItem, Pane, TaskSort, ColorOption,
+import { TaskItem, ProjectItem, DueFilterItem, Pane, TaskSort, ColorOption,
          EditorState, TagItem, BookmarkedTagItem, RecurrenceState,
          SearchSuggestion, StatusFilterItem, AddTargetItem } from "types.slint";
 
@@ -35,17 +35,13 @@ export global AppState {
     // ViewModel from the search query, the selected task or the add target:
     // the sidebar itself holds no selection.
     in-out property <string> selected-project-id;
+    // Any task, at any depth.
     in-out property <string> selected-task-id;
-    in-out property <string> selected-subtask-id;
 
     // Resolved by the ViewModel rather than looked up in the view: Slint
     // bindings are declarative expressions, and searching a model is logic.
     in-out property <TaskItem> selected-task;
     in-out property <bool> has-selected-task: false;
-    // The subtask the detail pane shows instead of its parent, resolved the
-    // same way. `selected-task` stays filled in so the pane can go back to it.
-    in-out property <SubTaskItem> selected-subtask;
-    in-out property <bool> has-selected-subtask: false;
 
     // --- Navigation (compact layout only) ---
     in-out property <Pane> active-pane: Pane.list;
@@ -82,9 +78,11 @@ export global AppState {
     in-out property <int> search-caret-request: 0;
 
     // --- Quick add ---
-    // Where the quick-add field puts a new task.
-    in-out property <string> add-target-list-id;
+    // Where the quick-add field puts a new task: an AddTargetItem key, empty
+    // when there is nowhere to put one.
+    in-out property <string> add-target;
     in-out property <string> add-target-project-name;
+    // Empty when the task goes directly under the project.
     in-out property <string> add-target-list-name;
     in-out property <brush> add-target-color;
     in-out property <bool> add-target-has-color: false;
@@ -110,6 +108,9 @@ export global AppState {
     in-out property <length> drag-y;
     // The task list under the pointer, empty when there is none.
     in-out property <string> drop-list-id;
+    // The project under the pointer: dropping there takes the task out of its
+    // list. Empty when there is none.
+    in-out property <string> drop-project-id;
     out property <bool> is-dragging: root.dragging-task-id != "";
 
     // --- Sidebar editor ---
@@ -144,5 +145,5 @@ export global AppState {
 
     // --- Derived helpers ---
     out property <bool> has-error: root.error-message != "";
-    out property <bool> has-selection: root.selected-task-id != "" || root.selected-subtask-id != "";
+    out property <bool> has-selection: root.selected-task-id != "";
 }
