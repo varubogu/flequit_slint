@@ -39,9 +39,14 @@ export global Actions {
     // `target` is a list id, or `project:{id}` for a task under the project
     // itself (see AddTargetItem.key).
     callback add-task(string /* target */, string /* title */);
-    // Quick-add destination picker.
+    // Quick-add destination: a place in the destination's project, or another
+    // project (which lands on that project's default place).
     callback choose-add-target(string /* target */);
-    callback filter-add-targets(string /* query */);
+    callback choose-add-target-project(string /* project_id */);
+    // Quick-add due date, applied to the next task added.
+    callback set-quick-add-due(int /* year */, int /* month */, int /* day */,
+                               int /* hour */, int /* minute */);
+    callback clear-quick-add-due();
     callback toggle-task-completed(string /* task_id */);
     callback update-task-title(string /* task_id */, string /* title */);
     callback update-task-notes(string /* task_id */, string /* notes */);

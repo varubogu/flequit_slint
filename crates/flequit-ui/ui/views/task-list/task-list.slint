@@ -10,6 +10,7 @@ import { TaskRow } from "../../components/task-row.slint";
 import { Icon, IconName } from "../../components/icon.slint";
 import { TaskSortBar } from "task-sort-bar.slint";
 import { AddTargetPicker } from "add-target-picker.slint";
+import { QuickAddDue } from "quick-add-due.slint";
 
 // Task list pane.
 //
@@ -169,7 +170,12 @@ export component TaskListView inherits Rectangle {
                 selected: AppState.selected-task-id == task.id;
                 dragging: AppState.dragging-task-id == task.id;
                 drop-before: root.reordering && root.drop-index == index;
-                clicked => { Actions.select-task(task.id); }
+                // The list takes the focus, as a click on its background does,
+                // so the quick-add field gives it up.
+                clicked => {
+                    keyboard-focus.focus();
+                    Actions.select-task(task.id);
+                }
                 toggle-completed => { Actions.toggle-task-completed(task.id); }
                 toggle-expansion => { Actions.toggle-task-expansion(task.id); }
                 drag-started(x, y) => { root.start-drag(task, x, y); }
@@ -229,19 +235,23 @@ export component TaskListView inherits Rectangle {
             }
         }
 
-        // Quick add. The list shows whatever the search finds, so the list a
-        // new task goes to is picked explicitly, beside the field.
-        Rectangle {
-            height: Layout.touch-target + 2 * Theme.space-sm;
+        // Quick add. The list shows whatever the search finds, so where a new
+        // task goes is picked explicitly. While a task is being added — the
+        // field or one of its controls holds the focus, or something is typed —
+        // a second row under the field shows the destination as a path and the
+        // due date. Otherwise only the field is shown.
+        quick-add := Rectangle {
+            property <bool> adding: new-task.has-focus || new-task.text != ""
+                || target-picker.engaged || quick-due.engaged;
+
             background: Theme.surface;
 
-            HorizontalLayout {
+            VerticalLayout {
                 padding: Theme.space-sm;
-                spacing: Theme.space-sm;
+                spacing: 0px;
 
-                AddTargetPicker {
-                    max-width: 240px;
-                }
+            HorizontalLayout {
+                spacing: Theme.space-sm;
 
                 new-task := LineEdit {
                     private property <int> focus-new-task-request: AppState.focus-new-task-request;
@@ -256,6 +266,7 @@ export component TaskListView inherits Rectangle {
                     placeholder-text: AppState.add-target == ""
                         ? @tr("TaskList" => "Create a project to add a task")
                         : @tr("TaskList" => "Add a task");
+                    accessible-label: self.placeholder-text;
                     accepted(value) => {
                         if (value != "") {
                             Actions.add-task(AppState.add-target, value);
@@ -295,6 +306,30 @@ export component TaskListView inherits Rectangle {
                         }
                     }
                 }
+            }
+
+            // Kept in the tree while hidden, so the focus moving between the
+            // field and these controls never takes the row away under it.
+            // Below the field, so Tab goes on from the field to the path and
+            // then to the due date.
+            Rectangle {
+                height: quick-add.adding ? details.preferred-height + Theme.space-xs : 0px;
+                visible: quick-add.adding;
+                clip: true;
+
+                details := HorizontalLayout {
+                    y: Theme.space-xs;
+                    width: parent.width;
+                    height: self.preferred-height;
+                    spacing: Theme.space-sm;
+
+                    target-picker := AddTargetPicker {
+                        horizontal-stretch: 1;
+                    }
+
+                    quick-due := QuickAddDue { }
+                }
+            }
             }
         }
         }

@@ -12,6 +12,9 @@ export component IconButton inherits Rectangle {
     in property <string> label;
     in property <string> tooltip;
     in property <bool> active: false;
+    // Whether the button holds keyboard focus, for callers that react to
+    // focus moving through a group of controls.
+    out property <bool> has-focus: key-focus.has-focus;
     callback clicked();
 
     width: Layout.touch-target;

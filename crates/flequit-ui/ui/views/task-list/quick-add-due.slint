@@ -1,0 +1,119 @@
+import { Theme } from "../../globals/theme.slint";
+import { Layout } from "../../globals/layout.slint";
+import { AppState } from "../../globals/app-state.slint";
+import { Actions } from "../../globals/actions.slint";
+import { CalendarPopup } from "../../components/calendar-popup.slint";
+import { FocusRing } from "../../components/focus-ring.slint";
+import { IconButton } from "../../components/icon-button.slint";
+import { Icon, IconName } from "../../components/icon.slint";
+
+// The due date the next task added from the quick-add field gets.
+//
+// The ViewModel keeps the date and formats it; this only shows it and opens
+// the calendar, which rises above the field because the bar sits at the
+// bottom of the pane. The date is used once and cleared when the task is added.
+export component QuickAddDue inherits HorizontalLayout {
+    // Focused, or picking a date (the calendar holds the focus meanwhile):
+    // the due date is being set, which counts as adding a task.
+    out property <bool> engaged: chip-focus.has-focus || popup.is-open || clear.has-focus;
+
+    // Rewinds the calendar to the stored value every time it opens.
+    private property <int> open-count: 0;
+
+    function open() {
+        popup.show();
+        root.open-count += 1;
+    }
+
+    spacing: 0px;
+
+    chip := Rectangle {
+        min-width: Layout.touch-target;
+        preferred-width: chip-layout.preferred-width;
+        height: Layout.touch-target;
+        border-radius: Theme.radius-sm;
+        background: touch.has-hover ? Theme.surface-hover
+            : AppState.quick-add-has-due ? Theme.surface-selected
+            : transparent;
+        forward-focus: chip-focus;
+
+        chip-layout := HorizontalLayout {
+            padding-left: Theme.space-xs;
+            padding-right: Theme.space-xs;
+            spacing: Theme.space-xs;
+
+            Icon {
+                name: IconName.calendar;
+                tint: AppState.quick-add-has-due ? Theme.accent : Theme.text-muted;
+                y: (parent.height - self.height) / 2;
+            }
+
+            Text {
+                text: AppState.quick-add-has-due
+                    ? AppState.quick-add-due-label
+                    : @tr("TaskList" => "Due date");
+                color: AppState.quick-add-has-due ? Theme.text : Theme.text-muted;
+                font-size: Theme.font-size-sm;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+
+        chip-focus := FocusScope {
+            key-pressed(event) => {
+                if (event.text == " " || event.text == "\n") {
+                    root.open();
+                    return accept;
+                }
+                reject
+            }
+        }
+
+        if chip-focus.has-focus: FocusRing {
+            radius: chip.border-radius;
+        }
+
+        touch := TouchArea {
+            clicked => {
+                chip-focus.focus();
+                root.open();
+            }
+        }
+        accessible-role: button;
+        accessible-label: AppState.quick-add-has-due
+            ? @tr("TaskList" => "New task due {0}. Change", AppState.quick-add-due-label)
+            : @tr("TaskList" => "Set a due date for the new task");
+        accessible-action-default => { root.open(); }
+
+        popup := CalendarPopup {
+            // Right-aligned with the chip, which sits at the right of the bar.
+            x: chip.width - self.width;
+            y: -self.height - Theme.space-xs;
+            title: @tr("TaskList" => "Due date of the new task");
+            open-token: root.open-count;
+            year: AppState.quick-add-due-year;
+            month: AppState.quick-add-due-month;
+            day: AppState.quick-add-due-day;
+            hour: AppState.quick-add-due-hour;
+            minute: AppState.quick-add-due-minute;
+            accepted(year, month, day, hour, minute) => {
+                Actions.set-quick-add-due(year, month, day, hour, minute);
+            }
+        }
+    }
+
+    // Kept in place without a width while there is no date, so whether it
+    // holds the focus can always be read.
+    clear := IconButton {
+        width: AppState.quick-add-has-due ? Layout.touch-target : 0px;
+        visible: AppState.quick-add-has-due;
+        icon: IconName.close;
+        tooltip: @tr("TaskList" => "Clear the due date of the new task");
+        clicked => {
+            Actions.clear-quick-add-due();
+            // The button goes away with the date; the chip keeps the focus,
+            // so the quick-add bar stays open.
+            chip-focus.focus();
+        }
+    }
+}

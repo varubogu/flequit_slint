@@ -2012,18 +2012,6 @@ msgctxt "TaskList"
 msgid "Choose where new tasks go"
 msgstr "Choose where new tasks go"
 
-msgctxt "TaskList"
-msgid "New tasks go to {0} › {1}. Change"
-msgstr "New tasks go to {0} › {1}. Change"
-
-msgctxt "TaskList"
-msgid "Filter lists"
-msgstr "Filter lists"
-
-msgctxt "TaskList"
-msgid "{0} · recent"
-msgstr "{0} · recent"
-
 msgctxt "Settings"
 msgid "Recorded {0} · attempts: {1}"
 msgstr "Recorded {0} · attempts: {1}"
@@ -2153,21 +2141,6 @@ msgctxt "TaskList"
 msgid "Create a project to add a task"
 msgstr "Create a project to add a task"
 
-#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:126
-msgctxt "TaskList"
-msgid "Directly in the project"
-msgstr "Directly in the project"
-
-#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:154
-msgctxt "TaskList"
-msgid "Directly in {0}"
-msgstr "Directly in {0}"
-
-#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:71
-msgctxt "TaskList"
-msgid "New tasks go directly to {0}. Change"
-msgstr "New tasks go directly to {0}. Change"
-
 #: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:45
 msgctxt "TaskList"
 msgid "No project"
@@ -2182,3 +2155,49 @@ msgstr "Show subtasks of {0}"
 msgctxt "TaskList"
 msgid "{0}, matches the search"
 msgstr "{0}, matches the search"
+
+#: crates/flequit-ui/ui/views/task-list/quick-add-due.slint:82
+msgctxt "TaskList"
+msgid "Clear the due date of the new task"
+msgstr "Clear the due date of the new task"
+
+#: crates/flequit-ui/ui/views/task-list/quick-add-due.slint:67
+msgctxt "TaskList"
+msgid "Due date of the new task"
+msgstr "Due date of the new task"
+
+#: crates/flequit-ui/ui/views/task-list/quick-add-due.slint:43
+msgctxt "TaskList"
+msgid "Due date"
+msgstr "Due date"
+
+#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:180
+msgctxt "TaskList"
+msgid "List of new tasks: {0}. Change"
+msgstr "List of new tasks: {0}. Change"
+
+#: crates/flequit-ui/ui/views/task-list/quick-add-due.slint:59
+msgctxt "TaskList"
+msgid "New task due {0}. Change"
+msgstr "New task due {0}. Change"
+
+#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:179
+msgctxt "TaskList"
+msgid "New tasks belong to no list. Change"
+msgstr "New tasks belong to no list. Change"
+
+#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:175
+#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:201
+msgctxt "TaskList"
+msgid "No list"
+msgstr "No list"
+
+#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:132
+msgctxt "TaskList"
+msgid "Project of new tasks: {0}. Change"
+msgstr "Project of new tasks: {0}. Change"
+
+#: crates/flequit-ui/ui/views/task-list/quick-add-due.slint:60
+msgctxt "TaskList"
+msgid "Set a due date for the new task"
+msgstr "Set a due date for the new task"

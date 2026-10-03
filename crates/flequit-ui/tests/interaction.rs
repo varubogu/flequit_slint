@@ -14,13 +14,13 @@ use std::rc::Rc;
 
 use flequit_ui::bindings::DueUnit;
 use flequit_ui::bindings::{
-    Actions, AncestorItem, AppState, AppWindow, BookmarkedTagItem, Capabilities, ColorOption,
-    DueButtonSetting, DueFilterItem, EditorKind, FailedSyncChangeItem, FilterHighlight, FilterKind,
-    Layout, ProjectItem, QueryEdit, RecurrenceEnd, RecurrenceMonthlyMode, RecurrencePresetSetting,
-    RecurrenceState, RecurrenceUnit, RecurrenceWeekOfMonth, ReminderItem, ReminderPresetSetting,
-    ReminderUnit, SearchSuggestion, SearchSuggestionKind, SettingsCategory, SettingsState,
-    SubTaskItem, TagItem, TaskItem, TaskListItem, TaskPriority, TaskSort, TaskStatus, Theme,
-    ThemeMode,
+    Actions, AddTargetItem, AddTargetProjectItem, AncestorItem, AppState, AppWindow,
+    BookmarkedTagItem, Capabilities, ColorOption, DueButtonSetting, DueFilterItem, EditorKind,
+    FailedSyncChangeItem, FilterHighlight, FilterKind, Layout, ProjectItem, QueryEdit,
+    RecurrenceEnd, RecurrenceMonthlyMode, RecurrencePresetSetting, RecurrenceState, RecurrenceUnit,
+    RecurrenceWeekOfMonth, ReminderItem, ReminderPresetSetting, ReminderUnit, SearchSuggestion,
+    SearchSuggestionKind, SettingsCategory, SettingsState, SubTaskItem, TagItem, TaskItem,
+    TaskListItem, TaskPriority, TaskSort, TaskStatus, Theme, ThemeMode,
 };
 use i_slint_backend_testing::ElementHandle;
 use slint::{Brush, Color, ComponentHandle, Model, ModelRc, SharedString, VecModel};
@@ -1789,6 +1789,223 @@ fn the_completed_checkbox_reaches_its_handler() {
     assert_eq!(seen.borrow().as_slice(), [false]);
 }
 
+/// Activates the first button carrying `label`, skipping plain text that
+/// happens to read the same.
+fn activate_button(window: &AppWindow, label: &str) -> bool {
+    let button = ElementHandle::find_by_accessible_label(window, label).find(|element| {
+        element.accessible_role() == Some(i_slint_backend_testing::AccessibleRole::Button)
+    });
+    match button {
+        Some(element) => {
+            element.invoke_accessible_default_action();
+            true
+        }
+        None => false,
+    }
+}
+
+/// Whether the quick-add bar shows its second row, the destination and the due
+/// date. The row stays in the tree while hidden, but hidden controls are out
+/// of the accessibility tree.
+fn quick_add_details_shown(window: &AppWindow) -> bool {
+    ElementHandle::find_by_accessible_label(window, "Set a due date for the new task")
+        .next()
+        .is_some()
+}
+
+/// Puts the quick-add field's text, as typing it would.
+fn type_into_quick_add(window: &AppWindow, text: &str) {
+    set_value(window, "Add a task", text);
+    settle();
+}
+
+/// The bar is a single row until a task is being added: the field has the
+/// focus or holds text, or one of the destination and due date controls is
+/// in use.
+fn the_quick_add_details_show_only_while_adding() {
+    let window = window_with_content();
+    let state = window.global::<AppState>();
+    state.set_add_target("l1".into());
+    state.set_add_target_project_name("My Tasks".into());
+    state.set_add_target_list_name("Inbox".into());
+    settle();
+    assert!(
+        !quick_add_details_shown(&window),
+        "the bar starts as one row"
+    );
+
+    type_into_quick_add(&window, "Buy bread");
+    assert!(
+        quick_add_details_shown(&window),
+        "typing opens the second row"
+    );
+    type_into_quick_add(&window, "");
+    assert!(
+        !quick_add_details_shown(&window),
+        "an empty, unfocused field closes it"
+    );
+
+    // Focus alone opens it: a click into the field.
+    let field = ElementHandle::find_by_accessible_label(&window, "Add a task")
+        .find(|element| element.accessible_value().is_some())
+        .expect("the quick-add field");
+    field.mock_single_click(slint::platform::PointerEventButton::Left);
+    settle();
+    assert!(
+        quick_add_details_shown(&window),
+        "focusing the field opens the second row"
+    );
+
+    // Moving on to a crumb keeps it open, and so does its list.
+    assert!(click(&window, "Project of new tasks: My Tasks. Change"));
+    assert!(
+        quick_add_details_shown(&window),
+        "a focused crumb keeps the row open"
+    );
+
+    // Selecting a task moves the focus to the list and closes the row again.
+    window
+        .window()
+        .dispatch_event(slint::platform::WindowEvent::KeyPressed {
+            text: slint::platform::Key::Escape.into(),
+        });
+    settle();
+    assert!(click(&window, "Buy milk"));
+    assert!(
+        !quick_add_details_shown(&window),
+        "focus elsewhere closes the row"
+    );
+}
+
+/// The quick-add destination reads as a path, and each crumb changes its own
+/// part: the project, then a list of it or none.
+fn the_quick_add_destination_is_a_path_of_crumbs() {
+    let window = window_with_content();
+    let state = window.global::<AppState>();
+    state.set_add_target("l1".into());
+    state.set_add_target_project_id("p1".into());
+    state.set_add_target_project_name("My Tasks".into());
+    state.set_add_target_list_name("Inbox".into());
+    state.set_add_target_projects(ModelRc::new(VecModel::from(vec![
+        AddTargetProjectItem {
+            id: "p1".into(),
+            name: "My Tasks".into(),
+            color_brush: Brush::default(),
+            has_color: false,
+        },
+        AddTargetProjectItem {
+            id: "p2".into(),
+            name: "Garden".into(),
+            color_brush: Brush::default(),
+            has_color: false,
+        },
+    ])));
+    state.set_add_targets(ModelRc::new(VecModel::from(vec![
+        AddTargetItem {
+            key: "project:p1".into(),
+            list_name: SharedString::default(),
+        },
+        AddTargetItem {
+            key: "l1".into(),
+            list_name: "Inbox".into(),
+        },
+    ])));
+
+    let projects = Rc::new(RefCell::new(Vec::<String>::new()));
+    let places = Rc::new(RefCell::new(Vec::<String>::new()));
+    {
+        let projects = Rc::clone(&projects);
+        let places = Rc::clone(&places);
+        let actions = window.global::<Actions>();
+        actions.on_choose_add_target_project(move |id| projects.borrow_mut().push(id.to_string()));
+        actions.on_choose_add_target(move |key| places.borrow_mut().push(key.to_string()));
+    }
+    settle();
+    type_into_quick_add(&window, "Plant tulips");
+
+    assert!(
+        activate_button(&window, "Project of new tasks: My Tasks. Change"),
+        "the project crumb is not reachable: {:?}",
+        accessible_labels(&window)
+    );
+    settle();
+    assert!(
+        activate_button(&window, "Garden"),
+        "the other project is not offered"
+    );
+    assert!(
+        activate_button(&window, "List of new tasks: Inbox. Change"),
+        "the list crumb is not reachable"
+    );
+    settle();
+    assert!(
+        activate_button(&window, "No list"),
+        "no list is not offered"
+    );
+
+    assert_eq!(projects.borrow().as_slice(), ["p2"]);
+    assert_eq!(places.borrow().as_slice(), ["project:p1"]);
+
+    // A task directly under the project reads as such.
+    state.set_add_target("project:p1".into());
+    state.set_add_target_list_name(SharedString::default());
+    settle();
+    assert!(
+        ElementHandle::find_by_accessible_label(&window, "New tasks belong to no list. Change")
+            .next()
+            .is_some()
+    );
+}
+
+/// A due date picked beside the quick-add field is reported, shown and can be
+/// cleared before the task is added.
+fn the_quick_add_due_date_reaches_its_handlers() {
+    let window = window_with_content();
+    let state = window.global::<AppState>();
+    state.set_add_target("l1".into());
+    state.set_quick_add_due_year(2026);
+    state.set_quick_add_due_month(9);
+    state.set_quick_add_due_day(6);
+    state.set_quick_add_due_hour(9);
+    state.set_quick_add_due_minute(0);
+
+    let picked = Rc::new(RefCell::new(Vec::new()));
+    let cleared = Rc::new(RefCell::new(0));
+    {
+        let picked = Rc::clone(&picked);
+        let cleared = Rc::clone(&cleared);
+        let actions = window.global::<Actions>();
+        actions.on_set_quick_add_due(move |year, month, day, hour, minute| {
+            picked.borrow_mut().push((year, month, day, hour, minute));
+        });
+        actions.on_clear_quick_add_due(move || *cleared.borrow_mut() += 1);
+    }
+    settle();
+    type_into_quick_add(&window, "Plant tulips");
+
+    assert!(
+        activate_button(&window, "Set a due date for the new task"),
+        "the due date chip is not reachable: {:?}",
+        accessible_labels(&window)
+    );
+    settle();
+    assert!(activate(&window, "Day 10 of September 2026"));
+    assert!(activate(&window, "OK"));
+    settle();
+    assert_eq!(picked.borrow().as_slice(), [(2026, 9, 10, 9, 0)]);
+
+    state.set_quick_add_has_due(true);
+    state.set_quick_add_due_label("2026-09-10 09:00".into());
+    settle();
+    assert!(
+        ElementHandle::find_by_accessible_label(&window, "New task due 2026-09-10 09:00. Change")
+            .next()
+            .is_some()
+    );
+    assert!(activate(&window, "Clear the due date of the new task"));
+    assert_eq!(*cleared.borrow(), 1);
+}
+
 /// Reordering has to be operable without a pointer, so the drag handle also
 /// answers to the increment and decrement actions.
 fn the_drag_handle_reaches_its_handler() {
@@ -2637,6 +2854,9 @@ fn the_shell_responds_to_user_actions() {
     the_sort_bar_reaches_its_handler();
     the_completed_checkbox_reaches_its_handler();
     the_drag_handle_reaches_its_handler();
+    the_quick_add_details_show_only_while_adding();
+    the_quick_add_destination_is_a_path_of_crumbs();
+    the_quick_add_due_date_reaches_its_handlers();
     a_sidebar_list_becomes_a_drop_target();
     expanding_a_project_reaches_its_handler();
     a_search_suggestion_reaches_its_handler();

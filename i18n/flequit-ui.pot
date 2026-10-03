@@ -2032,18 +2032,6 @@ msgctxt "TaskList"
 msgid "Choose where new tasks go"
 msgstr ""
 
-msgctxt "TaskList"
-msgid "New tasks go to {0} › {1}. Change"
-msgstr ""
-
-msgctxt "TaskList"
-msgid "Filter lists"
-msgstr ""
-
-msgctxt "TaskList"
-msgid "{0} · recent"
-msgstr ""
-
 msgctxt "Settings"
 msgid "Recorded {0} · attempts: {1}"
 msgstr ""
@@ -2183,22 +2171,53 @@ msgctxt "TaskList"
 msgid "No project"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:71
-msgctxt "TaskList"
-msgid "New tasks go directly to {0}. Change"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:126
-msgctxt "TaskList"
-msgid "Directly in the project"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:154
-msgctxt "TaskList"
-msgid "Directly in {0}"
-msgstr ""
-
 #: crates/flequit-ui/ui/views/task-list/task-list.slint:257
 msgctxt "TaskList"
 msgid "Create a project to add a task"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/quick-add-due.slint:82
+msgctxt "TaskList"
+msgid "Clear the due date of the new task"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/quick-add-due.slint:67
+msgctxt "TaskList"
+msgid "Due date of the new task"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/quick-add-due.slint:43
+msgctxt "TaskList"
+msgid "Due date"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:180
+msgctxt "TaskList"
+msgid "List of new tasks: {0}. Change"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/quick-add-due.slint:59
+msgctxt "TaskList"
+msgid "New task due {0}. Change"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:179
+msgctxt "TaskList"
+msgid "New tasks belong to no list. Change"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:175
+#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:201
+msgctxt "TaskList"
+msgid "No list"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:132
+msgctxt "TaskList"
+msgid "Project of new tasks: {0}. Change"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/quick-add-due.slint:60
+msgctxt "TaskList"
+msgid "Set a due date for the new task"
 msgstr ""

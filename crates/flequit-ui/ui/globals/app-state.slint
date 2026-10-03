@@ -1,6 +1,6 @@
 import { TaskItem, ProjectItem, DueFilterItem, Pane, TaskSort, ColorOption,
          EditorState, TagItem, BookmarkedTagItem, RecurrenceState,
-         SearchSuggestion, StatusFilterItem, AddTargetItem } from "types.slint";
+         SearchSuggestion, StatusFilterItem, AddTargetItem, AddTargetProjectItem } from "types.slint";
 
 // Application state shared across views.
 //
@@ -81,13 +81,25 @@ export global AppState {
     // Where the quick-add field puts a new task: an AddTargetItem key, empty
     // when there is nowhere to put one.
     in-out property <string> add-target;
+    in-out property <string> add-target-project-id;
     in-out property <string> add-target-project-name;
     // Empty when the task goes directly under the project.
     in-out property <string> add-target-list-name;
     in-out property <brush> add-target-color;
     in-out property <bool> add-target-has-color: false;
-    // The lists the destination picker offers, narrowed by its filter.
+    // The projects the destination's first crumb offers.
+    in-out property <[AddTargetProjectItem]> add-target-projects;
+    // The places in the destination's project the second crumb offers.
     in-out property <[AddTargetItem]> add-targets;
+    // The due date the next added task gets, kept by the ViewModel until the
+    // task is added or the date is cleared. The parts seed the picker.
+    in-out property <bool> quick-add-has-due: false;
+    in-out property <string> quick-add-due-label;
+    in-out property <int> quick-add-due-year;
+    in-out property <int> quick-add-due-month;
+    in-out property <int> quick-add-due-day;
+    in-out property <int> quick-add-due-hour;
+    in-out property <int> quick-add-due-minute;
 
     // --- Ordering ---
     // Applied by the ViewModel when it rebuilds `tasks`.

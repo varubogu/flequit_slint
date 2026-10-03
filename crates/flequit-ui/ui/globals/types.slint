@@ -335,19 +335,22 @@ export struct StatusFilterItem {
     highlight: FilterHighlight,
 }
 
-// A task list the quick-add field can add to.
-// A place the quick-add field can put a task: a task list, or a project
-// itself for a task that belongs to no list.
+// A project the quick-add field can put a task in: the first crumb of the
+// destination.
+export struct AddTargetProjectItem {
+    id: string,
+    name: string,
+    color-brush: brush,
+    has-color: bool,
+}
+
+// A place inside the destination's project: one of its task lists, or the
+// project itself for a task that belongs to no list. The second crumb.
 export struct AddTargetItem {
     // The list id, or `project:{id}` for the project itself.
     key: string,
-    project-name: string,
     // Empty for the project itself.
     list-name: string,
-    color-brush: brush,
-    has-color: bool,
-    // Used recently; listed first.
-    recent: bool,
 }
 
 export enum SearchSuggestionKind { due, status, project, task-list, user, tag }

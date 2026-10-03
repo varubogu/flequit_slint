@@ -2010,18 +2010,6 @@ msgctxt "TaskList"
 msgid "Choose where new tasks go"
 msgstr "タスクの追加先を選ぶ"
 
-msgctxt "TaskList"
-msgid "New tasks go to {0} › {1}. Change"
-msgstr "追加先: {0} › {1}（変更）"
-
-msgctxt "TaskList"
-msgid "Filter lists"
-msgstr "リストを絞り込む"
-
-msgctxt "TaskList"
-msgid "{0} · recent"
-msgstr "{0} ・最近使用"
-
 msgctxt "Settings"
 msgid "Recorded {0} · attempts: {1}"
 msgstr "{0} に記録 ・試行 {1} 回"
@@ -2151,21 +2139,6 @@ msgctxt "TaskList"
 msgid "Create a project to add a task"
 msgstr "プロジェクトを作成するとタスクを追加できます"
 
-#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:126
-msgctxt "TaskList"
-msgid "Directly in the project"
-msgstr "プロジェクト直下"
-
-#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:154
-msgctxt "TaskList"
-msgid "Directly in {0}"
-msgstr "{0} の直下"
-
-#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:71
-msgctxt "TaskList"
-msgid "New tasks go directly to {0}. Change"
-msgstr "追加先: {0} の直下（変更）"
-
 #: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:45
 msgctxt "TaskList"
 msgid "No project"
@@ -2180,3 +2153,49 @@ msgstr "{0} のサブタスクを表示"
 msgctxt "TaskList"
 msgid "{0}, matches the search"
 msgstr "{0}（検索に一致）"
+
+#: crates/flequit-ui/ui/views/task-list/quick-add-due.slint:82
+msgctxt "TaskList"
+msgid "Clear the due date of the new task"
+msgstr "追加するタスクの期限をクリア"
+
+#: crates/flequit-ui/ui/views/task-list/quick-add-due.slint:67
+msgctxt "TaskList"
+msgid "Due date of the new task"
+msgstr "追加するタスクの期限"
+
+#: crates/flequit-ui/ui/views/task-list/quick-add-due.slint:43
+msgctxt "TaskList"
+msgid "Due date"
+msgstr "期限"
+
+#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:180
+msgctxt "TaskList"
+msgid "List of new tasks: {0}. Change"
+msgstr "追加先のリスト: {0}（変更）"
+
+#: crates/flequit-ui/ui/views/task-list/quick-add-due.slint:59
+msgctxt "TaskList"
+msgid "New task due {0}. Change"
+msgstr "追加するタスクの期限: {0}（変更）"
+
+#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:179
+msgctxt "TaskList"
+msgid "New tasks belong to no list. Change"
+msgstr "追加先のリスト: なし（変更）"
+
+#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:175
+#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:201
+msgctxt "TaskList"
+msgid "No list"
+msgstr "リストなし"
+
+#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:132
+msgctxt "TaskList"
+msgid "Project of new tasks: {0}. Change"
+msgstr "追加先のプロジェクト: {0}（変更）"
+
+#: crates/flequit-ui/ui/views/task-list/quick-add-due.slint:60
+msgctxt "TaskList"
+msgid "Set a due date for the new task"
+msgstr "追加するタスクの期限を設定"

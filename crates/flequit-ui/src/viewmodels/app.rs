@@ -174,8 +174,9 @@ struct SharedState {
     add_target_override: Option<(String, Option<String>)>,
     /// Task lists recently added to, newest first.
     recent_add_targets: Vec<String>,
-    /// Narrows the destination picker.
-    add_target_filter: String,
+    /// The due date the next task added from the quick-add field gets. Used
+    /// once: taken when the task is added.
+    quick_add_due: Option<DateTime<Utc>>,
     /// A task just added from the quick-add field. Listed even when the query
     /// excludes it, until the query changes, so the new task does not vanish.
     just_added: Option<String>,
@@ -698,7 +699,7 @@ where
                     return;
                 };
 
-                let task = new_task(
+                let mut task = new_task(
                     destination.project_id,
                     destination.list_id,
                     None,
@@ -706,6 +707,16 @@ where
                     destination.order_index,
                     user_id,
                 );
+                // The due date chosen beside the field goes with this task
+                // only, as the title does.
+                task.plan_end_date = state
+                    .lock()
+                    .expect("shared state poisoned")
+                    .quick_add_due
+                    .take();
+                if let Some(window) = weak.upgrade() {
+                    query::publish_quick_add_due(&window, &state, timezone);
+                }
                 let target = target.to_string();
 
                 let weak = weak.clone();

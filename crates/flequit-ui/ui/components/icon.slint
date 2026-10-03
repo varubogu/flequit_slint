@@ -12,6 +12,7 @@ export enum IconName {
     chevron-down,
     chevron-up,
     clock,
+    calendar,
     folder,
     list,
     tag,
@@ -52,6 +53,7 @@ export component Icon inherits Image {
         : root.name == IconName.chevron-down ? @image-url("../assets/icons/chevron-down.svg")
         : root.name == IconName.chevron-up ? @image-url("../assets/icons/chevron-up.svg")
         : root.name == IconName.clock ? @image-url("../assets/icons/clock.svg")
+        : root.name == IconName.calendar ? @image-url("../assets/icons/calendar.svg")
         : root.name == IconName.folder ? @image-url("../assets/icons/folder.svg")
         : root.name == IconName.list ? @image-url("../assets/icons/list.svg")
         : root.name == IconName.tag ? @image-url("../assets/icons/tag.svg")

@@ -19,17 +19,20 @@ use super::{
     SharedState, clear_selection, display_settings, next_order_index, refresh_tags, report_error,
 };
 use crate::adapters::color::parse_hex;
-use crate::adapters::datetime::{DateTimeDisplaySettings, DisplayTimezone};
+use crate::adapters::datetime::{
+    DateTimeDisplaySettings, DateTimeParts, DisplayTimezone, format_due, from_display_parts,
+    to_display_parts,
+};
 use crate::adapters::task::{Placement, live_children, to_task_item};
 use crate::bindings::{
-    Actions, AddTargetItem, AppState, AppWindow, FilterHighlight, FilterKind, I18n, QueryEdit,
-    SearchSuggestion, SearchSuggestionKind, TaskItem,
+    Actions, AddTargetItem, AddTargetProjectItem, AppState, AppWindow, FilterHighlight, FilterKind,
+    I18n, QueryEdit, SearchSuggestion, SearchSuggestionKind, TaskItem,
 };
 use crate::viewmodels::ordering;
 use crate::viewmodels::search::{
     DueSpec, EvalContext, Highlight, ItemKey, Lang, ListEntry, NameIndex, Prepared, ProjectEntry,
     Reference, SearchUnit, Segment, StatusKey, Suggestion, SuggestionKind, UnitStatus, UnitText,
-    fold, tag_key,
+    tag_key,
 };
 use crate::viewmodels::settings::RECENT_ADD_TARGETS;
 
@@ -207,16 +210,55 @@ pub(super) fn bind(window: &AppWindow, state: &Arc<Mutex<SharedState>>, timezone
         });
     }
 
+    // Picking another project lands on that project's default place, the
+    // same one a query naming the project would suggest.
     {
         let weak = window.as_weak();
         let state = Arc::clone(state);
-        actions.on_filter_add_targets(move |filter| {
-            state
-                .lock()
-                .expect("shared state poisoned")
-                .add_target_filter = filter.to_string();
+        actions.on_choose_add_target_project(move |project_id| {
+            {
+                let mut guard = state.lock().expect("shared state poisoned");
+                let Some(place) = default_in_project(&guard, &project_id) else {
+                    return;
+                };
+                let default = default_add_target(&guard);
+                guard.add_target_override = Some((place, default));
+            }
             if let Some(window) = weak.upgrade() {
-                publish_add_targets(&window, &state);
+                publish_add_target(&window, &state);
+            }
+        });
+    }
+
+    {
+        let weak = window.as_weak();
+        let state = Arc::clone(state);
+        actions.on_set_quick_add_due(move |year, month, day, hour, minute| {
+            let Some(window) = weak.upgrade() else { return };
+            let display = display_settings(&window, timezone);
+            let parts = DateTimeParts {
+                year,
+                month,
+                day,
+                hour,
+                minute,
+            };
+            let Some(due) = from_display_parts(parts, display.timezone) else {
+                report_error(&weak, "input.validation-failed");
+                return;
+            };
+            state.lock().expect("shared state poisoned").quick_add_due = Some(due);
+            publish_quick_add_due(&window, &state, timezone);
+        });
+    }
+
+    {
+        let weak = window.as_weak();
+        let state = Arc::clone(state);
+        actions.on_clear_quick_add_due(move || {
+            state.lock().expect("shared state poisoned").quick_add_due = None;
+            if let Some(window) = weak.upgrade() {
+                publish_quick_add_due(&window, &state, timezone);
             }
         });
     }
@@ -339,6 +381,7 @@ pub(super) fn publish_search(
 
     publish_highlights(window, &view.highlights);
     publish_add_target(window, state);
+    publish_quick_add_due(window, state, timezone);
     refresh_tasks(window, state, timezone);
     refresh_tags(window, state);
     remember(state);
@@ -638,22 +681,9 @@ fn default_add_target(state: &SharedState) -> Option<String> {
         })
         .collect();
     if let [project] = projects.as_slice()
-        && let Some(tree) = state
-            .live_projects()
-            .find(|tree| tree.id.as_str() == **project)
+        && let Some(place) = default_in_project(state, project)
     {
-        let recent = state
-            .recent_add_targets
-            .iter()
-            .find(|key| project_of_target(state, key).as_deref() == Some(project.as_str()));
-        let first_list = state
-            .live_lists()
-            .find(|(owner, _)| owner.id == tree.id)
-            .map(|(_, list)| list.id.as_str());
-        return recent
-            .cloned()
-            .or(first_list)
-            .or_else(|| Some(project_target(project)));
+        return Some(place);
     }
 
     state
@@ -668,6 +698,29 @@ fn default_add_target(state: &SharedState) -> Option<String> {
                 .next()
                 .map(|tree| project_target(&tree.id.as_str()))
         })
+}
+
+/// The place a task goes in `project_id` when nothing narrower is chosen: the
+/// last place used there, else its first list, else the project itself.
+/// `None` for a project that is not live.
+fn default_in_project(state: &SharedState, project_id: &str) -> Option<String> {
+    let tree = state
+        .live_projects()
+        .find(|tree| tree.id.as_str() == project_id)?;
+    let recent = state
+        .recent_add_targets
+        .iter()
+        .find(|key| project_of_target(state, key).as_deref() == Some(project_id));
+    let first_list = state
+        .live_lists()
+        .find(|(owner, _)| owner.id == tree.id)
+        .map(|(_, list)| list.id.as_str());
+    Some(
+        recent
+            .cloned()
+            .or(first_list)
+            .unwrap_or_else(|| project_target(project_id)),
+    )
 }
 
 /// Settles the destination and the project the tag manager works on.
@@ -704,102 +757,105 @@ fn settle_add_target(state: &mut SharedState, selected_task_id: &str) {
         .unwrap_or_default();
 }
 
+/// Publishes the destination as its two crumbs, with the alternatives each
+/// crumb offers: every live project, and the places in the destination's
+/// project (none, then its lists).
 pub(super) fn publish_add_target(window: &AppWindow, state: &Arc<Mutex<SharedState>>) {
     let app_state = window.global::<AppState>();
     let selected_task_id = app_state.get_selected_task_id().to_string();
-    let (key, project_name, list_name, color, context) = {
+    let (key, project, list_name, context, projects, places) = {
         let mut guard = state.lock().expect("shared state poisoned");
         settle_add_target(&mut guard, &selected_task_id);
-        let found = guard
-            .add_target
-            .as_deref()
-            .and_then(|key| match AddTarget::parse(key) {
-                AddTarget::List(id) => guard
+        let key = guard.add_target.clone().unwrap_or_default();
+        let project = destination(&guard, &key).and_then(|destination| {
+            guard
+                .live_projects()
+                .find(|tree| tree.id == destination.project_id)
+                .map(|tree| (tree.id, tree.name.clone(), tree.color.clone()))
+        });
+        let list_name = match AddTarget::parse(&key) {
+            AddTarget::List(id) => guard
+                .live_lists()
+                .find(|(_, list)| list.id.as_str() == id)
+                .map(|(_, list)| list.name.clone())
+                .unwrap_or_default(),
+            AddTarget::Project(_) => String::new(),
+        };
+        let projects: Vec<AddTargetProjectItem> = guard
+            .live_projects()
+            .map(|tree| {
+                let color = tree.color.as_deref().and_then(parse_hex);
+                AddTargetProjectItem {
+                    id: SharedString::from(tree.id.as_str()),
+                    name: SharedString::from(tree.name.as_str()),
+                    color_brush: color.unwrap_or_default().into(),
+                    has_color: color.is_some(),
+                }
+            })
+            .collect();
+        let places: Vec<AddTargetItem> = project
+            .as_ref()
+            .map(|(project_id, _, _)| {
+                let own = AddTargetItem {
+                    key: SharedString::from(project_target(&project_id.as_str())),
+                    list_name: SharedString::default(),
+                };
+                let lists = guard
                     .live_lists()
-                    .find(|(_, list)| list.id.as_str() == id)
-                    .map(|(tree, list)| (tree.name.clone(), list.name.clone(), tree.color.clone())),
-                AddTarget::Project(id) => guard
-                    .live_projects()
-                    .find(|tree| tree.id.as_str() == id)
-                    .map(|tree| (tree.name.clone(), String::new(), tree.color.clone())),
-            });
-        let (project_name, list_name, color) = found.unwrap_or_default();
+                    .filter(|(owner, _)| owner.id == *project_id)
+                    .map(|(_, list)| AddTargetItem {
+                        key: SharedString::from(list.id.as_str()),
+                        list_name: SharedString::from(list.name.as_str()),
+                    });
+                std::iter::once(own).chain(lists).collect()
+            })
+            .unwrap_or_default();
         (
-            guard.add_target.clone().unwrap_or_default(),
-            project_name,
+            key,
+            project,
             list_name,
-            color,
             guard.context_project_id.clone(),
+            projects,
+            places,
         )
     };
+    let (project_id, project_name, color) = project
+        .map(|(id, name, color)| (id.as_str(), name, color))
+        .unwrap_or_default();
     let color = color.as_deref().and_then(parse_hex);
     app_state.set_add_target(key.into());
+    app_state.set_add_target_project_id(project_id.into());
     app_state.set_add_target_project_name(project_name.into());
     app_state.set_add_target_list_name(list_name.into());
     app_state.set_add_target_color(color.unwrap_or_default().into());
     app_state.set_add_target_has_color(color.is_some());
+    app_state.set_add_target_projects(ModelRc::new(VecModel::from(projects)));
+    app_state.set_add_targets(ModelRc::new(VecModel::from(places)));
     app_state.set_selected_project_id(context.into());
 }
 
-/// Fills the destination picker, recent places first. Each project offers
-/// itself before its lists.
-fn publish_add_targets(window: &AppWindow, state: &Arc<Mutex<SharedState>>) {
-    let items = {
-        let guard = state.lock().expect("shared state poisoned");
-        let needle = fold(&guard.add_target_filter);
-        let item = |tree: &ProjectTree, list: Option<&TaskListTree>, recent: bool| {
-            let color = tree.color.as_deref().and_then(parse_hex);
-            AddTargetItem {
-                key: SharedString::from(match list {
-                    Some(list) => list.id.as_str(),
-                    None => project_target(&tree.id.as_str()),
-                }),
-                project_name: SharedString::from(tree.name.as_str()),
-                list_name: list
-                    .map(|list| SharedString::from(list.name.as_str()))
-                    .unwrap_or_default(),
-                color_brush: color.unwrap_or_default().into(),
-                has_color: color.is_some(),
-                recent,
-            }
-        };
-        let matches = |item: &AddTargetItem| {
-            needle.is_empty()
-                || fold(&item.list_name).contains(&needle)
-                || fold(&item.project_name).contains(&needle)
-        };
-        let all: Vec<AddTargetItem> = guard
-            .live_projects()
-            .flat_map(|tree| {
-                let lists = guard
-                    .live_lists()
-                    .filter(move |(owner, _)| owner.id == tree.id)
-                    .map(move |(_, list)| item(tree, Some(list), false));
-                std::iter::once(item(tree, None, false)).chain(lists)
-            })
-            .collect();
-        let recent = guard.recent_add_targets.iter().filter_map(|key| {
-            all.iter()
-                .find(|item| item.key == key.as_str())
-                .map(|item| AddTargetItem {
-                    recent: true,
-                    ..item.clone()
-                })
-        });
-        let rest = all
-            .iter()
-            .filter(|item| {
-                !guard
-                    .recent_add_targets
-                    .iter()
-                    .any(|key| item.key == key.as_str())
-            })
-            .cloned();
-        recent.chain(rest).filter(matches).collect::<Vec<_>>()
-    };
-    window
-        .global::<AppState>()
-        .set_add_targets(ModelRc::new(VecModel::from(items)));
+/// Publishes the due date the next added task gets. Without one, the picker
+/// starts from now.
+pub(super) fn publish_quick_add_due(
+    window: &AppWindow,
+    state: &Arc<Mutex<SharedState>>,
+    timezone: DisplayTimezone,
+) {
+    let display = display_settings(window, timezone);
+    let due = state.lock().expect("shared state poisoned").quick_add_due;
+    let now = Utc::now();
+    let parts = to_display_parts(due.as_ref().unwrap_or(&now), display.timezone);
+    let app_state = window.global::<AppState>();
+    app_state.set_quick_add_has_due(due.is_some());
+    app_state.set_quick_add_due_label(
+        due.map(|due| SharedString::from(format_due(&due, &display)))
+            .unwrap_or_default(),
+    );
+    app_state.set_quick_add_due_year(parts.year);
+    app_state.set_quick_add_due_month(parts.month);
+    app_state.set_quick_add_due_day(parts.day);
+    app_state.set_quick_add_due_hour(parts.hour);
+    app_state.set_quick_add_due_minute(parts.minute);
 }
 
 /// Records that a task was added to `target`, so it leads the picker and
@@ -1273,6 +1329,26 @@ mod tests {
         search(&mut state, "");
         state.recent_add_targets = vec![target.clone()];
         assert_eq!(default_add_target(&state), Some(target));
+    }
+
+    #[test]
+    fn picking_a_project_lands_on_its_last_place_else_its_first_list_else_itself() {
+        let mut state = state();
+        let work = state.trees[0].id.as_str();
+        let later = list_id(&state, "Later");
+        let inbox = list_id(&state, "Inbox");
+        let empty = project_named("Empty", Vec::new());
+        let empty_id = empty.id.as_str();
+        state.trees.push(empty);
+
+        assert_eq!(default_in_project(&state, &work), Some(inbox));
+        state.recent_add_targets = vec![later.clone()];
+        assert_eq!(default_in_project(&state, &work), Some(later));
+        assert_eq!(
+            default_in_project(&state, &empty_id),
+            Some(project_target(&empty_id))
+        );
+        assert_eq!(default_in_project(&state, "not-a-project"), None);
     }
 
     #[test]
