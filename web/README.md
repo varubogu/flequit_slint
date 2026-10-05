@@ -17,11 +17,15 @@ cargo install wasm-bindgen-cli
 ## Build
 
 ```sh
-cargo build --release -p flequit-web --target wasm32-unknown-unknown
+cargo build --release -p flequit-web --target wasm32-unknown-unknown --features wasm
 wasm-bindgen --target web --no-typescript \
   --out-dir web/pkg \
   target/wasm32-unknown-unknown/release/flequit_web.wasm
 ```
+
+The `wasm` feature adds the `wasm-bindgen` entry point. It stays off for host
+builds so that `cargo build --workspace` resolves the same dependency features
+as `cargo run -p flequit-app` and `target/` holds one copy of each crate.
 
 ## Serve
 

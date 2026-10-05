@@ -20,7 +20,9 @@ flequit-core = { path = "../flequit-core" }
 
 # Database and ORM
 sea-orm = { version = "1", features = ["sqlx-sqlite", "runtime-tokio-rustls", "macros"] }
-sea-orm-migration = { version = "1", features = ["sqlx-sqlite", "runtime-tokio-rustls"] }
+# Default features add the `cli` feature (sea-orm-cli, clap, regex, dotenvy),
+# which nothing here uses but which would otherwise be linked into the app.
+sea-orm-migration = { version = "1", default-features = false, features = ["sqlx-sqlite", "runtime-tokio-rustls"] }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }

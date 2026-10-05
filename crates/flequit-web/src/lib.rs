@@ -33,17 +33,18 @@
 slint::include_modules!();
 
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
-use wasm_bindgen::prelude::wasm_bindgen;
 
 /// Entry point. Called by the JavaScript glue that `wasm-bindgen` generates.
 ///
-/// Not gated on `target_arch`: `cfg(target_arch = ...)` is reserved for
-/// `flequit-platform`, and everything here builds and runs on the desktop too,
-/// which is how the demo is checked without a wasm toolchain.
-#[wasm_bindgen(start)]
+/// Gated on the `wasm` feature, not on `target_arch`: `cfg(target_arch = ...)`
+/// is reserved for `flequit-platform`. Without the feature everything here
+/// builds and runs on the desktop too, which is how the demo is checked without
+/// a wasm toolchain.
+#[cfg_attr(feature = "wasm", wasm_bindgen::prelude::wasm_bindgen(start))]
 pub fn main() {
     // Turns a Rust panic into a readable JS stack trace instead of the
     // "unreachable executed" the browser would otherwise show.
+    #[cfg(feature = "wasm")]
     console_error_panic_hook::set_once();
 
     let window = match AppWindow::new() {

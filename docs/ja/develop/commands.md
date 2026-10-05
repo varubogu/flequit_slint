@@ -108,7 +108,7 @@ macOS + Xcode が必要。Xcode の pre-build スクリプトが `cargo build` �
 | --- | --- |
 | ターゲット追加 | `rustup target add wasm32-unknown-unknown` |
 | ツール導入 | `cargo install wasm-bindgen-cli` |
-| wasm ビルド | `cargo build --release -p flequit-web --target wasm32-unknown-unknown` |
+| wasm ビルド | `cargo build --release -p flequit-web --target wasm32-unknown-unknown --features wasm` |
 | JS グルー生成 | `wasm-bindgen --target web --no-typescript --out-dir web/pkg target/wasm32-unknown-unknown/release/flequit_web.wasm` |
 | 配信 | `python3 -m http.server --directory web 8080` |
 | ツール無しでの検証 | `cargo test -j 4 -p flequit-web`（ホスト向けにビルドされる） |

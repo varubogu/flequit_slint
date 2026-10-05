@@ -21,5 +21,4 @@ dirs = "6"
 sea-orm = { version = "1", features = ["sqlx-sqlite", "runtime-tokio-rustls"] }
 
 [dev-dependencies]
-scopeguard = "1.0"
 flequit-testing = { path = "../flequit-testing" }

@@ -11,10 +11,20 @@ name = "flequit_web"
 # the desktop workspace build check it without a wasm toolchain.
 crate-type = ["cdylib", "rlib"]
 
+[features]
+default = []
+# The browser entry point. Selected by feature rather than by
+# `cfg(target_arch)`, which is reserved for `flequit-platform`. Kept off for
+# host builds: wasm-bindgen's proc macro changes `syn`'s feature set, and that
+# alone gives every proc-macro-using crate a different hash between
+# `cargo build --workspace` and `cargo run -p flequit-app`, so the whole
+# dependency tree would be built (and stored in `target/`) twice.
+wasm = ["dep:wasm-bindgen", "dep:console_error_panic_hook"]
+
 [dependencies]
 slint.workspace = true
-wasm-bindgen.workspace = true
-console_error_panic_hook.workspace = true
+wasm-bindgen = { workspace = true, optional = true }
+console_error_panic_hook = { workspace = true, optional = true }
 
 [build-dependencies]
 slint-build.workspace = true

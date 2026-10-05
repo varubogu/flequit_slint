@@ -38,7 +38,13 @@ flequit-ui = { path = "crates/flequit-ui" }
 flequit-web = { path = "crates/flequit-web" }
 
 # UI
-slint = "1"
+# `unstable-winit-030` exposes the window-attributes hook that turns off the
+# window transparency Slint requests by default (see `select_backend` in
+# flequit-app). It is tied to Slint's minor version: recheck it when upgrading
+# Slint. Enabled here rather than in flequit-app so that every crate resolves
+# the same Slint features: otherwise `cargo test -p flequit-ui` builds its own
+# copy of Slint and everything above it.
+slint = { version = "1", features = ["unstable-winit-030"] }
 slint-build = "1"
 
 # Async
@@ -107,3 +113,13 @@ debug-assertions = false
 [profile.dev.package.hexane]
 opt-level = 3
 debug-assertions = false
+
+# `yansi` is a dependency of a proc macro (ouroboros, under sea-orm) and, in
+# test builds only, also of `pretty_assertions`. A crate built for both sides
+# gets the regular dev profile, one built for proc macros alone gets the
+# build-override profile, so its hash — and with it ouroboros, sea-orm and every
+# flequit crate above them — differed between `cargo test` and `cargo run`, and
+# `target/` held two copies of each. Pinning its debuginfo gives it the same
+# profile either way.
+[profile.dev.package.yansi]
+debug = false
