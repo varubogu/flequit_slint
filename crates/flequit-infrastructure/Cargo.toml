@@ -18,7 +18,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["sync", "rt", "time", "macros"] }
 dirs = "7"
-sea-orm = { version = "1", features = ["sqlx-sqlite", "runtime-tokio-rustls"] }
+sea-orm = { version = "2", features = ["sqlx-sqlite", "runtime-tokio-rustls"] }
 
 [dev-dependencies]
 flequit-testing = { path = "../flequit-testing" }
