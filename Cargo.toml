@@ -79,7 +79,7 @@ dark-light = "3"
 # Matches the version Slint's renderer already pulls in.
 fontdb = { version = "0.23", default-features = false, features = ["fs", "memmap", "std"] }
 directories = "6"
-rfd = "0.15"
+rfd = "0.17"
 notify-rust = "4"
 opener = "0.8"
 trash = "5"
