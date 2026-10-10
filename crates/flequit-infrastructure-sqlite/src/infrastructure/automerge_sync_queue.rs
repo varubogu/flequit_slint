@@ -12,8 +12,8 @@ use flequit_types::errors::repository_error::RepositoryError;
 use sea_orm::sea_query::Expr;
 use sea_orm::{
     ActiveValue::{NotSet, Set},
-    ColumnTrait, ConnectionTrait, DatabaseTransaction, DbBackend, EntityTrait, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Statement,
+    ColumnTrait, ConnectionTrait, DatabaseTransaction, DbBackend, EntityTrait, ExprTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Statement,
 };
 use tokio::sync::RwLock;
 
@@ -248,7 +248,7 @@ impl AutomergeSyncQueueLocalSqliteRepository {
                  WHERE status = 'processed' GROUP BY document_key)",
             [cutoff.into()],
         );
-        let result = db.execute(statement).await.map_err(db_error)?;
+        let result = db.execute_raw(statement).await.map_err(db_error)?;
         Ok(result.rows_affected())
     }
 
@@ -290,7 +290,7 @@ impl AutomergeSyncQueueLocalSqliteRepository {
                    AND later.status = 'processed')",
             [id.into()],
         );
-        let result = db.execute(statement).await.map_err(db_error)?;
+        let result = db.execute_raw(statement).await.map_err(db_error)?;
         if result.rows_affected() > 0 {
             return Ok(RequeueOutcome::Requeued);
         }

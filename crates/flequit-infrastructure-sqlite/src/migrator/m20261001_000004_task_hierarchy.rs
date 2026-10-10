@@ -293,7 +293,7 @@ mod tests {
         Migrator::up(&db, None).await.unwrap();
 
         let rows = db
-            .query_all(Statement::from_string(
+            .query_all_raw(Statement::from_string(
                 DbBackend::Sqlite,
                 "SELECT id, list_id, parent_task_id, status, priority, end_date FROM tasks ORDER BY id",
             ))
@@ -322,7 +322,7 @@ mod tests {
             let db = &db;
             let sql = sql.to_string();
             async move {
-                db.query_one(Statement::from_string(DbBackend::Sqlite, sql))
+                db.query_one_raw(Statement::from_string(DbBackend::Sqlite, sql))
                     .await
                     .unwrap()
                     .unwrap()
@@ -378,7 +378,7 @@ mod tests {
             .await
             .unwrap();
         let left = db
-            .query_one(Statement::from_string(
+            .query_one_raw(Statement::from_string(
                 DbBackend::Sqlite,
                 "SELECT COUNT(*) AS n FROM tasks",
             ))
