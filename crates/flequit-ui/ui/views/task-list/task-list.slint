@@ -238,19 +238,26 @@ export component TaskListView inherits Rectangle {
         // Quick add. The list shows whatever the search finds, so where a new
         // task goes is picked explicitly. While a task is being added — the
         // field or one of its controls holds the focus, or something is typed —
-        // a second row under the field shows the destination as a path and the
-        // due date. Otherwise only the field is shown.
+        // a second row above the field shows the destination as a path and the
+        // due date. Otherwise only the field is shown. The row grows upwards,
+        // so the field stays where it was clicked.
         quick-add := Rectangle {
             property <bool> adding: new-task.has-focus || new-task.text != ""
                 || target-picker.engaged || quick-due.engaged;
+            private property <length> details-height:
+                self.adding ? details.preferred-height + Theme.space-xs : 0px;
 
+            height: field-row.preferred-height + self.details-height + 2 * Theme.space-sm;
             background: Theme.surface;
 
-            VerticalLayout {
-                padding: Theme.space-sm;
-                spacing: 0px;
-
-            HorizontalLayout {
+            // Placed by hand rather than in a layout: the field comes first in
+            // the tree, so Tab goes on from the field to the path and then to
+            // the due date, while the row is drawn above it.
+            field-row := HorizontalLayout {
+                x: Theme.space-sm;
+                y: Theme.space-sm + quick-add.details-height;
+                width: parent.width - 2 * Theme.space-sm;
+                height: self.preferred-height;
                 spacing: Theme.space-sm;
 
                 new-task := LineEdit {
@@ -310,15 +317,15 @@ export component TaskListView inherits Rectangle {
 
             // Kept in the tree while hidden, so the focus moving between the
             // field and these controls never takes the row away under it.
-            // Below the field, so Tab goes on from the field to the path and
-            // then to the due date.
             Rectangle {
-                height: quick-add.adding ? details.preferred-height + Theme.space-xs : 0px;
+                x: Theme.space-sm;
+                y: Theme.space-sm;
+                width: parent.width - 2 * Theme.space-sm;
+                height: quick-add.details-height;
                 visible: quick-add.adding;
                 clip: true;
 
                 details := HorizontalLayout {
-                    y: Theme.space-xs;
                     width: parent.width;
                     height: self.preferred-height;
                     spacing: Theme.space-sm;
@@ -329,7 +336,6 @@ export component TaskListView inherits Rectangle {
 
                     quick-due := QuickAddDue { }
                 }
-            }
             }
         }
         }
