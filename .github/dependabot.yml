@@ -1,55 +1,38 @@
 # Dependabot version updates.
 # Schedule: weekly, Monday 09:00 Asia/Tokyo.
-# Minor and patch updates are grouped into one pull request per entry.
-# Major updates stay as separate pull requests.
+#
+# Cargo manifests live in three directories (workspace root, plus committed
+# lockfiles under flequit-model and flequit-repository). One `directories`
+# entry is the smallest update Dependabot allows for those paths. Minor and
+# patch updates share one group. `group-by: dependency-name` is intentionally
+# omitted: it opens one pull request per dependency name, which would split
+# this bundle. Dependabot still raises that group once per directory.
+#
+# sea-orm and sea-orm-migration major bumps are one group so they land in the
+# same pull request. Other majors stay individual.
 # https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference
 version: 2
 updates:
-  # Cargo workspace. Root Cargo.toml / Cargo.lock is the lockfile Cargo uses
-  # for every workspace member.
   - package-ecosystem: "cargo"
-    directory: "/"
+    directories:
+      - "/"
+      - "/crates/flequit-model"
+      - "/crates/flequit-repository"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "09:00"
       timezone: "Asia/Tokyo"
-    open-pull-requests-limit: 5
+    # One entry now covers every cargo directory, so the limit is shared.
+    # Leave room for the minor/patch group plus separate major pull requests.
+    open-pull-requests-limit: 10
     groups:
-      minor-and-patch:
+      sea-orm-major:
         patterns:
-          - "*"
+          - "sea-orm"
+          - "sea-orm-*"
         update-types:
-          - "minor"
-          - "patch"
-
-  # Committed lockfile separate from the workspace lock.
-  - package-ecosystem: "cargo"
-    directory: "/crates/flequit-model"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "Asia/Tokyo"
-    open-pull-requests-limit: 5
-    groups:
-      minor-and-patch:
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
-
-  # Committed lockfile separate from the workspace lock.
-  - package-ecosystem: "cargo"
-    directory: "/crates/flequit-repository"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "Asia/Tokyo"
-    open-pull-requests-limit: 5
-    groups:
+          - "major"
       minor-and-patch:
         patterns:
           - "*"
@@ -74,8 +57,8 @@ updates:
           - "minor"
           - "patch"
 
-  # Workflows under .github/workflows. Local composite actions are not
-  # third-party action references, so directory "/" is the documented location.
+  # Workflows under .github/workflows. Every Actions bump, including majors,
+  # shares one group.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -85,12 +68,9 @@ updates:
       timezone: "Asia/Tokyo"
     open-pull-requests-limit: 5
     groups:
-      minor-and-patch:
+      github-actions:
         patterns:
           - "*"
-        update-types:
-          - "minor"
-          - "patch"
 
   # rust-toolchain.toml (channel pin). Dependabot does not read mise.toml.
   - package-ecosystem: "rust-toolchain"
