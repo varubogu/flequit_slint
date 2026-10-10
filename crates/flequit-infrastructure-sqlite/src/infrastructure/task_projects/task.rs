@@ -202,7 +202,7 @@ impl TaskLocalSqliteRepository {
             ],
         );
         let rows = txn
-            .query_all(statement)
+            .query_all_raw(statement)
             .await
             .map_err(|e| RepositoryError::from(SQLiteError::from(e)))?;
         rows.into_iter()
