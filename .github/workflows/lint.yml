@@ -13,7 +13,7 @@ jobs:
     name: Format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
@@ -23,7 +23,7 @@ jobs:
     name: Clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-linux-deps
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -35,7 +35,7 @@ jobs:
     name: Architecture invariants
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Reads Cargo.toml and greps sources; no toolchain needed.
       - run: ./scripts/check-crate-deps.sh
 
@@ -43,5 +43,5 @@ jobs:
     name: Agent config in sync
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: ./scripts/sync-agent-skills.sh --check
