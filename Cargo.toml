@@ -69,7 +69,7 @@ tracing-appender = "0.2"
 
 # Platform
 # Mobile: the JNI / Swift bridges the flequit-platform backends talk to.
-jni = "0.21"
+jni = "0.22"
 ndk-context = "0.1"
 # Web (stage 1: UI only).
 wasm-bindgen = "0.2"
