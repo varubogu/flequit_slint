@@ -33,10 +33,16 @@ flequit-platform.workspace = true
 flequit-settings.workspace = true
 flequit-ui.workspace = true
 
-# Needs `unstable-winit-030`, which the workspace dependency enables.
+# `unstable-winit-030` exposes the window-attributes hook used by
+# `select_backend`. It is tied to Slint's minor version: recheck it when
+# upgrading Slint. Enabled for every target except Android, where the winit
+# backend does not compile; Android uses `backend-android-activity-06`.
 slint.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tracing-appender.workspace = true
 tracing-subscriber.workspace = true
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+slint = { workspace = true, features = ["unstable-winit-030"] }

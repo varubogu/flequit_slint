@@ -12,6 +12,8 @@ flequit-model.workspace = true
 flequit-platform.workspace = true
 flequit-types.workspace = true
 
+# Same feature set as flequit-app, so host builds share one Slint compilation.
+# Android does not enable `unstable-winit-030`: that backend cannot compile there.
 slint.workspace = true
 chrono.workspace = true
 chrono-tz.workspace = true
@@ -20,6 +22,9 @@ thiserror.workspace = true
 tokio = { workspace = true }
 unicode-normalization.workspace = true
 tracing.workspace = true
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+slint = { workspace = true, features = ["unstable-winit-030"] }
 
 [build-dependencies]
 slint-build.workspace = true

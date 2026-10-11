@@ -45,19 +45,57 @@ jobs:
       - if: runner.os == 'Linux'
         uses: ./.github/actions/setup-linux-deps
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
+      # `targets:` on dtolnay/rust-toolchain@stable installs std for `stable`.
+      # rust-toolchain.toml pins another release, and rustup stores that as a
+      # separate toolchain, so cargo fails with `can't find crate for core`.
+      - name: Install cross-compilation target
+        run: |
+          channel=$(sed -n 's/^channel *= *"\([^"]*\)".*/\1/p' rust-toolchain.toml)
+          test -n "$channel"
+          rustup toolchain install "$channel" --target ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
 
-      # cargo-ndk configures the NDK linker and sysroot. Without it the first
-      # C dependency (SQLite) fails to link.
+      # Slint's Android backend compiles a Java helper during `cargo check`,
+      # which needs android.jar and d8. ring needs the NDK clang. Neither is
+      # configured by installing the Rust target alone.
+      - name: Install Android SDK
+        if: matrix.target == 'aarch64-linux-android'
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android platform and build-tools
+        if: matrix.target == 'aarch64-linux-android'
+        run: sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Install Android NDK
+        id: setup-ndk
+        if: matrix.target == 'aarch64-linux-android'
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27d
+          add-to-path: false
+
+      # cargo-ndk points clang, ar and the linker at the NDK. The same wrapper
+      # is what mobile/android uses to build.
       - if: matrix.target == 'aarch64-linux-android'
         run: cargo install cargo-ndk --locked
 
       - name: Check the platform layer
         run: cargo check --target ${{ matrix.target }} -p flequit-platform
 
-      - name: Check the application
+      - name: Check the Android application
+        if: matrix.target == 'aarch64-linux-android'
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          # cargo-ndk exports ANDROID_PLATFORM as the min API (26). Slint then
+          # looks up platforms/android-26, but its Java helper needs the
+          # compile SDK. ANDROID_JAR is consulted first.
+          export ANDROID_JAR="${ANDROID_HOME}/platforms/android-35/android.jar"
+          test -f "$ANDROID_JAR"
+          cargo ndk --platform 26 --target arm64-v8a check -p flequit-app --features android
+
+      - name: Check the iOS application
+        if: matrix.target == 'aarch64-apple-ios'
         run: cargo check --target ${{ matrix.target }} -p flequit-app --features ${{ matrix.features }}
 
   # Stage 1 of the browser build: the UI shell on sample data. See web/README.md
@@ -69,7 +107,12 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-linux-deps
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
+      # See the mobile job: the action's `targets:` input does not attach to
+      # the toolchain selected by rust-toolchain.toml.
+      - name: Install cross-compilation target
+        run: |
+          channel=$(sed -n 's/^channel *= *"\([^"]*\)".*/\1/p' rust-toolchain.toml)
+          test -n "$channel"
+          rustup toolchain install "$channel" --target wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --release -p flequit-web --target wasm32-unknown-unknown --features wasm

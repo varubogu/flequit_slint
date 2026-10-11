@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2026-09-07 03:07+0000\n"
+"POT-Creation-Date: 2026-10-11 06:17+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -12,19 +12,160 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-#: crates/flequit-ui/ui/main.slint:112
-msgctxt "Shell"
-msgid "Open menu"
+#: crates/flequit-ui/ui/components/calendar-popup.slint:219
+msgctxt "Calendar"
+msgid "2026/9/15 13:30"
 msgstr ""
 
-#: crates/flequit-ui/ui/main.slint:216
-msgctxt "Shell"
-msgid "Loading…"
+#: crates/flequit-ui/ui/components/calendar-popup.slint:220
+msgctxt "Calendar"
+msgid "2026/9/15"
 msgstr ""
 
-#: crates/flequit-ui/ui/components/task-row.slint:53
-msgctxt "TaskList"
-msgid "Reorder {0}"
+#: crates/flequit-ui/ui/components/calendar-popup.slint:222
+msgctxt "Calendar"
+msgid "Type a date and time"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:223
+msgctxt "Calendar"
+msgid "Type a date"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:250
+msgctxt "Calendar"
+msgid "Previous month"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:266
+msgctxt "Calendar"
+msgid "Next month"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:342
+msgctxt "Calendar"
+msgid "Day {0} of {1}"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:354
+msgctxt "Calendar"
+msgid "Time"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:365
+msgctxt "Calendar"
+msgid "Hour"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:385
+msgctxt "Calendar"
+msgid "Minute"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:400
+msgctxt "Calendar"
+msgid "Cancel"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/calendar-popup.slint:405
+msgctxt "Calendar"
+msgid "OK"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/color-picker.slint:56
+msgctxt "Editor"
+msgid "No colour"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/color-picker.slint:90
+msgctxt "Editor"
+msgid "Colour {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/date-time-picker.slint:21
+msgctxt "DateTimePicker"
+msgid "Edit due date"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/date-time-picker.slint:22
+msgctxt "DateTimePicker"
+msgid "Clear due date"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/date-time-picker.slint:23
+msgctxt "DateTimePicker"
+msgid "Select due date"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/date-time-picker.slint:55
+msgctxt "DateTimePicker"
+msgid "Not set"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/error-banner.slint:37
+msgctxt "ErrorBanner"
+msgid "Retry"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/filter-target.slint:28
+msgctxt "FilterMenu"
+msgid "Show only this"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/filter-target.slint:32
+msgctxt "FilterMenu"
+msgid "Add with AND (Ctrl/⌘ + click)"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/filter-target.slint:36
+msgctxt "FilterMenu"
+msgid "Add with OR (Alt/⌥ + click)"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/filter-target.slint:40
+msgctxt "FilterMenu"
+msgid "Exclude"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/filter-target.slint:44
+msgctxt "FilterMenu"
+msgid "Remove from the search"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/priority-select.slint:18
+#: crates/flequit-ui/ui/components/priority-select.slint:18
+#: crates/flequit-ui/ui/components/priority-select.slint:18
+msgctxt "Priority"
+msgid "None"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/priority-select.slint:19
+#: crates/flequit-ui/ui/components/priority-select.slint:19
+#: crates/flequit-ui/ui/components/priority-select.slint:19
+msgctxt "Priority"
+msgid "Low"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/priority-select.slint:20
+#: crates/flequit-ui/ui/components/priority-select.slint:20
+#: crates/flequit-ui/ui/components/priority-select.slint:20
+msgctxt "Priority"
+msgid "Medium"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/priority-select.slint:21
+#: crates/flequit-ui/ui/components/priority-select.slint:21
+#: crates/flequit-ui/ui/components/priority-select.slint:21
+msgctxt "Priority"
+msgid "High"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/priority-select.slint:30
+#: crates/flequit-ui/ui/components/priority-select.slint:30
+#: crates/flequit-ui/ui/components/priority-select.slint:30
+#: crates/flequit-ui/ui/components/priority-select.slint:30
+msgctxt "Priority"
+msgid "Set priority to {0}"
 msgstr ""
 
 #: crates/flequit-ui/ui/components/search-combo-box.slint:17
@@ -42,40 +183,73 @@ msgctxt "SearchComboBox"
 msgid "Show {0} options"
 msgstr ""
 
-#: crates/flequit-ui/ui/components/error-banner.slint:37
-msgctxt "ErrorBanner"
-msgid "Retry"
+#: crates/flequit-ui/ui/components/status-select.slint:19
+#: crates/flequit-ui/ui/components/status-select.slint:19
+#: crates/flequit-ui/ui/components/status-select.slint:19
+msgctxt "Status"
+msgid "Not started"
 msgstr ""
 
-#: crates/flequit-ui/ui/components/color-picker.slint:37
-msgctxt "Editor"
-msgid "No colour"
+#: crates/flequit-ui/ui/components/status-select.slint:20
+#: crates/flequit-ui/ui/components/status-select.slint:20
+#: crates/flequit-ui/ui/components/status-select.slint:20
+msgctxt "Status"
+msgid "In progress"
 msgstr ""
 
-#: crates/flequit-ui/ui/components/color-picker.slint:53
-msgctxt "Editor"
-msgid "Colour {0}"
+#: crates/flequit-ui/ui/components/status-select.slint:21
+#: crates/flequit-ui/ui/components/status-select.slint:21
+#: crates/flequit-ui/ui/components/status-select.slint:21
+msgctxt "Status"
+msgid "Waiting"
 msgstr ""
 
-#: crates/flequit-ui/ui/components/date-time-picker.slint:18
-msgctxt "DateTimePicker"
-msgid "Edit due date"
+#: crates/flequit-ui/ui/components/status-select.slint:22
+#: crates/flequit-ui/ui/components/status-select.slint:22
+#: crates/flequit-ui/ui/components/status-select.slint:22
+msgctxt "Status"
+msgid "Completed"
 msgstr ""
 
-#: crates/flequit-ui/ui/components/date-time-picker.slint:19
-msgctxt "DateTimePicker"
-msgid "Clear due date"
+#: crates/flequit-ui/ui/components/status-select.slint:23
+#: crates/flequit-ui/ui/components/status-select.slint:23
+#: crates/flequit-ui/ui/components/status-select.slint:23
+msgctxt "Status"
+msgid "Cancelled"
 msgstr ""
 
-#: crates/flequit-ui/ui/components/date-time-picker.slint:20
-msgctxt "DateTimePicker"
-msgid "Select due date"
+#: crates/flequit-ui/ui/components/status-select.slint:33
+#: crates/flequit-ui/ui/components/status-select.slint:33
+#: crates/flequit-ui/ui/components/status-select.slint:33
+#: crates/flequit-ui/ui/components/status-select.slint:33
+#: crates/flequit-ui/ui/components/status-select.slint:33
+msgctxt "Status"
+msgid "Set status to {0}"
 msgstr ""
 
+#: crates/flequit-ui/ui/components/task-row.slint:56
+msgctxt "TaskList"
+msgid "Reorder {0}"
+msgstr ""
 
-#: crates/flequit-ui/ui/components/date-time-picker.slint:48
-msgctxt "DateTimePicker"
-msgid "Not set"
+#: crates/flequit-ui/ui/components/task-row.slint:97
+msgctxt "TaskList"
+msgid "Show subtasks of {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/task-row.slint:157
+msgctxt "TaskList"
+msgid "{0} matching subtasks"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/task-row.slint:195
+msgctxt "TaskList"
+msgid "{0}, matches the search"
+msgstr ""
+
+#: crates/flequit-ui/ui/components/toast.slint:72
+msgctxt "Toast"
+msgid "Dismiss"
 msgstr ""
 
 #: crates/flequit-ui/ui/globals/i18n.slint:25
@@ -93,942 +267,504 @@ msgctxt "DueFilter"
 msgid "Next {0} days"
 msgstr ""
 
-#: crates/flequit-ui/ui/globals/i18n.slint:33
-msgctxt "DueFilter"
-msgid "Overdue"
-msgstr ""
-
 #: crates/flequit-ui/ui/globals/i18n.slint:34
-msgctxt "DueFilter"
-msgid "Today"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:35
-msgctxt "DueFilter"
-msgid "Tomorrow"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:36
-msgctxt "DueFilter"
-msgid "Next 3 days"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:37
-msgctxt "DueFilter"
-msgid "This week"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:38
-msgctxt "DueFilter"
-msgid "This month"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:39
-msgctxt "DueFilter"
-msgid "This quarter"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:40
-msgctxt "DueFilter"
-msgid "This year"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:41
-msgctxt "DueFilter"
-msgid "This fiscal year"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:46
-msgctxt "DateTimeFormat"
-msgid "Default"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:47
-msgctxt "DateTimeFormat"
-msgid "Japan (24-hour)"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:48
-msgctxt "DateTimeFormat"
-msgid "United States (24-hour)"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:49
-msgctxt "DateTimeFormat"
-msgid "ISO 8601"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:50
-msgctxt "DateTimeFormat"
-msgid "Custom"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:56
-msgctxt "Recurrence"
-msgid "Minute"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:57
-msgctxt "Recurrence"
-msgid "Hour"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:58
-msgctxt "Recurrence"
-msgid "Day"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:59
-msgctxt "Recurrence"
-msgid "Week"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:60
-msgctxt "Recurrence"
-msgid "Month"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:61
-msgctxt "Recurrence"
-msgid "Quarter"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:62
-msgctxt "Recurrence"
-msgid "Half-year"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:63
-msgctxt "Recurrence"
-msgid "Year"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:71
-msgctxt "Recurrence"
-msgid "Every minute"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:72
-msgctxt "Recurrence"
-msgid "Every hour"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:73
-msgctxt "Recurrence"
-msgid "Every day"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:74
-msgctxt "Recurrence"
-msgid "Every week"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:75
-msgctxt "Recurrence"
-msgid "Every month"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:76
-msgctxt "Recurrence"
-msgid "Every quarter"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:77
-msgctxt "Recurrence"
-msgid "Every half-year"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:78
-msgctxt "Recurrence"
-msgid "Every year"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:79
-msgctxt "Recurrence"
-msgid "Every {0} minutes"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:80
-msgctxt "Recurrence"
-msgid "Every {0} hours"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:81
-msgctxt "Recurrence"
-msgid "Every {0} days"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:82
-msgctxt "Recurrence"
-msgid "Every {0} weeks"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:83
-msgctxt "Recurrence"
-msgid "Every {0} months"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:84
-msgctxt "Recurrence"
-msgid "Every {0} quarters"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:85
-msgctxt "Recurrence"
-msgid "Every {0} half-years"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:86
-msgctxt "Recurrence"
-msgid "Every {0} years"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:91
-msgctxt "Weekday"
-msgid "Sunday"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:92
-msgctxt "Weekday"
-msgid "Monday"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:93
-msgctxt "Weekday"
-msgid "Tuesday"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:94
-msgctxt "Weekday"
-msgid "Wednesday"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:95
-msgctxt "Weekday"
-msgid "Thursday"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:96
-msgctxt "Weekday"
-msgid "Friday"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:97
-msgctxt "Weekday"
-msgid "Saturday"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:103
-msgctxt "WeekdayShort"
-msgid "Sun"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:104
-msgctxt "WeekdayShort"
-msgid "Mon"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:105
-msgctxt "WeekdayShort"
-msgid "Tue"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:106
-msgctxt "WeekdayShort"
-msgid "Wed"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:107
-msgctxt "WeekdayShort"
-msgid "Thu"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:108
-msgctxt "WeekdayShort"
-msgid "Fri"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:109
-msgctxt "WeekdayShort"
-msgid "Sat"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:113
-msgctxt "Recurrence"
-msgid "First week"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:114
-msgctxt "Recurrence"
-msgid "Second week"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:115
-msgctxt "Recurrence"
-msgid "Third week"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:116
-msgctxt "Recurrence"
-msgid "Fourth week"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:117
-msgctxt "Recurrence"
-msgid "Last week"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:122
-msgctxt "Error"
-msgid "Could not save the task."
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:123
-msgctxt "Error"
-msgid "Could not delete the task."
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:124
-msgctxt "Error"
-msgid "Could not load projects."
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:125
-msgctxt "Error"
-msgid "Local storage is unavailable."
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:126
-msgctxt "Error"
-msgid "The requested item could not be found."
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:127
-msgctxt "Error"
-msgid "Please check the entered values."
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:128
-msgctxt "Error"
-msgid "Could not access local storage."
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:129
-msgctxt "Error"
-msgid "You do not have permission to perform this operation."
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:130
-msgctxt "Error"
-msgid "An internal error occurred."
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:131
-msgctxt "Error"
-msgid "The item could not be identified."
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:132
-msgctxt "Error"
-msgid "The operation is not available on this device."
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:133
-msgctxt "Error"
-msgid "Could not save settings."
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:134
-msgctxt "Error"
-msgid "Could not save the repeat schedule."
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:135
-msgctxt "Error"
-msgid "Could not remove the repeat schedule."
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:136
-msgctxt "Error"
-msgid "Could not save the reminder."
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:137
-msgctxt "Error"
-msgid "Choose a future time for the reminder."
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:138
-msgctxt "Error"
-msgid "Notification permission is required for reminders."
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:139
-msgctxt "Error"
-msgid "Could not request notification permission."
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:140
-msgctxt "Error"
-msgid "The reminder was saved, but the notification could not be scheduled."
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:142
-msgctxt "Error"
-msgid "Something went wrong."
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:194
-msgctxt "Recurrence"
-msgid "Repeat"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:207
-msgctxt "Recurrence"
-msgid "Repeat this task"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:221
-msgctxt "Recurrence"
-msgid "Presets"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:246
-msgctxt "Recurrence"
-msgid "How often"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:257
-msgctxt "Recurrence"
-msgid "Repeat interval"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:326
-msgctxt "Recurrence"
-msgid "On these days"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:345
-msgctxt "Recurrence"
-msgid "Which day"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:351
-msgctxt "Recurrence"
-msgid "Same day as the due date"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:361
-msgctxt "Recurrence"
-msgid "Day of the month"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:372
-msgctxt "Recurrence"
-msgid "Which day of the month"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:381
-msgctxt "Recurrence"
-msgid "A weekday of a given week"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:445
-msgctxt "Recurrence"
-msgid "Ends"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:453
-msgctxt "Recurrence"
-msgid "Never"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:458
-msgctxt "Recurrence"
-msgid "On a date"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:463
-msgctxt "Recurrence"
-msgid "After a number of times"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:492
-msgctxt "Recurrence"
-msgid "Choose the last date"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:500
-msgctxt "Recurrence"
-msgid "Number of times"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:512
-msgctxt "Recurrence"
-msgid "Next dates"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint
-msgctxt "Recurrence"
-msgid "Preview count"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:518
-msgctxt "Recurrence"
-msgid "This schedule has no upcoming dates."
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:539
-msgctxt "Recurrence"
-msgid "Stop repeating"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:548
-msgctxt "Recurrence"
-msgid "Cancel"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:553
-msgctxt "Recurrence"
-msgid "Save"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:565
-msgctxt "Recurrence"
-msgid "Select the last date"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:109
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:109
-msgctxt "Status"
-msgid "Not started"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:110
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:110
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:110
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:110
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:110
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:110
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:110
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:110
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:110
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:110
-msgctxt "Status"
-msgid "Set status to {0}"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:118
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:118
-msgctxt "Status"
-msgid "In progress"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:132
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:132
-msgctxt "Status"
-msgid "Waiting"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:141
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:141
-msgctxt "Status"
-msgid "Completed"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:150
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:150
-msgctxt "Status"
-msgid "Cancelled"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:172
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:172
-msgctxt "Priority"
-msgid "None"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:173
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:173
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:173
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:173
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:173
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:173
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:173
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:173
-msgctxt "Priority"
-msgid "Set priority to {0}"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:181
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:181
-msgctxt "Priority"
-msgid "Low"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:190
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:190
-msgctxt "Priority"
-msgid "Medium"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:199
-#: crates/flequit-ui/ui/views/task-detail/subtask-detail.slint:199
-msgctxt "Priority"
-msgid "High"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:30
-msgctxt "TaskDetail"
-msgid "Select a task to see its details."
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:51
-msgctxt "TaskDetail"
-msgid "Back to list"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:56
-msgctxt "TaskDetail"
-msgid "Task"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:65
-msgctxt "TaskDetail"
-msgid "Delete task"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:81
-msgctxt "TaskDetail"
-msgid "Task title"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:94
-msgctxt "TaskDetail"
-msgid "Period"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:115
-msgctxt "TaskDetail"
-msgid "Start and due date"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:116
-msgctxt "TaskDetail"
-msgid "Due date only"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:131
-msgctxt "TaskDetail"
-msgid "Use a start and due date"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:141
-msgctxt "TaskDetail"
-msgid "Start"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:155
-msgctxt "TaskDetail"
-msgid "Edit start date"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:156
-msgctxt "TaskDetail"
-msgid "Clear start date"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:157
-msgctxt "TaskDetail"
-msgid "Select start date"
-msgstr ""
-
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:170
-msgctxt "TaskDetail"
-msgid "End"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:171
-msgctxt "TaskDetail"
-msgid "Due"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:196
-msgctxt "TaskDetail"
-msgid "Repeat"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:217
-msgctxt "TaskDetail"
-msgid "Does not repeat"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:228
-msgctxt "TaskDetail"
-msgid "Edit the repeat schedule"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:237
-msgctxt "TaskDetail"
-msgid "Reminders"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:260
-msgctxt "TaskDetail"
-msgid "Remove reminder {0}"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:281
 msgctxt "Reminder"
 msgid "1 minute before"
 msgstr ""
 
+#: crates/flequit-ui/ui/globals/i18n.slint:35
 msgctxt "Reminder"
 msgid "1 hour before"
 msgstr ""
 
+#: crates/flequit-ui/ui/globals/i18n.slint:36
 msgctxt "Reminder"
 msgid "1 day before"
 msgstr ""
 
+#: crates/flequit-ui/ui/globals/i18n.slint:37
 msgctxt "Reminder"
 msgid "{0} minutes before"
 msgstr ""
 
+#: crates/flequit-ui/ui/globals/i18n.slint:38
 msgctxt "Reminder"
 msgid "{0} hours before"
 msgstr ""
 
+#: crates/flequit-ui/ui/globals/i18n.slint:39
 msgctxt "Reminder"
 msgid "{0} days before"
 msgstr ""
 
-msgctxt "Reminder"
-msgid "Choose a future date and time."
+#: crates/flequit-ui/ui/globals/i18n.slint:45
+msgctxt "DueFilter"
+msgid "Overdue"
 msgstr ""
 
-msgctxt "TaskDetail"
-msgid "Before start"
+#: crates/flequit-ui/ui/globals/i18n.slint:46
+msgctxt "DueFilter"
+msgid "Today"
 msgstr ""
 
-msgctxt "TaskDetail"
-msgid "Before due"
+#: crates/flequit-ui/ui/globals/i18n.slint:47
+msgctxt "DueFilter"
+msgid "Tomorrow"
 msgstr ""
 
-msgctxt "Settings"
-msgid "Reminder presets"
+#: crates/flequit-ui/ui/globals/i18n.slint:48
+msgctxt "DueFilter"
+msgid "Next 3 days"
 msgstr ""
 
-msgctxt "Settings"
-msgid "Remove the {0} reminder preset"
+#: crates/flequit-ui/ui/globals/i18n.slint:49
+msgctxt "DueFilter"
+msgid "This week"
 msgstr ""
 
-msgctxt "Settings"
-msgid "Reminder amount"
+#: crates/flequit-ui/ui/globals/i18n.slint:50
+msgctxt "DueFilter"
+msgid "This month"
 msgstr ""
 
-msgctxt "Settings"
-msgid "Add reminder preset"
+#: crates/flequit-ui/ui/globals/i18n.slint:51
+msgctxt "DueFilter"
+msgid "This quarter"
 msgstr ""
 
-msgctxt "Settings"
-msgid "Basic Language Week start Due filters Custom due days Reminder presets Recurrence Platform features Tag suggestions"
+#: crates/flequit-ui/ui/globals/i18n.slint:52
+msgctxt "DueFilter"
+msgid "This year"
 msgstr ""
 
-msgctxt "TaskDetail"
-msgid "30 minutes before start"
+#: crates/flequit-ui/ui/globals/i18n.slint:53
+msgctxt "DueFilter"
+msgid "This fiscal year"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:74
-msgctxt "TaskDetail"
-msgid "1 hour before start"
+#: crates/flequit-ui/ui/globals/i18n.slint:58
+msgctxt "DateTimeFormat"
+msgid "Default"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:81
-msgctxt "TaskDetail"
-msgid "1 day before start"
+#: crates/flequit-ui/ui/globals/i18n.slint:59
+msgctxt "DateTimeFormat"
+msgid "Japan (24-hour)"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:288
-msgctxt "TaskDetail"
-msgid "30 minutes before due"
+#: crates/flequit-ui/ui/globals/i18n.slint:60
+msgctxt "DateTimeFormat"
+msgid "United States (24-hour)"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:102
-msgctxt "TaskDetail"
-msgid "1 hour before due"
+#: crates/flequit-ui/ui/globals/i18n.slint:61
+msgctxt "DateTimeFormat"
+msgid "ISO 8601"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:109
-msgctxt "TaskDetail"
-msgid "1 day before due"
+#: crates/flequit-ui/ui/globals/i18n.slint:62
+msgctxt "DateTimeFormat"
+msgid "Custom"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:118
-msgctxt "TaskDetail"
-msgid "Set a start or due date to use relative reminders."
+#: crates/flequit-ui/ui/globals/i18n.slint:68
+msgctxt "Recurrence"
+msgid "Minute"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:296
-msgctxt "TaskDetail"
-msgid "Specific date and time (optional)"
+#: crates/flequit-ui/ui/globals/i18n.slint:69
+msgctxt "Recurrence"
+msgid "Hour"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:140
-msgctxt "TaskDetail"
-msgid "Select a specific reminder date"
+#: crates/flequit-ui/ui/globals/i18n.slint:70
+msgctxt "Recurrence"
+msgid "Day"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:275
-msgctxt "TaskDetail"
-msgid "Add a reminder"
+#: crates/flequit-ui/ui/globals/i18n.slint:71
+msgctxt "Recurrence"
+msgid "Week"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:276
-msgctxt "TaskDetail"
-msgid "Select reminder date"
+#: crates/flequit-ui/ui/globals/i18n.slint:72
+msgctxt "Recurrence"
+msgid "Month"
 msgstr ""
 
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:287
-msgctxt "TaskDetail"
-msgid "Status"
+#: crates/flequit-ui/ui/globals/i18n.slint:73
+msgctxt "Recurrence"
+msgid "Quarter"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:341
-msgctxt "TaskDetail"
-msgid "Priority"
+#: crates/flequit-ui/ui/globals/i18n.slint:74
+msgctxt "Recurrence"
+msgid "Half-year"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:382
-msgctxt "TaskDetail"
-msgid "Notes"
+#: crates/flequit-ui/ui/globals/i18n.slint:75
+msgctxt "Recurrence"
+msgid "Year"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:395
-msgctxt "TaskDetail"
-msgid "Tags"
+#: crates/flequit-ui/ui/globals/i18n.slint:83
+msgctxt "Recurrence"
+msgid "Every minute"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:447
-msgctxt "TaskDetail"
-msgid "Remove tag {0} from {1}"
+#: crates/flequit-ui/ui/globals/i18n.slint:84
+msgctxt "Recurrence"
+msgid "Every hour"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:448
-msgctxt "TaskDetail"
-msgid "Add tag {0} to {1}"
+#: crates/flequit-ui/ui/globals/i18n.slint:85
+msgctxt "Recurrence"
+msgid "Every day"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:464
-msgctxt "TaskDetail"
-msgid "Add a tag"
+#: crates/flequit-ui/ui/globals/i18n.slint:86
+msgctxt "Recurrence"
+msgid "Every week"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:465
-msgctxt "TaskDetail"
-msgid "New tag name"
+#: crates/flequit-ui/ui/globals/i18n.slint:87
+msgctxt "Recurrence"
+msgid "Every month"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:496
-msgctxt "TaskDetail"
-msgid "Add tag"
+#: crates/flequit-ui/ui/globals/i18n.slint:88
+msgctxt "Recurrence"
+msgid "Every quarter"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:510
-msgctxt "TaskDetail"
-msgid "Subtasks"
+#: crates/flequit-ui/ui/globals/i18n.slint:89
+msgctxt "Recurrence"
+msgid "Every half-year"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:547
-msgctxt "TaskDetail"
-msgid "Complete {0}"
+#: crates/flequit-ui/ui/globals/i18n.slint:90
+msgctxt "Recurrence"
+msgid "Every year"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:569
-msgctxt "TaskDetail"
-msgid "Delete subtask {0}"
+#: crates/flequit-ui/ui/globals/i18n.slint:91
+msgctxt "Recurrence"
+msgid "Every {0} minutes"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:575
-msgctxt "TaskDetail"
-msgid "Open subtask {0}"
+#: crates/flequit-ui/ui/globals/i18n.slint:92
+msgctxt "Recurrence"
+msgid "Every {0} hours"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:589
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:589
-msgctxt "TaskDetail"
-msgid "Add a subtask"
+#: crates/flequit-ui/ui/globals/i18n.slint:93
+msgctxt "Recurrence"
+msgid "Every {0} days"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:590
-msgctxt "TaskDetail"
-msgid "New subtask title"
+#: crates/flequit-ui/ui/globals/i18n.slint:94
+msgctxt "Recurrence"
+msgid "Every {0} weeks"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-list/task-list.slint:146
-msgctxt "TaskList"
-msgid "No tasks match your search."
+#: crates/flequit-ui/ui/globals/i18n.slint:95
+msgctxt "Recurrence"
+msgid "Every {0} months"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-list/task-list.slint:148
-msgctxt "TaskList"
-msgid "Create a project to get started."
+#: crates/flequit-ui/ui/globals/i18n.slint:96
+msgctxt "Recurrence"
+msgid "Every {0} quarters"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-list/task-list.slint:161
-msgctxt "TaskList"
-msgid "Clear search"
+#: crates/flequit-ui/ui/globals/i18n.slint:97
+msgctxt "Recurrence"
+msgid "Every {0} half-years"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-list/task-list.slint:166
-msgctxt "TaskList"
-msgid "Create project"
+#: crates/flequit-ui/ui/globals/i18n.slint:98
+msgctxt "Recurrence"
+msgid "Every {0} years"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-list/task-list.slint:181
-msgctxt "TaskList"
-msgid "Add your first task"
+#: crates/flequit-ui/ui/globals/i18n.slint:105
+msgctxt "Calendar"
+msgid "January {0}"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-list/task-list.slint:203
-#: crates/flequit-ui/ui/views/task-list/task-list.slint:203
-msgctxt "TaskList"
-msgid "Add a task"
+#: crates/flequit-ui/ui/globals/i18n.slint:106
+msgctxt "Calendar"
+msgid "February {0}"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-list/task-sort-bar.slint:55
-msgctxt "Sort"
-msgid "Manual"
+#: crates/flequit-ui/ui/globals/i18n.slint:107
+msgctxt "Calendar"
+msgid "March {0}"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-list/task-sort-bar.slint:56
-#: crates/flequit-ui/ui/views/task-list/task-sort-bar.slint:56
-#: crates/flequit-ui/ui/views/task-list/task-sort-bar.slint:56
-#: crates/flequit-ui/ui/views/task-list/task-sort-bar.slint:56
-msgctxt "Sort"
-msgid "Sort by {0}"
+#: crates/flequit-ui/ui/globals/i18n.slint:108
+msgctxt "Calendar"
+msgid "April {0}"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-list/task-sort-bar.slint:62
-msgctxt "Sort"
-msgid "Due date"
+#: crates/flequit-ui/ui/globals/i18n.slint:109
+msgctxt "Calendar"
+msgid "May {0}"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-list/task-sort-bar.slint:69
-msgctxt "Sort"
-msgid "Priority"
+#: crates/flequit-ui/ui/globals/i18n.slint:110
+msgctxt "Calendar"
+msgid "June {0}"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-list/task-sort-bar.slint:76
-msgctxt "Sort"
-msgid "Name"
+#: crates/flequit-ui/ui/globals/i18n.slint:111
+msgctxt "Calendar"
+msgid "July {0}"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-list/task-sort-bar.slint:86
-msgctxt "Sort"
-msgid "Show completed"
+#: crates/flequit-ui/ui/globals/i18n.slint:112
+msgctxt "Calendar"
+msgid "August {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:113
+msgctxt "Calendar"
+msgid "September {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:114
+msgctxt "Calendar"
+msgid "October {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:115
+msgctxt "Calendar"
+msgid "November {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:116
+msgctxt "Calendar"
+msgid "December {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:121
+msgctxt "Weekday"
+msgid "Sunday"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:122
+msgctxt "Weekday"
+msgid "Monday"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:123
+msgctxt "Weekday"
+msgid "Tuesday"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:124
+msgctxt "Weekday"
+msgid "Wednesday"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:125
+msgctxt "Weekday"
+msgid "Thursday"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:126
+msgctxt "Weekday"
+msgid "Friday"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:127
+msgctxt "Weekday"
+msgid "Saturday"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:133
+msgctxt "WeekdayShort"
+msgid "Sun"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:134
+msgctxt "WeekdayShort"
+msgid "Mon"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:135
+msgctxt "WeekdayShort"
+msgid "Tue"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:136
+msgctxt "WeekdayShort"
+msgid "Wed"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:137
+msgctxt "WeekdayShort"
+msgid "Thu"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:138
+msgctxt "WeekdayShort"
+msgid "Fri"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:139
+msgctxt "WeekdayShort"
+msgid "Sat"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:143
+msgctxt "Recurrence"
+msgid "First week"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:144
+msgctxt "Recurrence"
+msgid "Second week"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:145
+msgctxt "Recurrence"
+msgid "Third week"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:146
+msgctxt "Recurrence"
+msgid "Fourth week"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:147
+msgctxt "Recurrence"
+msgid "Last week"
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:152
+msgctxt "Error"
+msgid "Could not save the task."
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:153
+msgctxt "Error"
+msgid "Could not delete the task."
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:154
+msgctxt "Error"
+msgid "Could not load projects."
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:155
+msgctxt "Error"
+msgid "Local storage is unavailable."
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:156
+msgctxt "Error"
+msgid "The requested item could not be found."
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:157
+msgctxt "Error"
+msgid "Please check the entered values."
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:158
+msgctxt "Error"
+msgid "Could not access local storage."
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:159
+msgctxt "Error"
+msgid "You do not have permission to perform this operation."
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:160
+msgctxt "Error"
+msgid "An internal error occurred."
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:161
+msgctxt "Error"
+msgid "The item could not be identified."
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:162
+msgctxt "Error"
+msgid "The operation is not available on this device."
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:163
+msgctxt "Error"
+msgid "Could not save settings."
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:164
+msgctxt "Error"
+msgid "Could not save the repeat schedule."
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:165
+msgctxt "Error"
+msgid "Could not remove the repeat schedule."
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:166
+msgctxt "Error"
+msgid "Could not save the reminder."
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:167
+msgctxt "Error"
+msgid "Choose a future time for the reminder."
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:168
+msgctxt "Error"
+msgid "Notification permission is required for reminders."
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:169
+msgctxt "Error"
+msgid "Could not request notification permission."
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:170
+msgctxt "Error"
+msgid "The reminder was saved, but the notification could not be scheduled."
+msgstr ""
+
+#: crates/flequit-ui/ui/globals/i18n.slint:172
+msgctxt "Error"
+msgid "Something went wrong."
+msgstr ""
+
+#: crates/flequit-ui/ui/main.slint:263
+msgctxt "Shell"
+msgid "Open menu"
+msgstr ""
+
+#: crates/flequit-ui/ui/main.slint:348
+msgctxt "Toast"
+msgid "Task deleted"
+msgstr ""
+
+#: crates/flequit-ui/ui/main.slint:349
+msgctxt "Toast"
+msgid "Deleted \"{0}\""
+msgstr ""
+
+#: crates/flequit-ui/ui/main.slint:350
+msgctxt "Toast"
+msgid "Undo"
+msgstr ""
+
+#: crates/flequit-ui/ui/main.slint:377
+msgctxt "Shell"
+msgid "Loading…"
 msgstr ""
 
 #: crates/flequit-ui/ui/views/settings/account-settings.slint:12
@@ -1065,31 +801,6 @@ msgstr ""
 #: crates/flequit-ui/ui/views/settings/account-settings.slint:64
 msgctxt "Settings"
 msgid "Cloud accounts will be available in a future version."
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/settings-dialog.slint:73
-msgctxt "Settings"
-msgid "Back to settings categories"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/settings-dialog.slint:74
-msgctxt "Settings"
-msgid "Close settings"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/settings-dialog.slint:87
-msgctxt "Settings"
-msgid "Settings"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/settings-dialog.slint:93
-msgctxt "Settings"
-msgid "Configure Flequit preferences"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/settings-controls.slint:60
-msgctxt "Settings"
-msgid "Available"
 msgstr ""
 
 #: crates/flequit-ui/ui/views/settings/appearance-settings.slint:15
@@ -1174,6 +885,338 @@ msgctxt "Settings"
 msgid "Black background color"
 msgstr ""
 
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:24
+msgctxt "Settings"
+msgid "Basic settings"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:28
+msgctxt "Settings"
+msgid "Language"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:43
+msgctxt "Settings"
+msgid "Week starts on"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:47
+msgctxt "Settings"
+msgid "Sunday"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:52
+msgctxt "Settings"
+msgid "Monday"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:61
+msgctxt "Settings"
+msgid "Keyboard"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:63
+msgctxt "Settings"
+msgid "Enable Vim task navigation (j/k and g/G)"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:71
+msgctxt "Settings"
+msgid "Tag suggestions"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:76
+msgctxt "Settings"
+msgid "Suggestions shown while adding a tag"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:88
+msgctxt "Settings"
+msgid "Number of tag suggestions"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:96
+msgctxt "Settings"
+msgid "Due filter buttons"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:98
+msgctxt "Settings"
+msgid "Show Overdue due filter"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:99
+msgctxt "Settings"
+msgid "Show Today due filter"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:100
+msgctxt "Settings"
+msgid "Show Tomorrow due filter"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:101
+msgctxt "Settings"
+msgid "Show Next 3 days due filter"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:102
+msgctxt "Settings"
+msgid "Show This week due filter"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:103
+msgctxt "Settings"
+msgid "Show This month due filter"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:104
+msgctxt "Settings"
+msgid "Show This quarter due filter"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:105
+msgctxt "Settings"
+msgid "Show This year due filter"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:106
+msgctxt "Settings"
+msgid "Show This fiscal year due filter"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:114
+msgctxt "Settings"
+msgid "Custom due filters"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:126
+msgctxt "Settings"
+msgid "Remove the {0} filter"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:135
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:135
+msgctxt "Settings"
+msgid "Minutes"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:140
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:140
+msgctxt "Settings"
+msgid "Hours"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:145
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:145
+msgctxt "Settings"
+msgid "Days"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:158
+msgctxt "Settings"
+msgid "Due filter amount"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:161
+msgctxt "Settings"
+msgid "Add due filter"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:174
+msgctxt "Settings"
+msgid "Custom recurrence presets"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:186
+msgctxt "Settings"
+msgid "Remove the {0} preset"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:197
+msgctxt "Recurrence"
+msgid "Days"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:202
+msgctxt "Recurrence"
+msgid "Weeks"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:207
+msgctxt "Recurrence"
+msgid "Months"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:212
+msgctxt "Recurrence"
+msgid "Years"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:223
+msgctxt "Settings"
+msgid "Recurrence interval"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:226
+msgctxt "Settings"
+msgid "Add recurrence preset"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:238
+msgctxt "Settings"
+msgid "Reminder notifications"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:241
+msgctxt "Settings"
+msgid "Notification permission is granted."
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:243
+msgctxt "Settings"
+msgid "Notification permission was denied. You can request it again here."
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:244
+msgctxt "Settings"
+msgid "Allow notifications to receive task reminders."
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:252
+msgctxt "Settings"
+msgid "Requesting notification permission…"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:253
+msgctxt "Settings"
+msgid "Allow notifications"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:263
+msgctxt "Settings"
+msgid "Platform features"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:265
+msgctxt "Settings"
+msgid "System tray"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:266
+msgctxt "Settings"
+msgid "This device supports keeping Flequit in the system tray."
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:269
+msgctxt "Settings"
+msgid "Global shortcuts"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:270
+msgctxt "Settings"
+msgid "This device supports shortcuts outside the app."
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:273
+msgctxt "Settings"
+msgid "Automatic updates"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:274
+msgctxt "Settings"
+msgid "This installation supports in-app updates."
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:277
+msgctxt "Settings"
+msgid "Custom export location"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint:278
+msgctxt "Settings"
+msgid "This device supports choosing any export folder."
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/data-sync-settings.slint:61
+msgctxt "Settings"
+msgid "Recorded {0} · attempts: {1}"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/data-sync-settings.slint:74
+msgctxt "Settings"
+msgid "Retry"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/data-sync-settings.slint:76
+msgctxt "Settings"
+msgid "Retry {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/data-sync-settings.slint:100
+#: crates/flequit-ui/ui/views/settings/data-sync-settings.slint:100
+msgctxt "Settings"
+msgid "Data sync"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/data-sync-settings.slint:102
+msgctxt "Settings"
+msgid ""
+"Changes are saved on this device first and then added to the sync history in "
+"the background."
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/data-sync-settings.slint:109
+msgctxt "Settings"
+msgid "The sync history is not used with the current storage settings."
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/data-sync-settings.slint:116
+msgctxt "Settings"
+msgid "Could not read the sync status."
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/data-sync-settings.slint:125
+msgctxt "Settings"
+msgid "Waiting to be added to the sync history"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/data-sync-settings.slint:129
+msgctxt "Settings"
+msgid "Could not be added to the sync history"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/data-sync-settings.slint:139
+msgctxt "Settings"
+msgid "Refresh"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/data-sync-settings.slint:144
+msgctxt "Settings"
+msgid "Retry all"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/data-sync-settings.slint:154
+msgctxt "Settings"
+msgid "Queued again: {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/data-sync-settings.slint:160
+msgctxt "Settings"
+msgid ""
+"Not queued because newer changes to the same data were already added: {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/data-sync-settings.slint:169
+msgctxt "Settings"
+msgid "Changes that could not be added"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/data-sync-settings.slint:175
+msgctxt "Settings"
+msgid "Showing the oldest {0} of {1}."
+msgstr ""
+
 #: crates/flequit-ui/ui/views/settings/datetime-settings.slint:44
 #: crates/flequit-ui/ui/views/settings/datetime-settings.slint:44
 msgctxt "Settings"
@@ -1206,433 +1249,186 @@ msgctxt "Settings"
 msgid "Select preview date"
 msgstr ""
 
-
-#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:92
-#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:92
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:91
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:91
 msgctxt "Settings"
 msgid "Current date and time format"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:101
-#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:101
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:100
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:100
 msgctxt "Settings"
 msgid "Unable to preview this format"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:106
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:105
 msgctxt "Settings"
 msgid "Copy current format to test"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:116
-#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:116
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:115
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:115
 msgctxt "Settings"
 msgid "Test format preset"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:131
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:130
 msgctxt "Settings"
 msgid "Test date and time format"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:144
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:143
 msgctxt "Settings"
 msgid "Use test format"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:154
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:153
 msgctxt "Settings"
 msgid "Rename custom format"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:155
-#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:155
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:154
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:154
 msgctxt "Settings"
 msgid "Custom format name"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:164
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:163
 msgctxt "Settings"
 msgid "Add custom format"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:173
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:172
 msgctxt "Settings"
 msgid "Overwrite custom format"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:180
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:179
 msgctxt "Settings"
 msgid "Delete custom format"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:185
+#: crates/flequit-ui/ui/views/settings/datetime-settings.slint:184
 msgctxt "Settings"
 msgid "Delete custom format for good"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:23
+#: crates/flequit-ui/ui/views/settings/reminder-settings.slint:17
 msgctxt "Settings"
-msgid "Basic settings"
+msgid "Reminder presets"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:27
+#: crates/flequit-ui/ui/views/settings/reminder-settings.slint:31
 msgctxt "Settings"
-msgid "Language"
+msgid "Remove the {0} reminder preset"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:42
+#: crates/flequit-ui/ui/views/settings/reminder-settings.slint:69
 msgctxt "Settings"
-msgid "Week starts on"
+msgid "Reminder amount"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:60
+#: crates/flequit-ui/ui/views/settings/reminder-settings.slint:72
 msgctxt "Settings"
-msgid "Keyboard"
+msgid "Add reminder preset"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:62
-msgctxt "Settings"
-msgid "Enable Vim task navigation (j/k and g/G)"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:46
-msgctxt "Settings"
-msgid "Sunday"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:51
-msgctxt "Settings"
-msgid "Monday"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:60
-msgctxt "Settings"
-msgid "Due filter buttons"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:62
-msgctxt "Settings"
-msgid "Show Overdue due filter"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:63
-msgctxt "Settings"
-msgid "Show Today due filter"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:64
-msgctxt "Settings"
-msgid "Show Tomorrow due filter"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:65
-msgctxt "Settings"
-msgid "Show Next 3 days due filter"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:66
-msgctxt "Settings"
-msgid "Show This week due filter"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:67
-msgctxt "Settings"
-msgid "Show This month due filter"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:68
-msgctxt "Settings"
-msgid "Show This quarter due filter"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:69
-msgctxt "Settings"
-msgid "Show This year due filter"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:70
-msgctxt "Settings"
-msgid "Show This fiscal year due filter"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:78
-msgctxt "Settings"
-msgid "Custom due filters"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:90
-msgctxt "Settings"
-msgid "Remove the {0} filter"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:99
-msgctxt "Settings"
-msgid "Minutes"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:104
-msgctxt "Settings"
-msgid "Hours"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:109
-msgctxt "Settings"
-msgid "Days"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:122
-msgctxt "Settings"
-msgid "Due filter amount"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:125
-msgctxt "Settings"
-msgid "Add due filter"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:136
-msgctxt "Settings"
-msgid "Custom recurrence presets"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:148
-msgctxt "Settings"
-msgid "Remove the {0} preset"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:159
-msgctxt "Recurrence"
-msgid "Days"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:164
-msgctxt "Recurrence"
-msgid "Weeks"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:169
-msgctxt "Recurrence"
-msgid "Months"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:174
-msgctxt "Recurrence"
-msgid "Years"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:185
-msgctxt "Settings"
-msgid "Recurrence interval"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:188
-msgctxt "Settings"
-msgid "Add recurrence preset"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:200
-msgctxt "Settings"
-msgid "Reminder notifications"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:203
-msgctxt "Settings"
-msgid "Notification permission is granted."
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:205
-msgctxt "Settings"
-msgid "Notification permission was denied. You can request it again here."
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:206
-msgctxt "Settings"
-msgid "Allow notifications to receive task reminders."
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:214
-msgctxt "Settings"
-msgid "Requesting notification permission…"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:215
-msgctxt "Settings"
-msgid "Allow notifications"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:225
-msgctxt "Settings"
-msgid "Platform features"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:227
-msgctxt "Settings"
-msgid "System tray"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:228
-msgctxt "Settings"
-msgid "This device supports keeping Flequit in the system tray."
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:231
-msgctxt "Settings"
-msgid "Global shortcuts"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:232
-msgctxt "Settings"
-msgid "This device supports shortcuts outside the app."
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:235
-msgctxt "Settings"
-msgid "Automatic updates"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:236
-msgctxt "Settings"
-msgid "This installation supports in-app updates."
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:239
-msgctxt "Settings"
-msgid "Custom export location"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/basic-settings.slint:240
-msgctxt "Settings"
-msgid "This device supports choosing any export folder."
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/settings-categories.slint:50
-#: crates/flequit-ui/ui/views/settings/settings-categories.slint:50
+#: crates/flequit-ui/ui/views/settings/settings-categories.slint:52
+#: crates/flequit-ui/ui/views/settings/settings-categories.slint:52
 msgctxt "Settings"
 msgid "Search settings"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/settings/settings-categories.slint:56
-msgctxt "Settings"
-msgid ""
-"Basic Language Week start Due filters Custom due days Recurrence Platform "
-"features"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/settings/settings-categories.slint:57
-msgctxt "Settings"
-msgid "Date time Timezone Format Preset Preview Custom"
-msgstr ""
-
 #: crates/flequit-ui/ui/views/settings/settings-categories.slint:58
 msgctxt "Settings"
-msgid "Appearance Theme Font Font size Font color Background color"
+msgid ""
+"Basic Language Week start Due filters Custom due days Reminder presets "
+"Recurrence Platform features Tag suggestions"
 msgstr ""
 
 #: crates/flequit-ui/ui/views/settings/settings-categories.slint:59
 msgctxt "Settings"
+msgid "Date time Timezone Format Preset Preview Custom"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/settings-categories.slint:60
+msgctxt "Settings"
+msgid "Appearance Theme Font Font size Font color Background color"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/settings-categories.slint:61
+msgctxt "Settings"
 msgid "Account Local account Email Provider"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/settings/settings-categories.slint:68
+#: crates/flequit-ui/ui/views/settings/settings-categories.slint:62
+msgctxt "Settings"
+msgid "Data sync Sync history Failed changes Retry Diagnostics"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/settings-categories.slint:71
 msgctxt "Settings"
 msgid "Basic"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/settings/settings-categories.slint:69
+#: crates/flequit-ui/ui/views/settings/settings-categories.slint:72
 msgctxt "Settings"
 msgid "Dates and platform preferences"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/settings/settings-categories.slint:75
+#: crates/flequit-ui/ui/views/settings/settings-categories.slint:78
 msgctxt "Settings"
 msgid "Timezone and display formats"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/settings/settings-categories.slint:80
+#: crates/flequit-ui/ui/views/settings/settings-categories.slint:83
 msgctxt "Settings"
 msgid "Appearance"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/settings/settings-categories.slint:81
+#: crates/flequit-ui/ui/views/settings/settings-categories.slint:84
 msgctxt "Settings"
 msgid "Theme, font, and colors"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/settings/settings-categories.slint:86
+#: crates/flequit-ui/ui/views/settings/settings-categories.slint:89
 msgctxt "Settings"
 msgid "Account"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/settings/settings-categories.slint:87
+#: crates/flequit-ui/ui/views/settings/settings-categories.slint:90
 msgctxt "Settings"
 msgid "Current account information"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/tags/tag-manager.slint:71
-msgctxt "Tags"
-msgid "Tags"
+#: crates/flequit-ui/ui/views/settings/settings-categories.slint:96
+msgctxt "Settings"
+msgid "Sync history status and failed changes"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/tags/tag-manager.slint:79
-msgctxt "Tags"
-msgid "New tag"
+#: crates/flequit-ui/ui/views/settings/settings-controls.slint:60
+msgctxt "Settings"
+msgid "Available"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/tags/tag-manager.slint:94
-msgctxt "Tags"
-msgid "No tags in this project."
+#: crates/flequit-ui/ui/views/settings/settings-dialog.slint:89
+msgctxt "Settings"
+msgid "Back to settings categories"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/tags/tag-manager.slint:129
-msgctxt "Tags"
-msgid "Unpin tag {0}"
+#: crates/flequit-ui/ui/views/settings/settings-dialog.slint:90
+msgctxt "Settings"
+msgid "Close settings"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/tags/tag-manager.slint:130
-msgctxt "Tags"
-msgid "Pin tag {0}"
+#: crates/flequit-ui/ui/views/settings/settings-dialog.slint:103
+msgctxt "Settings"
+msgid "Settings"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/tags/tag-manager.slint:139
-msgctxt "Tags"
-msgid "Edit tag {0}"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/tags/tag-manager.slint:158
-#: crates/flequit-ui/ui/views/tags/tag-manager.slint:158
-msgctxt "Tags"
-msgid "Tag name"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/tags/tag-manager.slint:170
-msgctxt "Tags"
-msgid "Delete tag {0}? It will be removed from every task."
-msgstr ""
-
-#: crates/flequit-ui/ui/views/tags/tag-manager.slint:181
-msgctxt "Tags"
-msgid "Delete"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/tags/tag-manager.slint:187
-msgctxt "Tags"
-msgid "Cancel"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/tags/tag-manager.slint:187
-msgctxt "Tags"
-msgid "Close"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/tags/tag-manager.slint:200
-msgctxt "Tags"
-msgid "Delete for good"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/tags/tag-manager.slint:209
-msgctxt "Tags"
-msgid "Save"
+#: crates/flequit-ui/ui/views/settings/settings-dialog.slint:109
+msgctxt "Settings"
+msgid "Configure Flequit preferences"
 msgstr ""
 
 #: crates/flequit-ui/ui/views/sidebar/account-menu.slint:53
@@ -1660,495 +1456,473 @@ msgctxt "AccountMenu"
 msgid "Help"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:78
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:85
 msgctxt "Editor"
 msgid "New project"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:79
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:86
 msgctxt "Editor"
 msgid "Edit project"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:80
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:87
 msgctxt "Editor"
 msgid "New list"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:81
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:88
 msgctxt "Editor"
 msgid "Edit list"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:87
-#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:87
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:94
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:94
 msgctxt "Editor"
 msgid "Name"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:101
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:110
 msgctxt "Editor"
 msgid "Delete {0} and everything in it?"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:102
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:111
 msgctxt "Editor"
 msgid "Delete {0} and its tasks?"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:113
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:122
 msgctxt "Editor"
 msgid "Delete"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:120
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:129
 msgctxt "Editor"
 msgid "Unarchive"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:121
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:130
 msgctxt "Editor"
 msgid "Archive"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:130
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:139
 msgctxt "Editor"
 msgid "Cancel"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:141
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:150
 msgctxt "Editor"
 msgid "Delete for good"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:147
+#: crates/flequit-ui/ui/views/sidebar/item-editor.slint:159
 msgctxt "Editor"
 msgid "Save"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:49
-msgctxt "Sidebar"
-msgid "Toggle sidebar"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:86
-msgctxt "Sidebar"
-msgid "Projects"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:95
-msgctxt "Sidebar"
-msgid "New project"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:110
-msgctxt "Sidebar"
-msgid "Tags"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:119
-msgctxt "Sidebar"
-msgid "Manage tags"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:141
-msgctxt "Sidebar"
-msgid "Hide archived projects"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:142
-msgctxt "Sidebar"
-msgid "Show archived projects"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/sidebar/project-row.slint:59
+#: crates/flequit-ui/ui/views/sidebar/project-row.slint:85
 msgctxt "Sidebar"
 msgid "Expand {0}"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/sidebar/project-row.slint:111
-#: crates/flequit-ui/ui/views/sidebar/project-row.slint:111
+#: crates/flequit-ui/ui/views/sidebar/project-row.slint:140
+#: crates/flequit-ui/ui/views/sidebar/project-row.slint:140
 msgctxt "Sidebar"
 msgid "Edit {0}"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/sidebar/project-row.slint:117
+#: crates/flequit-ui/ui/views/sidebar/project-row.slint:146
 msgctxt "Sidebar"
 msgid "Add a list to {0}"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/sidebar/tag-bookmark-list.slint:13
-msgctxt "Sidebar"
-msgid "Pinned tags"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/sidebar/tag-bookmark-list.slint:56
-msgctxt "Sidebar"
-msgid "Filter by tag {0}"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/sidebar/search-box.slint:24
+#: crates/flequit-ui/ui/views/sidebar/search-box.slint:23
 msgctxt "SearchSuggestion"
 msgid "Due date"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/sidebar/search-box.slint:26
-msgctxt "SearchSuggestion"
-msgid "Project"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/sidebar/search-box.slint:28
-msgctxt "SearchSuggestion"
-msgid "Task list"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/sidebar/search-box.slint:32
-msgctxt "SearchSuggestion"
-msgid "Tag"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/sidebar/search-box.slint:58
-msgctxt "Sidebar"
-msgid "Search"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/sidebar/search-box.slint:59
-msgctxt "Sidebar"
-msgid "Search tasks"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/sidebar/search-box.slint:153
-msgctxt "SearchSuggestion"
-msgid "Use search suggestion {0}"
-msgstr ""
-
-#: crates/flequit-ui/ui/components/calendar-popup.slint:124
-msgctxt "Calendar"
-msgid "Previous month"
-msgstr ""
-
-#: crates/flequit-ui/ui/components/calendar-popup.slint:140
-msgctxt "Calendar"
-msgid "Next month"
-msgstr ""
-
-#: crates/flequit-ui/ui/components/calendar-popup.slint:198
-msgctxt "Calendar"
-msgid "Day {0} of {1}"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:95
-msgctxt "Calendar"
-msgid "January {0}"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:96
-msgctxt "Calendar"
-msgid "February {0}"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:97
-msgctxt "Calendar"
-msgid "March {0}"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:98
-msgctxt "Calendar"
-msgid "April {0}"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:99
-msgctxt "Calendar"
-msgid "May {0}"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:100
-msgctxt "Calendar"
-msgid "June {0}"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:101
-msgctxt "Calendar"
-msgid "July {0}"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:102
-msgctxt "Calendar"
-msgid "August {0}"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:103
-msgctxt "Calendar"
-msgid "September {0}"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:104
-msgctxt "Calendar"
-msgid "October {0}"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:105
-msgctxt "Calendar"
-msgid "November {0}"
-msgstr ""
-
-#: crates/flequit-ui/ui/globals/i18n.slint:106
-msgctxt "Calendar"
-msgid "December {0}"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:306
-msgctxt "TaskDetail"
-msgid "Change status"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:325
-msgctxt "TaskDetail"
-msgid "Change priority"
-msgstr ""
-
-#: crates/flequit-ui/ui/components/calendar-popup.slint:157
-msgctxt "Calendar"
-msgid "2026/9/15 13:30"
-msgstr ""
-
-#: crates/flequit-ui/ui/components/calendar-popup.slint:158
-msgctxt "Calendar"
-msgid "2026/9/15"
-msgstr ""
-
-#: crates/flequit-ui/ui/components/calendar-popup.slint:160
-msgctxt "Calendar"
-msgid "Type a date and time"
-msgstr ""
-
-#: crates/flequit-ui/ui/components/calendar-popup.slint:161
-msgctxt "Calendar"
-msgid "Type a date"
-msgstr ""
-
-#: crates/flequit-ui/ui/components/calendar-popup.slint:246
-msgctxt "Calendar"
-msgid "Time"
-msgstr ""
-
-#: crates/flequit-ui/ui/components/calendar-popup.slint:256
-msgctxt "Calendar"
-msgid "Hour"
-msgstr ""
-
-#: crates/flequit-ui/ui/components/calendar-popup.slint:271
-msgctxt "Calendar"
-msgid "Minute"
-msgstr ""
-
-#: crates/flequit-ui/ui/components/calendar-popup.slint:283
-msgctxt "Calendar"
-msgid "Cancel"
-msgstr ""
-
-#: crates/flequit-ui/ui/components/calendar-popup.slint:288
-msgctxt "Calendar"
-msgid "OK"
-msgstr ""
-
-msgctxt "FilterMenu"
-msgid "Show only this"
-msgstr ""
-
-msgctxt "FilterMenu"
-msgid "Add with AND (Ctrl/⌘ + click)"
-msgstr ""
-
-msgctxt "FilterMenu"
-msgid "Add with OR (Alt/⌥ + click)"
-msgstr ""
-
-msgctxt "FilterMenu"
-msgid "Exclude"
-msgstr ""
-
-msgctxt "FilterMenu"
-msgid "Remove from the search"
-msgstr ""
-
-msgctxt "StatusFilter"
-msgid "Completed"
-msgstr ""
-
-msgctxt "StatusFilter"
-msgid "Open"
-msgstr ""
-
+#: crates/flequit-ui/ui/views/sidebar/search-box.slint:25
 msgctxt "SearchSuggestion"
 msgid "State"
 msgstr ""
 
+#: crates/flequit-ui/ui/views/sidebar/search-box.slint:27
+msgctxt "SearchSuggestion"
+msgid "Project"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/sidebar/search-box.slint:29
+msgctxt "SearchSuggestion"
+msgid "Task list"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/sidebar/search-box.slint:31
 msgctxt "SearchSuggestion"
 msgid "User"
 msgstr ""
 
+#: crates/flequit-ui/ui/views/sidebar/search-box.slint:33
+msgctxt "SearchSuggestion"
+msgid "Tag"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/sidebar/search-box.slint:40
 msgctxt "SearchSuggestion"
 msgid "{0} lists, archived"
 msgstr ""
 
+#: crates/flequit-ui/ui/views/sidebar/search-box.slint:41
 msgctxt "SearchSuggestion"
 msgid "{0} lists"
 msgstr ""
 
+#: crates/flequit-ui/ui/views/sidebar/search-box.slint:92
 msgctxt "SearchSuggestion"
-msgid "{0} matches several items"
+msgid "Use search suggestion {0}"
 msgstr ""
 
+#: crates/flequit-ui/ui/views/sidebar/search-box.slint:226
+msgctxt "Sidebar"
+msgid "Search"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/sidebar/search-box.slint:227
+msgctxt "Sidebar"
+msgid "Search tasks"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/sidebar/search-box.slint:285
 msgctxt "Sidebar"
 msgid "Choose what {0} means"
 msgstr ""
 
+#: crates/flequit-ui/ui/views/sidebar/search-box.slint:286
 msgctxt "Sidebar"
 msgid "Part of the search was ignored"
 msgstr ""
 
+#: crates/flequit-ui/ui/views/sidebar/search-box.slint:300
+msgctxt "SearchSuggestion"
+msgid "{0} matches several items"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/sidebar/search-box.slint:307
 msgctxt "Sidebar"
 msgid "Several matches for {0}. Choose one from the list."
 msgstr ""
 
+#: crates/flequit-ui/ui/views/sidebar/search-box.slint:309
 msgctxt "Sidebar"
 msgid "Not found, ignored: {0}"
 msgstr ""
 
+#: crates/flequit-ui/ui/views/sidebar/search-box.slint:310
 msgctxt "Sidebar"
 msgid "An unmatched ) or | was ignored."
 msgstr ""
 
-msgctxt "TaskList"
-msgid "{0} matching subtasks"
+#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:51
+msgctxt "Sidebar"
+msgid "Toggle sidebar"
 msgstr ""
 
-msgctxt "TaskList"
-msgid "Add your first task."
+#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:95
+msgctxt "Sidebar"
+msgid "Projects"
 msgstr ""
 
-msgctxt "TaskList"
-msgid "Choose where new tasks go"
+#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:104
+msgctxt "Sidebar"
+msgid "New project"
 msgstr ""
 
-msgctxt "Settings"
-msgid "Recorded {0} · attempts: {1}"
+#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:131
+msgctxt "Sidebar"
+msgid "Hide archived projects"
 msgstr ""
 
-msgctxt "Settings"
-msgid "Retry"
+#: crates/flequit-ui/ui/views/sidebar/sidebar.slint:132
+msgctxt "Sidebar"
+msgid "Show archived projects"
 msgstr ""
 
-msgctxt "Settings"
-msgid "Retry {0}"
+#: crates/flequit-ui/ui/views/sidebar/status-filter-list.slint:17
+msgctxt "StatusFilter"
+msgid "Completed"
 msgstr ""
 
-msgctxt "Settings"
-msgid "Data sync"
+#: crates/flequit-ui/ui/views/sidebar/status-filter-list.slint:17
+msgctxt "StatusFilter"
+msgid "Open"
 msgstr ""
 
-msgctxt "Settings"
-msgid "Changes are saved on this device first and then added to the sync history in the background."
+#: crates/flequit-ui/ui/views/sidebar/tag-bookmark-list.slint:19
+msgctxt "Sidebar"
+msgid "Pinned tags"
 msgstr ""
 
-msgctxt "Settings"
-msgid "The sync history is not used with the current storage settings."
+#: crates/flequit-ui/ui/views/sidebar/tag-bookmark-list.slint:28
+msgctxt "Sidebar"
+msgid "Manage tags"
 msgstr ""
 
-msgctxt "Settings"
-msgid "Could not read the sync status."
+#: crates/flequit-ui/ui/views/sidebar/tag-bookmark-list.slint:73
+msgctxt "Sidebar"
+msgid "Filter by tag {0}"
 msgstr ""
 
-msgctxt "Settings"
-msgid "Waiting to be added to the sync history"
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:77
+msgctxt "Tags"
+msgid "Tags"
 msgstr ""
 
-msgctxt "Settings"
-msgid "Could not be added to the sync history"
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:85
+msgctxt "Tags"
+msgid "New tag"
 msgstr ""
 
-msgctxt "Settings"
-msgid "Refresh"
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:100
+msgctxt "Tags"
+msgid "No tags in this project."
 msgstr ""
 
-msgctxt "Settings"
-msgid "Retry all"
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:135
+msgctxt "Tags"
+msgid "Unpin tag {0}"
 msgstr ""
 
-msgctxt "Settings"
-msgid "Queued again: {0}"
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:136
+msgctxt "Tags"
+msgid "Pin tag {0}"
 msgstr ""
 
-msgctxt "Settings"
-msgid "Not queued because newer changes to the same data were already added: {0}"
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:145
+msgctxt "Tags"
+msgid "Edit tag {0}"
 msgstr ""
 
-msgctxt "Settings"
-msgid "Changes that could not be added"
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:164
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:164
+msgctxt "Tags"
+msgid "Tag name"
 msgstr ""
 
-msgctxt "Settings"
-msgid "Showing the oldest {0} of {1}."
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:178
+msgctxt "Tags"
+msgid "Delete tag {0}? It will be removed from every task."
 msgstr ""
 
-msgctxt "Settings"
-msgid "Data sync Sync history Failed changes Retry Diagnostics"
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:189
+msgctxt "Tags"
+msgid "Delete"
 msgstr ""
 
-msgctxt "Settings"
-msgid "Sync history status and failed changes"
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:195
+msgctxt "Tags"
+msgid "Cancel"
 msgstr ""
 
-#: crates/flequit-ui/ui/components/toast.slint:72
-msgctxt "Toast"
-msgid "Dismiss"
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:195
+msgctxt "Tags"
+msgid "Close"
 msgstr ""
 
-#: crates/flequit-ui/ui/main.slint:355
-msgctxt "Toast"
-msgid "Task deleted"
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:213
+msgctxt "Tags"
+msgid "Delete for good"
 msgstr ""
 
-#: crates/flequit-ui/ui/main.slint:356
-msgctxt "Toast"
-msgid "Deleted \"{0}\""
+#: crates/flequit-ui/ui/views/tags/tag-manager.slint:225
+msgctxt "Tags"
+msgid "Save"
 msgstr ""
 
-#: crates/flequit-ui/ui/main.slint:357
-msgctxt "Toast"
-msgid "Undo"
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:205
+msgctxt "Recurrence"
+msgid "Repeat"
 msgstr ""
 
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:218
+msgctxt "Recurrence"
+msgid "Repeat this task"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:236
+msgctxt "Recurrence"
+msgid "Presets"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:268
+msgctxt "Recurrence"
+msgid "How often"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:283
+msgctxt "Recurrence"
+msgid "Repeat interval"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:357
+msgctxt "Recurrence"
+msgid "On these days"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:379
+msgctxt "Recurrence"
+msgid "Which day"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:385
+msgctxt "Recurrence"
+msgid "Same day as the due date"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:397
+msgctxt "Recurrence"
+msgid "Day of the month"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:410
+msgctxt "Recurrence"
+msgid "Which day of the month"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:419
+msgctxt "Recurrence"
+msgid "A weekday of a given week"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:488
+msgctxt "Recurrence"
+msgid "Ends"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:498
+msgctxt "Recurrence"
+msgid "Never"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:503
+msgctxt "Recurrence"
+msgid "On a date"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:508
+msgctxt "Recurrence"
+msgid "After a number of times"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:548
+msgctxt "Recurrence"
+msgid "Choose the last date"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:560
+msgctxt "Recurrence"
+msgid "Number of times"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:574
+msgctxt "Recurrence"
+msgid "Next dates"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:589
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:589
+msgctxt "Recurrence"
+msgid "Preview count"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:612
+msgctxt "Recurrence"
+msgid "This schedule has no upcoming dates."
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:633
+msgctxt "Recurrence"
+msgid "Stop repeating"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:642
+msgctxt "Recurrence"
+msgid "Cancel"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:647
+msgctxt "Recurrence"
+msgid "Save"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint:663
+msgctxt "Recurrence"
+msgid "Select the last date"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:58
 msgctxt "TaskDetail"
-msgid "No tags"
+msgid "Add a reminder"
 msgstr ""
 
-msgctxt "Settings"
-msgid "Tag suggestions"
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:71
+msgctxt "TaskDetail"
+msgid "Before start"
 msgstr ""
 
-msgctxt "Settings"
-msgid "Suggestions shown while adding a tag"
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:88
+msgctxt "TaskDetail"
+msgid "Before due"
 msgstr ""
 
-msgctxt "Settings"
-msgid "Number of tag suggestions"
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:102
+msgctxt "TaskDetail"
+msgid "Set a start or due date to use relative reminders."
 msgstr ""
 
-#: crates/flequit-ui/ui/components/task-row.slint:97
-msgctxt "TaskList"
-msgid "Show subtasks of {0}"
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:109
+msgctxt "TaskDetail"
+msgid "Specific date and time (optional)"
 msgstr ""
 
-#: crates/flequit-ui/ui/components/task-row.slint:195
-msgctxt "TaskList"
-msgid "{0}, matches the search"
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:123
+msgctxt "TaskDetail"
+msgid "Select a specific reminder date"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:124
+msgctxt "TaskDetail"
+msgid "Select reminder date"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:126
+msgctxt "Reminder"
+msgid "Choose a future date and time."
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:34
+msgctxt "TaskDetail"
+msgid "Select a task to see its details."
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:58
+msgctxt "TaskDetail"
+msgid "Back to list"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:64
+msgctxt "TaskDetail"
+msgid "Task"
 msgstr ""
 
 #: crates/flequit-ui/ui/views/task-detail/task-detail.slint:65
 msgctxt "TaskDetail"
 msgid "Subtask"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:75
+msgctxt "TaskDetail"
+msgid "Delete task"
 msgstr ""
 
 #: crates/flequit-ui/ui/views/task-detail/task-detail.slint:76
@@ -2161,63 +1935,310 @@ msgctxt "TaskDetail"
 msgid "Open {0}"
 msgstr ""
 
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:155
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:155
+msgctxt "TaskDetail"
+msgid "Task title"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:169
+msgctxt "TaskDetail"
+msgid "Period"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:190
+msgctxt "TaskDetail"
+msgid "Start and due date"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:191
+msgctxt "TaskDetail"
+msgid "Due date only"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:206
+msgctxt "TaskDetail"
+msgid "Use a start and due date"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:216
+msgctxt "TaskDetail"
+msgid "Start"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:230
+msgctxt "TaskDetail"
+msgid "Edit start date"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:231
+msgctxt "TaskDetail"
+msgid "Clear start date"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:232
+msgctxt "TaskDetail"
+msgid "Select start date"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:244
+msgctxt "TaskDetail"
+msgid "End"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:245
+msgctxt "TaskDetail"
+msgid "Due"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:272
+msgctxt "TaskDetail"
+msgid "Repeat"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:293
+msgctxt "TaskDetail"
+msgid "Does not repeat"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:304
+msgctxt "TaskDetail"
+msgid "Edit the repeat schedule"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:313
+msgctxt "TaskDetail"
+msgid "Reminders"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:336
+msgctxt "TaskDetail"
+msgid "Remove reminder {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:357
+msgctxt "TaskDetail"
+msgid "Status"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:365
+msgctxt "TaskDetail"
+msgid "Change status"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:376
+msgctxt "TaskDetail"
+msgid "Priority"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:384
+msgctxt "TaskDetail"
+msgid "Change priority"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:395
+msgctxt "TaskDetail"
+msgid "Notes"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:408
+msgctxt "TaskDetail"
+msgid "Tags"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:420
+msgctxt "TaskDetail"
+msgid "Subtasks"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:457
+msgctxt "TaskDetail"
+msgid "Complete {0}"
+msgstr ""
+
 #: crates/flequit-ui/ui/views/task-detail/task-detail.slint:479
 msgctxt "TaskDetail"
 msgid "{0} subtasks"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:45
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:487
+msgctxt "TaskDetail"
+msgid "Delete subtask {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:493
+msgctxt "TaskDetail"
+msgid "Open subtask {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:507
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:507
+msgctxt "TaskDetail"
+msgid "Add a subtask"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:508
+msgctxt "TaskDetail"
+msgid "New subtask title"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-tag-editor.slint:52
+msgctxt "TaskDetail"
+msgid "Remove tag {0} from {1}"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-tag-editor.slint:101
+msgctxt "TaskDetail"
+msgid "Add tag {0} to {1}"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-tag-editor.slint:170
+msgctxt "TaskDetail"
+msgid "No tags"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-tag-editor.slint:194
+#: crates/flequit-ui/ui/views/task-detail/task-tag-editor.slint:194
+msgctxt "TaskDetail"
+msgid "Add a tag"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-tag-editor.slint:220
+msgctxt "TaskDetail"
+msgid "New tag name"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-tag-editor.slint:285
+msgctxt "TaskDetail"
+msgid "Add tag"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:169
 msgctxt "TaskList"
 msgid "No project"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-list/task-list.slint:257
-msgctxt "TaskList"
-msgid "Create a project to add a task"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-list/quick-add-due.slint:82
-msgctxt "TaskList"
-msgid "Clear the due date of the new task"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-list/quick-add-due.slint:67
-msgctxt "TaskList"
-msgid "Due date of the new task"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-list/quick-add-due.slint:43
-msgctxt "TaskList"
-msgid "Due date"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:180
-msgctxt "TaskList"
-msgid "List of new tasks: {0}. Change"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-list/quick-add-due.slint:59
-msgctxt "TaskList"
-msgid "New task due {0}. Change"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:179
-msgctxt "TaskList"
-msgid "New tasks belong to no list. Change"
-msgstr ""
-
 #: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:175
-#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:201
 msgctxt "TaskList"
-msgid "No list"
+msgid "Choose where new tasks go"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:132
+#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:176
 msgctxt "TaskList"
 msgid "Project of new tasks: {0}. Change"
 msgstr ""
 
-#: crates/flequit-ui/ui/views/task-list/quick-add-due.slint:60
+#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:221
+#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:221
+msgctxt "TaskList"
+msgid "No list"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:225
+msgctxt "TaskList"
+msgid "New tasks belong to no list. Change"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/add-target-picker.slint:226
+msgctxt "TaskList"
+msgid "List of new tasks: {0}. Change"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/quick-add-due.slint:54
+msgctxt "TaskList"
+msgid "Due date"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/quick-add-due.slint:84
+msgctxt "TaskList"
+msgid "New task due {0}. Change"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/quick-add-due.slint:85
 msgctxt "TaskList"
 msgid "Set a due date for the new task"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/quick-add-due.slint:92
+msgctxt "TaskList"
+msgid "Due date of the new task"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/quick-add-due.slint:111
+msgctxt "TaskList"
+msgid "Clear the due date of the new task"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:206
+msgctxt "TaskList"
+msgid "No tasks match your search."
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:208
+msgctxt "TaskList"
+msgid "Create a project to get started."
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:209
+msgctxt "TaskList"
+msgid "Add your first task."
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:217
+msgctxt "TaskList"
+msgid "Clear search"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:225
+msgctxt "TaskList"
+msgid "Create project"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:231
+msgctxt "TaskList"
+msgid "Add your first task"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:267
+msgctxt "TaskList"
+msgid "Create a project to add a task"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:268
+#: crates/flequit-ui/ui/views/task-list/task-list.slint:268
+msgctxt "TaskList"
+msgid "Add a task"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/task-sort-bar.slint:57
+msgctxt "Sort"
+msgid "Manual"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/task-sort-bar.slint:58
+#: crates/flequit-ui/ui/views/task-list/task-sort-bar.slint:58
+#: crates/flequit-ui/ui/views/task-list/task-sort-bar.slint:58
+#: crates/flequit-ui/ui/views/task-list/task-sort-bar.slint:58
+msgctxt "Sort"
+msgid "Sort by {0}"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/task-sort-bar.slint:64
+msgctxt "Sort"
+msgid "Due date"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/task-sort-bar.slint:71
+msgctxt "Sort"
+msgid "Priority"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/task-sort-bar.slint:78
+msgctxt "Sort"
+msgid "Name"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-list/task-sort-bar.slint:86
+msgctxt "Sort"
+msgid "Show completed"
 msgstr ""
