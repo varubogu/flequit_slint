@@ -1,0 +1,70 @@
+// A TouchArea that also asks for a context menu: on a right click, or on a
+// long press of a finger.
+//
+// A `ContextMenuArea` cannot see either of them through a TouchArea: the
+// TouchArea takes every press, right button included, before its parent does.
+// So the TouchArea reports the request and the owner calls `show()` on its
+// `ContextMenuArea` with the position given.
+//
+// A long press does not also count as a click when the finger lifts.
+export component ContextTouchArea {
+    out property <bool> has-hover: touch.has-hover;
+    in property <bool> enabled: true;
+
+    callback clicked();
+    callback pointer-event(PointerEvent);
+    // Position relative to this element.
+    callback menu-requested(Point);
+
+    // A finger that moves this far is scrolling or dragging, not holding.
+    private property <length> hold-tolerance: 8px;
+    private property <bool> holding: false;
+    private property <bool> long-pressed: false;
+    private property <length> press-x;
+    private property <length> press-y;
+
+    touch := TouchArea {
+        enabled: root.enabled;
+
+        pointer-event(event) => {
+            root.pointer-event(event);
+            if (event.kind == PointerEventKind.down) {
+                root.long-pressed = false;
+                if (event.button == PointerEventButton.right) {
+                    root.menu-requested({ x: self.mouse-x, y: self.mouse-y });
+                } else if (event.button == PointerEventButton.left
+                    && event.touch-finger-id != 0) {
+                    root.press-x = self.mouse-x;
+                    root.press-y = self.mouse-y;
+                    root.holding = true;
+                }
+            } else if (event.kind == PointerEventKind.up
+                || event.kind == PointerEventKind.cancel) {
+                root.holding = false;
+            }
+        }
+        moved => {
+            if (root.holding && (abs(self.mouse-x - root.press-x) > root.hold-tolerance
+                || abs(self.mouse-y - root.press-y) > root.hold-tolerance)) {
+                root.holding = false;
+            }
+        }
+        clicked => {
+            if (root.long-pressed) {
+                root.long-pressed = false;
+            } else {
+                root.clicked();
+            }
+        }
+    }
+
+    Timer {
+        interval: 500ms;
+        running: root.holding;
+        triggered => {
+            root.holding = false;
+            root.long-pressed = true;
+            root.menu-requested({ x: root.press-x, y: root.press-y });
+        }
+    }
+}

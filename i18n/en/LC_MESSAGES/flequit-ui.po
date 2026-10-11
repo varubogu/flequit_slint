@@ -2201,3 +2201,19 @@ msgstr "Project of new tasks: {0}. Change"
 msgctxt "TaskList"
 msgid "Set a due date for the new task"
 msgstr "Set a due date for the new task"
+
+msgctxt "TaskMenu"
+msgid "Edit"
+msgstr "Edit"
+
+msgctxt "TaskMenu"
+msgid "Mark as not started"
+msgstr "Mark as not started"
+
+msgctxt "TaskMenu"
+msgid "Complete"
+msgstr "Complete"
+
+msgctxt "TaskMenu"
+msgid "Delete"
+msgstr "Delete"

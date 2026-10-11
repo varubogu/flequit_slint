@@ -3,6 +3,7 @@ import { Layout } from "../globals/layout.slint";
 import { TaskItem, TaskPriority } from "../globals/types.slint";
 import { TaskRowMeta } from "task-row-meta.slint";
 import { DragHandle } from "drag-handle.slint";
+import { ContextTouchArea } from "context-touch-area.slint";
 
 // One row in the task list: a task at any depth.
 //
@@ -20,6 +21,10 @@ export component TaskRow inherits Rectangle {
     callback clicked();
     callback toggle-completed();
     callback toggle-expansion();
+    // Raised from the context menu (right click, the Menu key, a long press
+    // on a touch screen).
+    callback edit-requested();
+    callback delete-requested();
 
     // Dragging is reported in window coordinates so the caller can resolve a
     // drop target outside this row, such as a list in the sidebar. Only a
@@ -176,10 +181,38 @@ export component TaskRow inherits Rectangle {
         }
     }
 
-    row-touch := TouchArea {
-        // Sits behind the interactive children so they win the click.
+    // Sits behind the interactive children so they win the click. Text lets
+    // clicks through, so the menu opens anywhere outside the row's buttons.
+    // The touch area opens the menu itself: see `ContextTouchArea`.
+    menu-area := ContextMenuArea {
         z: -1;
-        clicked => { root.clicked(); }
+        width: 100%;
+        height: 100%;
+
+        Menu {
+            MenuItem {
+                title: @tr("TaskMenu" => "Edit");
+                activated => { root.edit-requested(); }
+            }
+            MenuItem {
+                title: root.task.completed
+                    ? @tr("TaskMenu" => "Mark as not started")
+                    : @tr("TaskMenu" => "Complete");
+                activated => { root.toggle-completed(); }
+            }
+            MenuSeparator {}
+            MenuItem {
+                title: @tr("TaskMenu" => "Delete");
+                activated => { root.delete-requested(); }
+            }
+        }
+
+        row-touch := ContextTouchArea {
+            width: 100%;
+            height: 100%;
+            clicked => { root.clicked(); }
+            menu-requested(position) => { menu-area.show(position); }
+        }
     }
 
     // Insertion marker for drag and drop.

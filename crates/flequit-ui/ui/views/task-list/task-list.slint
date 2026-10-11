@@ -177,6 +177,11 @@ export component TaskListView inherits Rectangle {
                     Actions.select-task(task.id);
                 }
                 toggle-completed => { Actions.toggle-task-completed(task.id); }
+                edit-requested => {
+                    keyboard-focus.focus();
+                    Actions.select-task(task.id);
+                }
+                delete-requested => { Actions.delete-task(task.id); }
                 toggle-expansion => { Actions.toggle-task-expansion(task.id); }
                 drag-started(x, y) => { root.start-drag(task, x, y); }
                 dragged(x, y) => {

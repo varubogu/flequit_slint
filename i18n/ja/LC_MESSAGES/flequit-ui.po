@@ -2199,3 +2199,19 @@ msgstr "追加先のプロジェクト: {0}（変更）"
 msgctxt "TaskList"
 msgid "Set a due date for the new task"
 msgstr "追加するタスクの期限を設定"
+
+msgctxt "TaskMenu"
+msgid "Edit"
+msgstr "編集"
+
+msgctxt "TaskMenu"
+msgid "Mark as not started"
+msgstr "未着手に戻す"
+
+msgctxt "TaskMenu"
+msgid "Complete"
+msgstr "完了"
+
+msgctxt "TaskMenu"
+msgid "Delete"
+msgstr "削除"
