@@ -22,9 +22,14 @@ default = []
 wasm = ["dep:wasm-bindgen", "dep:console_error_panic_hook"]
 
 [dependencies]
+# Same feature set as the desktop crates so host builds share one Slint
+# compilation. wasm32 is not Android, so the winit feature stays on.
 slint.workspace = true
 wasm-bindgen = { workspace = true, optional = true }
 console_error_panic_hook = { workspace = true, optional = true }
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+slint = { workspace = true, features = ["unstable-winit-030"] }
 
 [build-dependencies]
 slint-build.workspace = true
