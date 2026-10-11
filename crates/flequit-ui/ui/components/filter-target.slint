@@ -1,5 +1,6 @@
 import { Theme } from "../globals/theme.slint";
 import { FilterHighlight, QueryEdit } from "../globals/types.slint";
+import { ContextTouchArea } from "context-touch-area.slint";
 
 // The clickable surface of a sidebar item that filters the task list.
 //
@@ -47,9 +48,11 @@ export component FilterTarget inherits Rectangle {
             }
         }
 
-        touch := TouchArea {
+        // Opens the menu itself: see `ContextTouchArea`.
+        touch := ContextTouchArea {
             width: 100%;
             height: 100%;
+            menu-requested(position) => { menu-area.show(position); }
             pointer-event(event) => {
                 if event.kind == PointerEventKind.down {
                     root.primary-held = event.modifiers.control;
