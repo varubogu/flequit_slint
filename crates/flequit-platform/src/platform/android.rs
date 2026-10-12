@@ -26,8 +26,10 @@ use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use chrono::{DateTime, Utc};
-use jni::JNIEnv;
-use jni::objects::{GlobalRef, JByteArray, JClass, JObject, JString, JValue};
+use jni::objects::{Global, JByteArray, JClass, JObject, JString, JValue, Reference};
+use jni::signature::{RuntimeFieldSignature, RuntimeMethodSignature};
+use jni::strings::JNIString;
+use jni::{Env, EnvUnowned, JavaVM, Outcome};
 
 use crate::{
     AppPaths, Capabilities, Capability, FileFilter, FileHandle, FormFactor, LifecycleEvent,
@@ -92,8 +94,8 @@ fn jni_error(context: &'static str, error: jni::errors::Error) -> PlatformError 
 }
 
 struct JavaRuntime {
-    vm: jni::JavaVM,
-    activity: GlobalRef,
+    vm: JavaVM,
+    activity: Global<JObject<'static>>,
 }
 
 /// The process-wide JVM handle and Activity reference.
@@ -106,59 +108,132 @@ fn java_runtime() -> PlatformResult<&'static JavaRuntime> {
     RUNTIME
         .get_or_init(|| {
             let context = ndk_context::android_context();
+            let vm_ptr = context.vm();
+            if vm_ptr.is_null() {
+                return None;
+            }
             // SAFETY: android-activity publishes a valid JavaVM pointer here
-            // before the first Rust frame of ours runs.
-            let vm = unsafe { jni::JavaVM::from_raw(context.vm().cast()) }.ok()?;
-            let mut env = vm.attach_current_thread().ok()?;
-            // SAFETY: `context()` is the Activity's jobject. It is borrowed
-            // just long enough to promote it to a global reference.
-            let activity = unsafe { JObject::from_raw(context.context().cast()) };
-            let activity = env.new_global_ref(&activity).ok()?;
-            drop(env);
+            // before the first Rust frame of ours runs. `from_raw` aborts on a
+            // null pointer, which the check above rules out.
+            let vm = unsafe { JavaVM::from_raw(vm_ptr.cast()) };
+            let activity = vm
+                .attach_current_thread_for_scope(|env| {
+                    // SAFETY: `context()` is the Activity's jobject. It is borrowed
+                    // just long enough to promote it to a global reference.
+                    let activity = unsafe { JObject::from_raw(env, context.context().cast()) };
+                    env.new_global_ref(activity)
+                })
+                .ok()?;
             Some(JavaRuntime { vm, activity })
         })
         .as_ref()
         .ok_or(PlatformError::Unsupported("the android JNI context"))
 }
 
-/// Runs `body` with a `JNIEnv` attached to the calling thread.
+/// Runs `body` with an [`Env`] attached to the calling thread.
 ///
-/// Background threads must attach before touching JNI and the guard detaches
-/// them again on drop; on the UI thread attaching is a no-op.
+/// Background threads must attach before touching JNI. The attachment is scoped
+/// to this call, so a thread that was not already attached is detached again
+/// when `body` returns. On the UI thread attaching is a no-op.
 ///
 /// A failing JNI call usually leaves a Java exception pending, which would
 /// poison every later call on the same thread, so it is cleared here.
 fn with_env<R>(
     context: &'static str,
-    body: impl FnOnce(&mut JNIEnv<'_>, &JObject<'static>) -> jni::errors::Result<R>,
+    body: impl FnOnce(&mut Env<'_>, &JObject<'static>) -> jni::errors::Result<R>,
 ) -> PlatformResult<R> {
     let runtime = java_runtime()?;
-    let mut guard = runtime
+    runtime
         .vm
-        .attach_current_thread()
-        .map_err(|error| jni_error(context, error))?;
-
-    let result = body(&mut guard, runtime.activity.as_obj());
-    if result.is_err() {
-        let _ = guard.exception_describe();
-        let _ = guard.exception_clear();
-    }
-    result.map_err(|error| jni_error(context, error))
+        .attach_current_thread_for_scope(|env| {
+            let result = body(env, runtime.activity.as_obj());
+            if result.is_err() {
+                env.exception_describe();
+                env.exception_clear();
+            }
+            result
+        })
+        .map_err(|error| jni_error(context, error))
 }
 
-fn java_string<'local>(
-    env: &mut JNIEnv<'local>,
-    value: &str,
-) -> jni::errors::Result<JString<'local>> {
+/// `jni` 0.22 takes method names as modified-UTF-8 [`JNIString`]s and signatures
+/// as a parsed [`RuntimeMethodSignature`], not plain `&str`.
+fn java_call<'local, 'obj, O>(
+    env: &mut Env<'local>,
+    obj: O,
+    name: &str,
+    signature: &str,
+    args: &[JValue<'_>],
+) -> jni::errors::Result<jni::JValueOwned<'local>>
+where
+    O: AsRef<JObject<'obj>>,
+{
+    let name = JNIString::new(name);
+    let signature = RuntimeMethodSignature::from_str(signature)?;
+    env.call_method(obj, &name, signature.method_signature(), args)
+}
+
+fn java_call_static<'local>(
+    env: &mut Env<'local>,
+    class: &str,
+    name: &str,
+    signature: &str,
+    args: &[JValue<'_>],
+) -> jni::errors::Result<jni::JValueOwned<'local>> {
+    let class = JNIString::new(class);
+    let name = JNIString::new(name);
+    let signature = RuntimeMethodSignature::from_str(signature)?;
+    env.call_static_method(&class, &name, signature.method_signature(), args)
+}
+
+fn java_new<'local>(
+    env: &mut Env<'local>,
+    class: &str,
+    signature: &str,
+    args: &[JValue<'_>],
+) -> jni::errors::Result<JObject<'local>> {
+    let class = JNIString::new(class);
+    let signature = RuntimeMethodSignature::from_str(signature)?;
+    env.new_object(&class, signature.method_signature(), args)
+}
+
+fn java_field<'local, 'obj, O>(
+    env: &mut Env<'local>,
+    obj: O,
+    name: &str,
+    signature: &str,
+) -> jni::errors::Result<jni::JValueOwned<'local>>
+where
+    O: AsRef<JObject<'obj>>,
+{
+    let name = JNIString::new(name);
+    let signature = RuntimeFieldSignature::from_str(signature)?;
+    env.get_field(obj, &name, signature.field_signature())
+}
+
+fn java_static_field<'local>(
+    env: &mut Env<'local>,
+    class: &str,
+    name: &str,
+    signature: &str,
+) -> jni::errors::Result<jni::JValueOwned<'local>> {
+    let class = JNIString::new(class);
+    let name = JNIString::new(name);
+    let signature = RuntimeFieldSignature::from_str(signature)?;
+    env.get_static_field(&class, &name, signature.field_signature())
+}
+
+fn java_string<'local>(env: &mut Env<'local>, value: &str) -> jni::errors::Result<JString<'local>> {
     env.new_string(value)
 }
 
 fn notification_manager<'local>(
-    env: &mut JNIEnv<'local>,
+    env: &mut Env<'local>,
     activity: &JObject<'_>,
 ) -> jni::errors::Result<JObject<'local>> {
     let service_name = java_string(env, "notification")?;
-    env.call_method(
+    java_call(
+        env,
         activity,
         "getSystemService",
         "(Ljava/lang/String;)Ljava/lang/Object;",
@@ -169,35 +244,36 @@ fn notification_manager<'local>(
 
 /// Opens an `InputStream` / `OutputStream` for a SAF content URI.
 fn content_resolver_stream<'local>(
-    env: &mut JNIEnv<'local>,
+    env: &mut Env<'local>,
     activity: &JObject<'_>,
     reference: &str,
     method: &'static str,
     signature: &'static str,
     mode: Option<&str>,
 ) -> jni::errors::Result<JObject<'local>> {
-    let resolver = env
-        .call_method(
-            activity,
-            "getContentResolver",
-            "()Landroid/content/ContentResolver;",
-            &[],
-        )?
-        .l()?;
+    let resolver = java_call(
+        env,
+        activity,
+        "getContentResolver",
+        "()Landroid/content/ContentResolver;",
+        &[],
+    )?
+    .l()?;
     let reference = java_string(env, reference)?;
-    let uri = env
-        .call_static_method(
-            "android/net/Uri",
-            "parse",
-            "(Ljava/lang/String;)Landroid/net/Uri;",
-            &[JValue::Object(&reference)],
-        )?
-        .l()?;
+    let uri = java_call_static(
+        env,
+        "android/net/Uri",
+        "parse",
+        "(Ljava/lang/String;)Landroid/net/Uri;",
+        &[JValue::Object(&reference)],
+    )?
+    .l()?;
 
     match mode {
         Some(mode) => {
             let mode = java_string(env, mode)?;
-            env.call_method(
+            java_call(
+                env,
                 &resolver,
                 method,
                 signature,
@@ -205,9 +281,7 @@ fn content_resolver_stream<'local>(
             )?
             .l()
         }
-        None => env
-            .call_method(&resolver, method, signature, &[JValue::Object(&uri)])?
-            .l(),
+        None => java_call(env, &resolver, method, signature, &[JValue::Object(&uri)])?.l(),
     }
 }
 
@@ -274,7 +348,8 @@ impl AndroidPlatform {
 
         let started = with_env("start document picker", |env, activity| {
             let argument = java_string(env, &argument)?;
-            env.call_method(
+            java_call(
+                env,
                 activity,
                 method,
                 "(Ljava/lang/String;I)V",
@@ -308,7 +383,8 @@ impl AndroidPlatform {
             // user clearing app data.
             let channel_id = java_string(env, NOTIFICATION_CHANNEL_ID)?;
             let channel_name = java_string(env, NOTIFICATION_CHANNEL_NAME)?;
-            let channel = env.new_object(
+            let channel = java_new(
+                env,
                 "android/app/NotificationChannel",
                 "(Ljava/lang/String;Ljava/lang/CharSequence;I)V",
                 &[
@@ -317,57 +393,61 @@ impl AndroidPlatform {
                     JValue::Int(IMPORTANCE_DEFAULT),
                 ],
             )?;
-            env.call_method(
+            java_call(
+                env,
                 &manager,
                 "createNotificationChannel",
                 "(Landroid/app/NotificationChannel;)V",
                 &[JValue::Object(&channel)],
             )?;
 
-            let builder = env.new_object(
+            let builder = java_new(
+                env,
                 "android/app/Notification$Builder",
                 "(Landroid/content/Context;Ljava/lang/String;)V",
                 &[JValue::Object(activity), JValue::Object(&channel_id)],
             )?;
             let title = java_string(env, &request.title)?;
-            env.call_method(
+            java_call(
+                env,
                 &builder,
                 "setContentTitle",
                 "(Ljava/lang/CharSequence;)Landroid/app/Notification$Builder;",
                 &[JValue::Object(&title)],
             )?;
             let body = java_string(env, &request.body)?;
-            env.call_method(
+            java_call(
+                env,
                 &builder,
                 "setContentText",
                 "(Ljava/lang/CharSequence;)Landroid/app/Notification$Builder;",
                 &[JValue::Object(&body)],
             )?;
-            env.call_method(
+            java_call(
+                env,
                 &builder,
                 "setAutoCancel",
                 "(Z)Landroid/app/Notification$Builder;",
-                &[JValue::Bool(1)],
+                &[JValue::Bool(true)],
             )?;
             // A framework drawable, so a notification renders correctly before
             // the app ships icon resources of its own.
-            let icon = env
-                .get_static_field("android/R$drawable", "ic_dialog_info", "I")?
-                .i()?;
-            env.call_method(
+            let icon = java_static_field(env, "android/R$drawable", "ic_dialog_info", "I")?.i()?;
+            java_call(
+                env,
                 &builder,
                 "setSmallIcon",
                 "(I)Landroid/app/Notification$Builder;",
                 &[JValue::Int(icon)],
             )?;
-            let notification = env
-                .call_method(&builder, "build", "()Landroid/app/Notification;", &[])?
-                .l()?;
+            let notification =
+                java_call(env, &builder, "build", "()Landroid/app/Notification;", &[])?.l()?;
 
             // Tagging by our own id lets a reminder replace its previous post
             // instead of stacking duplicates.
             let tag = java_string(env, tag)?;
-            env.call_method(
+            java_call(
+                env,
                 &manager,
                 "notify",
                 "(Ljava/lang/String;ILandroid/app/Notification;)V",
@@ -384,37 +464,32 @@ impl AndroidPlatform {
 
 fn files_dir() -> PlatformResult<PathBuf> {
     with_env("resolve files dir", |env, activity| {
-        let dir = env
-            .call_method(activity, "getFilesDir", "()Ljava/io/File;", &[])?
-            .l()?;
-        let path = env
-            .call_method(&dir, "getAbsolutePath", "()Ljava/lang/String;", &[])?
-            .l()?;
-        let path = JString::from(path);
-        Ok(PathBuf::from(String::from(env.get_string(&path)?)))
+        let dir = java_call(env, activity, "getFilesDir", "()Ljava/io/File;", &[])?.l()?;
+        let path = java_call(env, &dir, "getAbsolutePath", "()Ljava/lang/String;", &[])?.l()?;
+        let path = env.cast_local::<JString>(path)?;
+        Ok(PathBuf::from(path.try_to_string(env)?))
     })
 }
 
 fn form_factor() -> PlatformResult<FormFactor> {
     let smallest_width = with_env("read screen configuration", |env, activity| {
-        let resources = env
-            .call_method(
-                activity,
-                "getResources",
-                "()Landroid/content/res/Resources;",
-                &[],
-            )?
-            .l()?;
-        let configuration = env
-            .call_method(
-                &resources,
-                "getConfiguration",
-                "()Landroid/content/res/Configuration;",
-                &[],
-            )?
-            .l()?;
-        env.get_field(&configuration, "smallestScreenWidthDp", "I")?
-            .i()
+        let resources = java_call(
+            env,
+            activity,
+            "getResources",
+            "()Landroid/content/res/Resources;",
+            &[],
+        )?
+        .l()?;
+        let configuration = java_call(
+            env,
+            &resources,
+            "getConfiguration",
+            "()Landroid/content/res/Configuration;",
+            &[],
+        )?
+        .l()?;
+        java_field(env, &configuration, "smallestScreenWidthDp", "I")?.i()
     })?;
 
     Ok(if smallest_width >= TABLET_SMALLEST_WIDTH_DP {
@@ -426,8 +501,7 @@ fn form_factor() -> PlatformResult<FormFactor> {
 
 fn sdk_int() -> PlatformResult<i32> {
     with_env("read sdk level", |env, _activity| {
-        env.get_static_field("android/os/Build$VERSION", "SDK_INT", "I")?
-            .i()
+        java_static_field(env, "android/os/Build$VERSION", "SDK_INT", "I")?.i()
     })
 }
 
@@ -456,8 +530,7 @@ impl Platform for AndroidPlatform {
         // alone would miss.
         let enabled = with_env("read notification permission", |env, activity| {
             let manager = notification_manager(env, activity)?;
-            env.call_method(&manager, "areNotificationsEnabled", "()Z", &[])?
-                .z()
+            java_call(env, &manager, "areNotificationsEnabled", "()Z", &[])?.z()
         })?;
         if enabled {
             return Ok(PermissionState::Granted);
@@ -471,7 +544,8 @@ impl Platform for AndroidPlatform {
 
         let permission = with_env("check notification permission", |env, activity| {
             let permission = java_string(env, "android.permission.POST_NOTIFICATIONS")?;
-            env.call_method(
+            java_call(
+                env,
                 activity,
                 "checkSelfPermission",
                 "(Ljava/lang/String;)I",
@@ -496,9 +570,11 @@ impl Platform for AndroidPlatform {
 
         with_env("request notification permission", |env, activity| {
             let permission = java_string(env, "android.permission.POST_NOTIFICATIONS")?;
-            let permissions = env.new_object_array(1, "java/lang/String", JObject::null())?;
-            env.set_object_array_element(&permissions, 0, &permission)?;
-            env.call_method(
+            let element_class = JNIString::new("java/lang/String");
+            let permissions = env.new_object_array(1, &element_class, JObject::null())?;
+            permissions.set_element(env, 0, &permission)?;
+            java_call(
+                env,
                 activity,
                 "requestPermissions",
                 "([Ljava/lang/String;I)V",
@@ -568,7 +644,8 @@ impl Platform for AndroidPlatform {
         with_env("cancel notification", |env, activity| {
             let manager = notification_manager(env, activity)?;
             let tag = java_string(env, &id.0)?;
-            env.call_method(
+            java_call(
+                env,
                 &manager,
                 "cancel",
                 "(Ljava/lang/String;I)V",
@@ -620,19 +697,18 @@ impl Platform for AndroidPlatform {
             )?;
 
             let mut contents = Vec::new();
-            let chunk = env.new_byte_array(READ_CHUNK)?;
+            let chunk = env.new_byte_array(READ_CHUNK as usize)?;
             loop {
-                let read = env
-                    .call_method(&stream, "read", "([B)I", &[JValue::Object(&chunk)])?
-                    .i()?;
+                let read =
+                    java_call(env, &stream, "read", "([B)I", &[JValue::Object(&chunk)])?.i()?;
                 if read <= 0 {
                     break;
                 }
                 let mut buffer = vec![0i8; read as usize];
-                env.get_byte_array_region(&chunk, 0, &mut buffer)?;
+                chunk.get_region(env, 0, &mut buffer)?;
                 contents.extend(buffer.into_iter().map(|byte| byte as u8));
             }
-            env.call_method(&stream, "close", "()V", &[])?;
+            java_call(env, &stream, "close", "()V", &[])?;
             Ok(contents)
         })
     }
@@ -660,9 +736,9 @@ impl Platform for AndroidPlatform {
                 Some("wt"),
             )?;
             let bytes: JByteArray<'_> = env.byte_array_from_slice(contents)?;
-            env.call_method(&stream, "write", "([B)V", &[JValue::Object(&bytes)])?;
-            env.call_method(&stream, "flush", "()V", &[])?;
-            env.call_method(&stream, "close", "()V", &[])?;
+            java_call(env, &stream, "write", "([B)V", &[JValue::Object(&bytes)])?;
+            java_call(env, &stream, "flush", "()V", &[])?;
+            java_call(env, &stream, "close", "()V", &[])?;
             Ok(())
         })
     }
@@ -670,32 +746,35 @@ impl Platform for AndroidPlatform {
     fn open_url(&self, url: &str) -> PlatformResult<()> {
         with_env("start view intent", |env, activity| {
             let target = java_string(env, url)?;
-            let uri = env
-                .call_static_method(
-                    "android/net/Uri",
-                    "parse",
-                    "(Ljava/lang/String;)Landroid/net/Uri;",
-                    &[JValue::Object(&target)],
-                )?
-                .l()?;
+            let uri = java_call_static(
+                env,
+                "android/net/Uri",
+                "parse",
+                "(Ljava/lang/String;)Landroid/net/Uri;",
+                &[JValue::Object(&target)],
+            )?
+            .l()?;
             let action = java_string(env, "android.intent.action.VIEW")?;
-            let intent = env.new_object(
+            let intent = java_new(
+                env,
                 "android/content/Intent",
                 "(Ljava/lang/String;Landroid/net/Uri;)V",
                 &[JValue::Object(&action), JValue::Object(&uri)],
             )?;
             // FLAG_ACTIVITY_NEW_TASK: the browser must not join our task, or
             // backing out of it would land the user inside Flequit's history.
-            let flag = env
-                .get_static_field("android/content/Intent", "FLAG_ACTIVITY_NEW_TASK", "I")?
-                .i()?;
-            env.call_method(
+            let flag =
+                java_static_field(env, "android/content/Intent", "FLAG_ACTIVITY_NEW_TASK", "I")?
+                    .i()?;
+            java_call(
+                env,
                 &intent,
                 "addFlags",
                 "(I)Landroid/content/Intent;",
                 &[JValue::Int(flag)],
             )?;
-            env.call_method(
+            java_call(
+                env,
                 activity,
                 "startActivity",
                 "(Landroid/content/Intent;)V",
@@ -732,11 +811,11 @@ impl Platform for AndroidPlatform {
 ///
 /// # Safety
 ///
-/// Called by the JVM with a valid `JNIEnv` for the calling thread and with
+/// Called by the JVM with a valid [`EnvUnowned`] for the calling thread and with
 /// arguments matching `FlequitActivity`'s `native` declaration.
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_com_varubogu_flequit_FlequitActivity_nativeOnActivityResult(
-    mut env: JNIEnv<'_>,
+    mut env: EnvUnowned<'_>,
     _class: JClass<'_>,
     request_code: i32,
     result_code: i32,
@@ -754,20 +833,29 @@ pub unsafe extern "system" fn Java_com_varubogu_flequit_FlequitActivity_nativeOn
 
     let handle = if result_code == RESULT_OK && !uri.is_null() {
         // The name is cosmetic and the Java side may not have been able to
-        // query it, so the URI stands in for it.
-        let name = if display_name.is_null() {
-            None
-        } else {
-            env.get_string(&display_name).ok().map(String::from)
-        };
-
-        env.get_string(&uri)
-            .ok()
-            .map(String::from)
-            .map(|reference| FileHandle::Opaque {
-                display_name: name.unwrap_or_else(|| reference.clone()),
-                reference,
+        // query it, so the URI stands in for it. A conversion failure is the
+        // same as a cancel: the picker has no value to hand back.
+        match env
+            .with_env(|env| -> jni::errors::Result<Option<FileHandle>> {
+                let name = if display_name.is_null() {
+                    None
+                } else {
+                    display_name.try_to_string(env).ok()
+                };
+                let Ok(reference) = uri.try_to_string(env) else {
+                    return Ok(None);
+                };
+                Ok(Some(FileHandle::Opaque {
+                    display_name: name.unwrap_or_else(|| reference.clone()),
+                    reference,
+                }))
             })
+            .into_outcome()
+        {
+            Outcome::Ok(handle) => handle,
+            Outcome::Err(_) => None,
+            Outcome::Panic(payload) => std::panic::resume_unwind(payload),
+        }
     } else {
         None
     };
@@ -784,7 +872,7 @@ pub unsafe extern "system" fn Java_com_varubogu_flequit_FlequitActivity_nativeOn
 /// declaration; `event` is one of the codes [`LifecycleEvent::from_code`] knows.
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_com_varubogu_flequit_FlequitActivity_nativeOnLifecycleEvent(
-    _env: JNIEnv<'_>,
+    _env: EnvUnowned<'_>,
     _class: JClass<'_>,
     event: i32,
 ) {
