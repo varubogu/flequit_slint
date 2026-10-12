@@ -23,17 +23,15 @@ jobs:
 
       # Changing a @tr() source string changes its msgid and silently drops the
       # existing translation, so the extracted template must stay committed.
+      # scripts/extract-ui-pot.sh drops the line number from each reference.
+      # slint-tr-extractor has no option for that, and a blank line above an
+      # @tr() would otherwise fail this check. Matches docs/ja/develop/commands.md.
       - name: Check the extraction template is current
         run: |
-          # sort keeps the entry order independent of the filesystem's
-          # directory order, so the committed template is reproducible here
-          # and on any other machine. Matches docs/ja/develop/commands.md.
-          find crates/flequit-ui/ui -name '*.slint' \
-            | sort \
-            | xargs slint-tr-extractor -o /tmp/flequit-ui.pot
+          ./scripts/extract-ui-pot.sh /tmp/flequit-ui.pot
           if ! diff -q <(grep -v '^"POT-Creation-Date' i18n/flequit-ui.pot) \
                        <(grep -v '^"POT-Creation-Date' /tmp/flequit-ui.pot); then
-            echo "::error::i18n/flequit-ui.pot is out of date. Re-run the extractor."
+            echo "::error::i18n/flequit-ui.pot is out of date. Re-run ./scripts/extract-ui-pot.sh."
             diff <(grep -v '^"POT-Creation-Date' i18n/flequit-ui.pot) \
                  <(grep -v '^"POT-Creation-Date' /tmp/flequit-ui.pot) || true
             exit 1

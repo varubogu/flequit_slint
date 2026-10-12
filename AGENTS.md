@@ -36,7 +36,7 @@ Project-specific guidance for Codex in this repository. Claude Code uses `CLAUDE
 - Test: `cargo test -j 4` (always cap workers)
 - Run: `cargo run -p flequit-app`
 - Dependency/cfg guard: `./scripts/check-crate-deps.sh`
-- i18n extract: `find crates/flequit-ui/ui -name '*.slint' | xargs slint-tr-extractor -o i18n/flequit-ui.pot`
+- i18n extract: `./scripts/extract-ui-pot.sh`
 
 ## Codex Skills
 

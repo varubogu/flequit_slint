@@ -42,9 +42,9 @@ This keeps `.po` the single translation source. Log messages (`tracing`) stay En
 ## Workflow
 
 1. Add or edit `@tr("...")` in `.slint`
-2. Regenerate the template:
+2. Regenerate the template (drops reference line numbers; the extractor has no flag for that):
    ```sh
-   find crates/flequit-ui/ui -name '*.slint' | xargs slint-tr-extractor -o i18n/flequit-ui.pot
+   ./scripts/extract-ui-pot.sh
    ```
 3. Merge into each locale:
    ```sh

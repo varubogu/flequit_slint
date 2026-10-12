@@ -150,8 +150,10 @@ View             →  I18n.error-message(AppState.error-code) を表示
 1. `.slint` に `@tr("New text")` を書く
 2. `.pot` を再生成する
    ```sh
-   find crates/flequit-ui/ui -name '*.slint' | xargs slint-tr-extractor -o i18n/flequit-ui.pot
+   ./scripts/extract-ui-pot.sh
    ```
+   抽出ツールは参照に行番号を付けるが、スクリプトがそれを除く。
+   手順の詳細は [commands.md](../../commands.md) を参照。
 3. 各言語の `.po` へマージする
    ```sh
    msgmerge --update i18n/ja/LC_MESSAGES/flequit-ui.po i18n/flequit-ui.pot
@@ -189,7 +191,8 @@ View             →  I18n.error-message(AppState.error-code) を表示
 
 ### 翻訳漏れの検出
 
-- CI で `.pot` を再生成し、コミット済みの `.pot` と差分がないことを確認する
+- CI で `.pot` を再生成し、コミット済みの `.pot` と差分がないことを確認する。
+  再生成時に参照の行番号は除くので、空行の追加だけでは失敗しない
 - 各 `.po` の未翻訳エントリ（`msgstr ""`）数を集計し、増加時に警告する
 
 ## テスト
