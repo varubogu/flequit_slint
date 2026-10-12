@@ -45,9 +45,13 @@ Node.js / Bun への依存はない。
 | 用途 | コマンド |
 | --- | --- |
 | 抽出ツールの導入 | `cargo install slint-tr-extractor` |
-| `.pot` 再生成 | `find crates/flequit-ui/ui -name '*.slint' \| sort \| xargs slint-tr-extractor -o i18n/flequit-ui.pot` |
+| `.pot` 再生成 | `./scripts/extract-ui-pot.sh` |
 | `.po` へのマージ | `msgmerge --update i18n/ja/LC_MESSAGES/flequit-ui.po i18n/flequit-ui.pot` |
 | 未翻訳の確認 | `msgfmt --statistics -o /dev/null i18n/ja/LC_MESSAGES/flequit-ui.po` |
+
+`slint-tr-extractor` は参照を `ファイル:行` で書き、行番号を落とすオプションを持たない。
+`extract-ui-pot.sh` は抽出のあと参照コメントから行番号だけを除く。
+空行の追加でテンプレートが変わらないようにするため。CI も同じスクリプトを使う。
 
 翻訳は `cargo build` 時に実行ファイルへバンドルされる。個別のビルド手順は不要。
 
