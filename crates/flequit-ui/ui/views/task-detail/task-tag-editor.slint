@@ -3,10 +3,11 @@ import { Layout } from "../../globals/layout.slint";
 import { AppState } from "../../globals/app-state.slint";
 import { Actions } from "../../globals/actions.slint";
 import { SettingsState } from "../../globals/settings.slint";
-import { TagItem } from "../../globals/types.slint";
+import { TagItem, TagManagerStart } from "../../globals/types.slint";
 import { IconButton } from "../../components/icon-button.slint";
 import { Icon, IconName } from "../../components/icon.slint";
 import { FocusRing } from "../../components/focus-ring.slint";
+import { ContextTouchArea } from "../../components/context-touch-area.slint";
 
 // The small colour dot in front of a tag name.
 component TagDot inherits Rectangle {
@@ -18,16 +19,70 @@ component TagDot inherits Rectangle {
 }
 
 // A tag the task carries, with a way to take it off.
+//
+// Its context menu (right click, a long press) also reaches the tag itself:
+// pinning it to the sidebar, and renaming or deleting it through the tag
+// manager.
 component AssignedTagRow inherits Rectangle {
     in property <TagItem> tag;
     in property <string> task-id;
     in property <string> task-title;
+
+    function remove() {
+        Actions.set-task-tag(root.task-id, root.tag.id, false);
+    }
+
+    function open-manager(start: TagManagerStart) {
+        AppState.tag-manager-tag = root.tag;
+        AppState.tag-manager-start = start;
+        AppState.tag-manager-open = true;
+    }
 
     height: Layout.touch-target;
     border-radius: Theme.radius-sm;
     background: Theme.surface-selected;
     border-width: 1px;
     border-color: Theme.accent;
+
+    // Sits behind the remove button so the button keeps its own click. The
+    // touch area opens the menu itself: see `ContextTouchArea`.
+    menu-area := ContextMenuArea {
+        z: -1;
+        width: 100%;
+        height: 100%;
+
+        Menu {
+            MenuItem {
+                title: @tr("TagMenu" => "Remove");
+                activated => { root.remove(); }
+            }
+            MenuSeparator {}
+            MenuItem {
+                title: @tr("TagMenu" => "Rename");
+                activated => { root.open-manager(TagManagerStart.edit); }
+            }
+            MenuItem {
+                title: root.tag.bookmarked
+                    ? @tr("TagMenu" => "Unpin tag")
+                    : @tr("TagMenu" => "Pin tag");
+                activated => {
+                    Actions.set-tag-bookmarked(root.tag.project-id, root.tag.id,
+                                               !root.tag.bookmarked);
+                }
+            }
+            MenuSeparator {}
+            MenuItem {
+                title: @tr("TagMenu" => "Delete");
+                activated => { root.open-manager(TagManagerStart.delete); }
+            }
+        }
+
+        ContextTouchArea {
+            width: 100%;
+            height: 100%;
+            menu-requested(position) => { menu-area.show(position); }
+        }
+    }
 
     HorizontalLayout {
         padding-left: Theme.space-sm;
@@ -50,7 +105,7 @@ component AssignedTagRow inherits Rectangle {
         IconButton {
             icon: IconName.close;
             tooltip: @tr("TaskDetail" => "Remove tag {0} from {1}", root.tag.name, root.task-title);
-            clicked => { Actions.set-task-tag(root.task-id, root.tag.id, false); }
+            clicked => { root.remove(); }
         }
     }
 }

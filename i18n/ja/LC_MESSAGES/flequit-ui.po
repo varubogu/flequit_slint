@@ -2215,3 +2215,23 @@ msgstr "完了"
 msgctxt "TaskMenu"
 msgid "Delete"
 msgstr "削除"
+
+msgctxt "TagMenu"
+msgid "Remove"
+msgstr "解除"
+
+msgctxt "TagMenu"
+msgid "Rename"
+msgstr "名前の変更"
+
+msgctxt "TagMenu"
+msgid "Unpin tag"
+msgstr "固定タグの解除"
+
+msgctxt "TagMenu"
+msgid "Pin tag"
+msgstr "固定タグに追加"
+
+msgctxt "TagMenu"
+msgid "Delete"
+msgstr "削除"

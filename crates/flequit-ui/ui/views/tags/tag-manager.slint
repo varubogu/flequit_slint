@@ -3,6 +3,7 @@ import { Theme } from "../../globals/theme.slint";
 import { Layout } from "../../globals/layout.slint";
 import { AppState } from "../../globals/app-state.slint";
 import { Actions } from "../../globals/actions.slint";
+import { TagManagerStart } from "../../globals/types.slint";
 import { DialogButton } from "../../components/dialog-button.slint";
 import { ColorPicker } from "../../components/color-picker.slint";
 import { RowButton } from "../../components/row-button.slint";
@@ -10,6 +11,10 @@ import { IconName } from "../../components/icon.slint";
 import { FocusSentinel } from "../../components/focus-sentinel.slint";
 
 export component TagManager inherits Rectangle {
+    // Opened on one tag (see `AppState.tag-manager-start`), the manager has no
+    // list to go back to: leaving that tag's editor closes it.
+    property <TagManagerStart> opened-on: TagManagerStart.list;
+    property <string> project-id: AppState.selected-project-id;
     property <bool> editing: false;
     property <bool> confirming-delete: false;
     property <string> editing-tag-id;
@@ -17,6 +22,10 @@ export component TagManager inherits Rectangle {
     property <string> selected-color;
 
     function close-editor() {
+        if (root.opened-on != TagManagerStart.list) {
+            AppState.tag-manager-open = false;
+            return;
+        }
         root.editing = false;
         root.confirming-delete = false;
         root.editing-tag-id = "";
@@ -37,12 +46,25 @@ export component TagManager inherits Rectangle {
             return;
         }
         if (root.editing-tag-id == "") {
-            Actions.create-tag(AppState.selected-project-id, root.name, root.selected-color);
+            Actions.create-tag(root.project-id, root.name, root.selected-color);
         } else {
-            Actions.update-tag(AppState.selected-project-id, root.editing-tag-id,
+            Actions.update-tag(root.project-id, root.editing-tag-id,
                                root.name, root.selected-color);
         }
         root.close-editor();
+    }
+
+    init => {
+        if (AppState.tag-manager-start != TagManagerStart.list) {
+            root.opened-on = AppState.tag-manager-start;
+            root.project-id = AppState.tag-manager-tag.project-id;
+            root.editing-tag-id = AppState.tag-manager-tag.id;
+            root.name = AppState.tag-manager-tag.name;
+            root.selected-color = AppState.tag-manager-tag.color;
+            root.confirming-delete = root.opened-on == TagManagerStart.delete;
+            root.editing = true;
+            AppState.tag-manager-start = TagManagerStart.list;
+        }
     }
 
     width: 100%;
@@ -199,7 +221,7 @@ export component TagManager inherits Rectangle {
                     // has nothing to keep in.
                     init => { self.focus(); }
                     clicked => {
-                        if (root.confirming-delete) {
+                        if (root.confirming-delete && root.opened-on != TagManagerStart.delete) {
                             root.confirming-delete = false;
                         } else if (root.editing) {
                             root.close-editor();
@@ -216,7 +238,7 @@ export component TagManager inherits Rectangle {
                     // focus was: without this it would fall out of the dialog.
                     init => { self.focus(); }
                     clicked => {
-                        Actions.delete-tag(AppState.selected-project-id, root.editing-tag-id);
+                        Actions.delete-tag(root.project-id, root.editing-tag-id);
                         root.close-editor();
                     }
                 }

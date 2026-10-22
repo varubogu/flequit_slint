@@ -2217,3 +2217,23 @@ msgstr "Complete"
 msgctxt "TaskMenu"
 msgid "Delete"
 msgstr "Delete"
+
+msgctxt "TagMenu"
+msgid "Remove"
+msgstr "Remove"
+
+msgctxt "TagMenu"
+msgid "Rename"
+msgstr "Rename"
+
+msgctxt "TagMenu"
+msgid "Unpin tag"
+msgstr "Unpin tag"
+
+msgctxt "TagMenu"
+msgid "Pin tag"
+msgstr "Pin tag"
+
+msgctxt "TagMenu"
+msgid "Delete"
+msgstr "Delete"
