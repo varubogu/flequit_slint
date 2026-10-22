@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2026-10-12 01:10+0000\n"
+"POT-Creation-Date: 2026-10-22 13:00+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -2100,6 +2100,31 @@ msgstr ""
 #: crates/flequit-ui/ui/views/task-detail/task-detail.slint
 msgctxt "TaskDetail"
 msgid "New subtask title"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-tag-editor.slint
+msgctxt "TagMenu"
+msgid "Remove"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-tag-editor.slint
+msgctxt "TagMenu"
+msgid "Rename"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-tag-editor.slint
+msgctxt "TagMenu"
+msgid "Unpin tag"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-tag-editor.slint
+msgctxt "TagMenu"
+msgid "Pin tag"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/task-tag-editor.slint
+msgctxt "TagMenu"
+msgid "Delete"
 msgstr ""
 
 #: crates/flequit-ui/ui/views/task-detail/task-tag-editor.slint

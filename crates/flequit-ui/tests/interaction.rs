@@ -19,8 +19,8 @@ use flequit_ui::bindings::{
     FailedSyncChangeItem, FilterHighlight, FilterKind, Layout, ProjectItem, QueryEdit,
     RecurrenceEnd, RecurrenceMonthlyMode, RecurrencePresetSetting, RecurrenceState, RecurrenceUnit,
     RecurrenceWeekOfMonth, ReminderItem, ReminderPresetSetting, ReminderUnit, SearchSuggestion,
-    SearchSuggestionKind, SettingsCategory, SettingsState, SubTaskItem, TagItem, TaskItem,
-    TaskListItem, TaskPriority, TaskSort, TaskStatus, Theme, ThemeMode,
+    SearchSuggestionKind, SettingsCategory, SettingsState, SubTaskItem, TagItem, TagManagerStart,
+    TaskItem, TaskListItem, TaskPriority, TaskSort, TaskStatus, Theme, ThemeMode,
 };
 use i_slint_backend_testing::ElementHandle;
 use slint::{Brush, Color, ComponentHandle, Model, ModelRc, SharedString, VecModel};
@@ -1746,6 +1746,93 @@ fn tag_management_and_assignment_reach_their_handlers() {
     );
 }
 
+/// A tag's context menu in the detail pane opens the manager straight on that
+/// tag, to rename it or to confirm deleting it; leaving closes the manager.
+fn the_tag_manager_opens_on_one_tag() {
+    let window = window_with_content();
+    let state = window.global::<AppState>();
+    state.set_selected_project_id(SharedString::from("p1"));
+    settle();
+
+    let updated = Rc::new(RefCell::new(Vec::<(String, String, String)>::new()));
+    let deleted = Rc::new(RefCell::new(Vec::<(String, String)>::new()));
+    {
+        let seen = Rc::clone(&updated);
+        window
+            .global::<Actions>()
+            .on_update_tag(move |project_id, tag_id, name, _color| {
+                seen.borrow_mut().push((
+                    project_id.to_string(),
+                    tag_id.to_string(),
+                    name.to_string(),
+                ));
+            });
+        let seen = Rc::clone(&deleted);
+        window
+            .global::<Actions>()
+            .on_delete_tag(move |project_id, tag_id| {
+                seen.borrow_mut()
+                    .push((project_id.to_string(), tag_id.to_string()));
+            });
+    }
+    // The tag's own project is the one written to, whatever is selected.
+    let tag = TagItem {
+        project_id: SharedString::from("p2"),
+        ..tag_item("tag-home", "home", false, true)
+    };
+    let open_on = |start: TagManagerStart| {
+        state.set_tag_manager_tag(tag.clone());
+        state.set_tag_manager_start(start);
+        state.set_tag_manager_open(true);
+        settle();
+    };
+    // Walking the tree also drops the closed dialog, so the next open builds a
+    // fresh one; between frames of the real app that happens anyway.
+    let assert_closed = |why: &str| {
+        assert!(!state.get_tag_manager_open(), "{why}");
+        let labels = accessible_labels(&window);
+        assert!(
+            !labels
+                .iter()
+                .any(|label| label == "Tag name" || label == "Delete for good"),
+            "{why}; visible labels: {labels:?}"
+        );
+    };
+
+    open_on(TagManagerStart::Edit);
+    assert_eq!(state.get_tag_manager_start(), TagManagerStart::List);
+    set_value(&window, "Tag name", "house");
+    assert!(activate(&window, "Save"));
+    assert_eq!(
+        updated.borrow().as_slice(),
+        [(
+            "p2".to_string(),
+            "tag-home".to_string(),
+            "house".to_string()
+        )]
+    );
+    assert_closed("saving went back to the tag list");
+
+    open_on(TagManagerStart::Delete);
+    assert!(activate(&window, "Cancel"));
+    assert_closed("cancelling went back to the editor");
+    assert!(deleted.borrow().is_empty());
+
+    open_on(TagManagerStart::Delete);
+    assert!(activate(&window, "Delete for good"));
+    assert_eq!(
+        deleted.borrow().as_slice(),
+        [("p2".to_string(), "tag-home".to_string())]
+    );
+    assert_closed("deleting went back to the tag list");
+
+    // Opened from the sidebar afterwards, it starts on the list again.
+    state.set_tag_manager_open(true);
+    settle();
+    assert!(activate(&window, "New tag"));
+    state.set_tag_manager_open(false);
+}
+
 fn the_sort_bar_reaches_its_handler() {
     let window = window_with_content();
     let seen = Rc::new(RefCell::new(Vec::<TaskSort>::new()));
@@ -2851,6 +2938,7 @@ fn the_shell_responds_to_user_actions() {
     a_task_row_shows_its_tags();
     tag_management_is_available_without_pinned_tags();
     tag_management_and_assignment_reach_their_handlers();
+    the_tag_manager_opens_on_one_tag();
     the_sort_bar_reaches_its_handler();
     the_completed_checkbox_reaches_its_handler();
     the_drag_handle_reaches_its_handler();

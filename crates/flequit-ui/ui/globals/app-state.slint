@@ -1,6 +1,7 @@
 import { TaskItem, ProjectItem, DueFilterItem, Pane, TaskSort, ColorOption,
          EditorState, TagItem, BookmarkedTagItem, RecurrenceState,
-         SearchSuggestion, StatusFilterItem, AddTargetItem, AddTargetProjectItem } from "types.slint";
+         SearchSuggestion, StatusFilterItem, AddTargetItem, AddTargetProjectItem,
+         TagManagerStart } from "types.slint";
 
 // Application state shared across views.
 //
@@ -130,6 +131,11 @@ export global AppState {
     in-out property <bool> editor-open: false;
     in-out property <EditorState> editor;
     in-out property <bool> tag-manager-open: false;
+    // Transient: set before opening the manager to start it on
+    // `tag-manager-tag` instead of the tag list. The manager reads both when
+    // it opens and puts the start back to `list`.
+    in-out property <TagManagerStart> tag-manager-start: TagManagerStart.list;
+    in-out property <TagItem> tag-manager-tag;
 
     // --- Recurrence editor ---
     // Transient: the detail pane opens the editor through Actions, which fills
