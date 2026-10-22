@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2026-10-12 01:10+0000\n"
+"POT-Creation-Date: 2026-10-22 12:55+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1017,16 +1017,19 @@ msgstr ""
 
 #: crates/flequit-ui/ui/views/settings/basic-settings.slint
 #: crates/flequit-ui/ui/views/settings/basic-settings.slint
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint
 msgctxt "Settings"
 msgid "Minutes"
 msgstr ""
 
 #: crates/flequit-ui/ui/views/settings/basic-settings.slint
 #: crates/flequit-ui/ui/views/settings/basic-settings.slint
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint
 msgctxt "Settings"
 msgid "Hours"
 msgstr ""
 
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint
 #: crates/flequit-ui/ui/views/settings/basic-settings.slint
 #: crates/flequit-ui/ui/views/settings/basic-settings.slint
 msgctxt "Settings"
@@ -1887,22 +1890,7 @@ msgstr ""
 
 #: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint
 msgctxt "TaskDetail"
-msgid "Before start"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint
-msgctxt "TaskDetail"
-msgid "Before due"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint
-msgctxt "TaskDetail"
-msgid "Set a start or due date to use relative reminders."
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint
-msgctxt "TaskDetail"
-msgid "Specific date and time (optional)"
+msgid "Date and time"
 msgstr ""
 
 #: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint
@@ -1918,6 +1906,98 @@ msgstr ""
 #: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint
 msgctxt "Reminder"
 msgid "Choose a future date and time."
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint
+msgctxt "TaskDetail"
+msgid "Relative to the start or end"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint
+msgctxt "TaskDetail"
+msgid "Relative to the start"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint
+msgctxt "TaskDetail"
+msgid "Relative to the end"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint
+msgctxt "TaskDetail"
+msgid "Relative to the due date"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint
+msgctxt "TaskDetail"
+msgid "Start"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint
+msgctxt "TaskDetail"
+msgid "Count from the start"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint
+msgctxt "TaskDetail"
+msgid "End"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint
+msgctxt "TaskDetail"
+msgid "Count from the end"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint
+msgctxt "TaskDetail"
+msgid "Count the offset in minutes"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint
+msgctxt "TaskDetail"
+msgid "Count the offset in hours"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint
+msgctxt "TaskDetail"
+msgid "Count the offset in days"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint
+msgctxt "TaskDetail"
+msgid "Before"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint
+msgctxt "TaskDetail"
+msgid "Remind before the date"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint
+msgctxt "TaskDetail"
+msgid "After"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint
+msgctxt "TaskDetail"
+msgid "Remind after the date"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint
+msgctxt "TaskDetail"
+msgid "Reminder offset"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint
+msgctxt "TaskDetail"
+msgid "Add"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint
+msgctxt "TaskDetail"
+msgid "Add the reminder with this offset"
 msgstr ""
 
 #: crates/flequit-ui/ui/views/task-detail/task-detail.slint
@@ -1983,11 +2063,6 @@ msgstr ""
 
 #: crates/flequit-ui/ui/views/task-detail/task-detail.slint
 msgctxt "TaskDetail"
-msgid "Start"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint
-msgctxt "TaskDetail"
 msgid "Edit start date"
 msgstr ""
 
@@ -1999,11 +2074,6 @@ msgstr ""
 #: crates/flequit-ui/ui/views/task-detail/task-detail.slint
 msgctxt "TaskDetail"
 msgid "Select start date"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint
-msgctxt "TaskDetail"
-msgid "End"
 msgstr ""
 
 #: crates/flequit-ui/ui/views/task-detail/task-detail.slint

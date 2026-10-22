@@ -343,11 +343,18 @@ export component TaskDetailView inherits Rectangle {
                             task-id: root.task.id;
                             has-start: root.task.has-start;
                             has-due: root.task.has-due;
-                            year: root.task.due-year;
-                            month: root.task.due-month;
-                            day: root.task.due-day;
-                            hour: root.task.due-hour;
-                            minute: root.task.due-minute;
+                            is-range: root.task.is-range-date;
+                            // Open the calendar on the nearest task date.
+                            year: root.task.has-start && !root.task.has-due
+                                ? root.task.start-year : root.task.due-year;
+                            month: root.task.has-start && !root.task.has-due
+                                ? root.task.start-month : root.task.due-month;
+                            day: root.task.has-start && !root.task.has-due
+                                ? root.task.start-day : root.task.due-day;
+                            hour: root.task.has-start && !root.task.has-due
+                                ? root.task.start-hour : root.task.due-hour;
+                            minute: root.task.has-start && !root.task.has-due
+                                ? root.task.start-minute : root.task.due-minute;
                         }
                     }
 

@@ -787,14 +787,6 @@ msgctxt "Reminder"
 msgid "Choose a future date and time."
 msgstr "Choose a future date and time."
 
-msgctxt "TaskDetail"
-msgid "Before start"
-msgstr "Before start"
-
-msgctxt "TaskDetail"
-msgid "Before due"
-msgstr "Before due"
-
 msgctxt "Settings"
 msgid "Reminder presets"
 msgstr "Reminder presets"
@@ -843,16 +835,6 @@ msgstr "1 hour before due"
 msgctxt "TaskDetail"
 msgid "1 day before due"
 msgstr "1 day before due"
-
-#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:118
-msgctxt "TaskDetail"
-msgid "Set a start or due date to use relative reminders."
-msgstr "Set a start or due date to use relative reminders."
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:296
-msgctxt "TaskDetail"
-msgid "Specific date and time (optional)"
-msgstr "Specific date and time (optional)"
 
 #: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:140
 msgctxt "TaskDetail"
@@ -2217,3 +2199,71 @@ msgstr "Complete"
 msgctxt "TaskMenu"
 msgid "Delete"
 msgstr "Delete"
+
+msgctxt "TaskDetail"
+msgid "Date and time"
+msgstr "Date and time"
+
+msgctxt "TaskDetail"
+msgid "Relative to the start or end"
+msgstr "Relative to the start or end"
+
+msgctxt "TaskDetail"
+msgid "Relative to the start"
+msgstr "Relative to the start"
+
+msgctxt "TaskDetail"
+msgid "Relative to the end"
+msgstr "Relative to the end"
+
+msgctxt "TaskDetail"
+msgid "Relative to the due date"
+msgstr "Relative to the due date"
+
+msgctxt "TaskDetail"
+msgid "Count from the start"
+msgstr "Count from the start"
+
+msgctxt "TaskDetail"
+msgid "Count from the end"
+msgstr "Count from the end"
+
+msgctxt "TaskDetail"
+msgid "Count the offset in minutes"
+msgstr "Count the offset in minutes"
+
+msgctxt "TaskDetail"
+msgid "Count the offset in hours"
+msgstr "Count the offset in hours"
+
+msgctxt "TaskDetail"
+msgid "Count the offset in days"
+msgstr "Count the offset in days"
+
+msgctxt "TaskDetail"
+msgid "Before"
+msgstr "Before"
+
+msgctxt "TaskDetail"
+msgid "After"
+msgstr "After"
+
+msgctxt "TaskDetail"
+msgid "Remind before the date"
+msgstr "Remind before the date"
+
+msgctxt "TaskDetail"
+msgid "Remind after the date"
+msgstr "Remind after the date"
+
+msgctxt "TaskDetail"
+msgid "Reminder offset"
+msgstr "Reminder offset"
+
+msgctxt "TaskDetail"
+msgid "Add"
+msgstr "Add"
+
+msgctxt "TaskDetail"
+msgid "Add the reminder with this offset"
+msgstr "Add the reminder with this offset"
