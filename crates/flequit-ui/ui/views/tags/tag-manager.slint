@@ -21,6 +21,13 @@ export component TagManager inherits Rectangle {
     property <string> name;
     property <string> selected-color;
 
+    // Controls take the focus a turn of the event loop after they appear, not
+    // from their `init`. The dialog's parts can be created while the
+    // accessibility tree is being built (opened from a native context menu,
+    // it is that walk that builds the dialog), and a focus change from inside
+    // it re-enters the winit backend and panics.
+    private property <duration> focus-later: 0ms;
+
     function close-editor() {
         if (root.opened-on != TagManagerStart.list) {
             AppState.tag-manager-open = false;
@@ -181,18 +188,26 @@ export component TagManager inherits Rectangle {
             if root.editing && !root.confirming-delete: VerticalLayout {
                 spacing: Theme.space-md;
 
-                LineEdit {
+                name-field := LineEdit {
                     text <=> root.name;
                     placeholder-text: @tr("Tags" => "Tag name");
                     accessible-label: @tr("Tags" => "Tag name");
                     accepted => { root.save(); }
-                    // Entering the editor puts the caret in the name field.
-                    init => { self.focus(); }
                 }
 
                 ColorPicker {
                     value: root.selected-color;
                     picked(value) => { root.selected-color = value; }
+                }
+
+                // Entering the editor puts the caret in the name field. Late,
+                // like every focus this dialog takes: see `focus-later`.
+                Timer {
+                    interval: root.focus-later;
+                    triggered => {
+                        self.running = false;
+                        name-field.focus();
+                    }
                 }
             }
 
@@ -213,13 +228,21 @@ export component TagManager inherits Rectangle {
                     clicked => { root.confirming-delete = true; }
                 }
 
-                DialogButton {
+                close-button := DialogButton {
                     label: root.editing ? @tr("Tags" => "Cancel") : @tr("Tags" => "Close");
                     // The only control the dialog always has, so it is what
                     // holds the focus when the manager opens on the tag list.
                     // Without it the focus stays behind the dialog and the trap
-                    // has nothing to keep in.
-                    init => { self.focus(); }
+                    // has nothing to keep in. Opened on one tag, the editor or
+                    // the delete confirmation takes the focus instead.
+                    Timer {
+                        interval: root.focus-later;
+                        running: !root.editing;
+                        triggered => {
+                            self.running = false;
+                            close-button.focus();
+                        }
+                    }
                     clicked => {
                         if (root.confirming-delete && root.opened-on != TagManagerStart.delete) {
                             root.confirming-delete = false;
@@ -231,12 +254,18 @@ export component TagManager inherits Rectangle {
                     }
                 }
 
-                if root.confirming-delete: DialogButton {
+                if root.confirming-delete: confirm-delete := DialogButton {
                     label: @tr("Tags" => "Delete for good");
                     destructive: true;
                     // Confirming replaces the name field, which is where the
                     // focus was: without this it would fall out of the dialog.
-                    init => { self.focus(); }
+                    Timer {
+                        interval: root.focus-later;
+                        triggered => {
+                            self.running = false;
+                            confirm-delete.focus();
+                        }
+                    }
                     clicked => {
                         Actions.delete-tag(root.project-id, root.editing-tag-id);
                         root.close-editor();
