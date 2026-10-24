@@ -214,15 +214,26 @@ export component RecurrenceEditor inherits Rectangle {
                     spacing: Theme.space-md;
                     alignment: start;
 
-                    CheckBox {
+                    repeat-toggle := CheckBox {
                         text: @tr("Recurrence" => "Repeat this task");
                         checked: root.enabled;
-                        // First control of the dialog: everything below depends
-                        // on it, so keyboard users start here.
-                        init => { self.focus(); }
                         toggled => {
                             root.enabled = self.checked;
                             root.changed();
+                        }
+                    }
+
+                    // The checkbox is the first control of the dialog:
+                    // everything below depends on it, so keyboard users start
+                    // there. Focused a turn of the event loop late, not from
+                    // its `init`: the dialog can be created while the
+                    // accessibility tree is being built, and a focus change
+                    // from inside that walk panics in the winit backend.
+                    Timer {
+                        interval: 0ms;
+                        triggered => {
+                            self.running = false;
+                            repeat-toggle.focus();
                         }
                     }
 

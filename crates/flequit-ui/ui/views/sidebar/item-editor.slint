@@ -21,6 +21,12 @@ export component ItemEditor inherits Rectangle {
     // Deleting a project takes its lists and tasks with it, so it is confirmed.
     property <bool> confirming-delete: false;
 
+    // Controls take the focus a turn of the event loop after they appear, not
+    // from their `init`. The dialog's parts can be created while the
+    // accessibility tree is being built, and a focus change from inside that
+    // walk re-enters the winit backend and panics.
+    private property <duration> focus-later: 0ms;
+
     function close() {
         AppState.editor-open = false;
     }
@@ -90,13 +96,24 @@ export component ItemEditor inherits Rectangle {
                 font-size: Theme.font-size-lg;
             }
 
-            if !root.confirming-delete: LineEdit {
-                placeholder-text: @tr("Editor" => "Name");
-                accessible-label: @tr("Editor" => "Name");
-                text <=> root.name;
-                accepted => { root.save(); }
+            // Wrapped only so the Timer has somewhere to live: a LineEdit
+            // takes no children.
+            if !root.confirming-delete: VerticalLayout {
+                name-field := LineEdit {
+                    placeholder-text: @tr("Editor" => "Name");
+                    accessible-label: @tr("Editor" => "Name");
+                    text <=> root.name;
+                    accepted => { root.save(); }
+                }
+
                 // The name is what the dialog exists for, so it starts focused.
-                init => { self.focus(); }
+                Timer {
+                    interval: root.focus-later;
+                    triggered => {
+                        self.running = false;
+                        name-field.focus();
+                    }
+                }
             }
 
             // Colour is a project-only attribute; lists inherit their look.
@@ -146,12 +163,18 @@ export component ItemEditor inherits Rectangle {
                     }
                 }
 
-                if root.confirming-delete: DialogButton {
+                if root.confirming-delete: confirm-delete := DialogButton {
                     label: @tr("Editor" => "Delete for good");
                     destructive: true;
                     // Confirming replaces the name field, which is where the
                     // focus was: without this it would fall out of the dialog.
-                    init => { self.focus(); }
+                    Timer {
+                        interval: root.focus-later;
+                        triggered => {
+                            self.running = false;
+                            confirm-delete.focus();
+                        }
+                    }
                     clicked => { root.remove(); }
                 }
 

@@ -80,11 +80,21 @@ export component SettingsDialog inherits Rectangle {
                     padding: Theme.space-md;
                     padding-top: Theme.space-md + Layout.safe-area-top;
                     spacing: Theme.space-md;
-                    IconButton {
+                    back-button := IconButton {
                         icon: IconName.chevron-left;
                         // First control of the dialog: opening settings with the
                         // keyboard leaves the way back within one key press.
-                        init => { self.focus(); }
+                        // Focused a turn of the event loop late, not from
+                        // `init`: the dialog can be created while the
+                        // accessibility tree is being built, and a focus change
+                        // from inside that walk panics in the winit backend.
+                        Timer {
+                            interval: 0ms;
+                            triggered => {
+                                self.running = false;
+                                back-button.focus();
+                            }
+                        }
                         tooltip: Layout.is-compact && SettingsState.compact-detail-open
                             ? @tr("Settings" => "Back to settings categories")
                             : @tr("Settings" => "Close settings");
