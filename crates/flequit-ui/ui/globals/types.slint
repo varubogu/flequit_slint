@@ -293,6 +293,10 @@ export struct ProjectItem {
     highlight: FilterHighlight,
 }
 
+// Where the tag manager opens: on its tag list, or straight on one tag's
+// editor or delete confirmation (a tag's context menu asks for those).
+export enum TagManagerStart { list, edit, delete }
+
 export struct TagItem {
     id: string,
     project-id: string,
