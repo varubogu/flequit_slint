@@ -87,6 +87,7 @@ export global Actions {
     callback clear-recurrence(string /* task_id */);
 
     // --- Reminders ---
+    // A negative `minutes_before` reminds that long after the start or due date.
     callback add-relative-reminder(string /* task_id */, bool /* from_start */,
                                    int /* minutes_before */);
     callback add-reminder(string /* task_id */, int /* year */, int /* month */,

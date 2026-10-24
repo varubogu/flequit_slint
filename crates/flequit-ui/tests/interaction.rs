@@ -1236,6 +1236,52 @@ fn reminder_controls_reach_their_handlers() {
             ("t1".to_string(), false, 2880)
         ]
     );
+
+    // A period counts from either end, and any offset may land after the date.
+    relative.borrow_mut().clear();
+    let mut task = state.get_selected_task();
+    task.has_start = true;
+    state.set_selected_task(task);
+    assert!(activate(&window, "Add a reminder"));
+    assert!(activate(&window, "Count from the end"));
+    assert!(activate(&window, "30 minutes before"));
+    assert!(activate(&window, "Add a reminder"));
+    assert!(activate(&window, "Count from the start"));
+    assert!(activate(&window, "Count the offset in hours"));
+    assert!(activate(&window, "Remind after the date"));
+    set_value(&window, "Reminder offset", "2");
+    assert!(activate(&window, "Add the reminder with this offset"));
+    assert_eq!(
+        relative.borrow().as_slice(),
+        [
+            ("t1".to_string(), false, 30),
+            ("t1".to_string(), true, -120)
+        ]
+    );
+
+    // Without any task date only a specific date and time is offered.
+    let mut task = state.get_selected_task();
+    task.has_start = false;
+    task.has_due = false;
+    state.set_selected_task(task);
+    assert!(activate(&window, "Add a reminder"));
+    assert!(
+        ElementHandle::find_by_accessible_label(&window, "Select a specific reminder date")
+            .next()
+            .is_some(),
+        "a task without dates must still take a specific reminder date"
+    );
+    assert!(
+        ElementHandle::find_by_accessible_label(&window, "Reminder offset")
+            .next()
+            .is_none(),
+        "relative offsets need a task date to count from"
+    );
+    assert!(activate(&window, "Add a reminder"));
+    let mut task = state.get_selected_task();
+    task.has_due = true;
+    state.set_selected_task(task);
+
     assert!(activate(&window, "Remove reminder 2026-09-07 12:00"));
     assert_eq!(
         removed.borrow().as_slice(),

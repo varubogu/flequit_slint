@@ -787,14 +787,6 @@ msgctxt "Reminder"
 msgid "Choose a future date and time."
 msgstr "現在より後の日時を指定してください。"
 
-msgctxt "TaskDetail"
-msgid "Before start"
-msgstr "着手日時から"
-
-msgctxt "TaskDetail"
-msgid "Before due"
-msgstr "完了日時から"
-
 msgctxt "Settings"
 msgid "Reminder presets"
 msgstr "リマインダーのカスタム項目"
@@ -843,16 +835,6 @@ msgstr "完了日時の1時間前"
 msgctxt "TaskDetail"
 msgid "1 day before due"
 msgstr "完了日時の1日前"
-
-#: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:118
-msgctxt "TaskDetail"
-msgid "Set a start or due date to use relative reminders."
-msgstr "相対リマインダーを使うには、着手日時または完了日時を設定してください。"
-
-#: crates/flequit-ui/ui/views/task-detail/task-detail.slint:296
-msgctxt "TaskDetail"
-msgid "Specific date and time (optional)"
-msgstr "日時を直接指定（オプション）"
 
 #: crates/flequit-ui/ui/views/task-detail/reminder-editor.slint:140
 msgctxt "TaskDetail"
@@ -2215,6 +2197,74 @@ msgstr "完了"
 msgctxt "TaskMenu"
 msgid "Delete"
 msgstr "削除"
+
+msgctxt "TaskDetail"
+msgid "Date and time"
+msgstr "日時を指定"
+
+msgctxt "TaskDetail"
+msgid "Relative to the start or end"
+msgstr "開始日時または終了日時から"
+
+msgctxt "TaskDetail"
+msgid "Relative to the start"
+msgstr "開始日時から"
+
+msgctxt "TaskDetail"
+msgid "Relative to the end"
+msgstr "終了日時から"
+
+msgctxt "TaskDetail"
+msgid "Relative to the due date"
+msgstr "期限から"
+
+msgctxt "TaskDetail"
+msgid "Count from the start"
+msgstr "開始日時を基準にする"
+
+msgctxt "TaskDetail"
+msgid "Count from the end"
+msgstr "終了日時を基準にする"
+
+msgctxt "TaskDetail"
+msgid "Count the offset in minutes"
+msgstr "分単位で指定"
+
+msgctxt "TaskDetail"
+msgid "Count the offset in hours"
+msgstr "時間単位で指定"
+
+msgctxt "TaskDetail"
+msgid "Count the offset in days"
+msgstr "日単位で指定"
+
+msgctxt "TaskDetail"
+msgid "Before"
+msgstr "前"
+
+msgctxt "TaskDetail"
+msgid "After"
+msgstr "後"
+
+msgctxt "TaskDetail"
+msgid "Remind before the date"
+msgstr "基準日時より前に通知"
+
+msgctxt "TaskDetail"
+msgid "Remind after the date"
+msgstr "基準日時より後に通知"
+
+msgctxt "TaskDetail"
+msgid "Reminder offset"
+msgstr "基準日時からの時間"
+
+msgctxt "TaskDetail"
+msgid "Add"
+msgstr "追加"
+
+msgctxt "TaskDetail"
+msgid "Add the reminder with this offset"
+msgstr "指定した時間でリマインダーを追加"
 
 msgctxt "TagMenu"
 msgid "Remove"

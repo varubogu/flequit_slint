@@ -1753,8 +1753,10 @@ where
                     report_error(&weak, "input.validation-failed");
                     return;
                 };
-                let reminder =
-                    reference - chrono::Duration::minutes(i64::from(minutes_before.max(0)));
+                let Some(reminder) = relative_reminder(reference, minutes_before) else {
+                    report_error(&weak, "input.validation-failed");
+                    return;
+                };
                 let parts = to_display_parts(&reminder, display_timezone);
                 window.global::<Actions>().invoke_add_reminder(
                     task_id,
@@ -2855,6 +2857,19 @@ fn apply_system_theme(window: &AppWindow, theme: SystemTheme) {
 }
 
 // -- Free functions ---------------------------------------------------------
+
+/// The furthest a relative reminder may sit from its task date: the editor's
+/// largest choice, 3650 days.
+const MAX_RELATIVE_REMINDER_MINUTES: i32 = 3650 * 24 * 60;
+
+/// The instant `minutes_before` ahead of `reference`; a negative offset lands
+/// after it. `None` for an offset beyond what the editor offers.
+fn relative_reminder(reference: DateTime<Utc>, minutes_before: i32) -> Option<DateTime<Utc>> {
+    if minutes_before.unsigned_abs() > MAX_RELATIVE_REMINDER_MINUTES.unsigned_abs() {
+        return None;
+    }
+    reference.checked_sub_signed(chrono::Duration::minutes(i64::from(minutes_before)))
+}
 
 type ReminderSpec = (String, String, DateTime<Utc>);
 
@@ -4617,6 +4632,27 @@ mod tests {
             .map(|(_, _, task)| task.title.as_str())
             .collect();
         assert_eq!(titles, ["Buy milk", "Shelved", "Milk", "Loose"]);
+    }
+
+    #[test]
+    fn relative_reminders_land_before_or_after_their_date() {
+        use chrono::TimeZone;
+        let reference = Utc.with_ymd_and_hms(2026, 9, 6, 12, 0, 0).unwrap();
+        assert_eq!(
+            relative_reminder(reference, 30),
+            Some(Utc.with_ymd_and_hms(2026, 9, 6, 11, 30, 0).unwrap())
+        );
+        assert_eq!(
+            relative_reminder(reference, -1440),
+            Some(Utc.with_ymd_and_hms(2026, 9, 7, 12, 0, 0).unwrap())
+        );
+        assert!(relative_reminder(reference, MAX_RELATIVE_REMINDER_MINUTES).is_some());
+        assert!(relative_reminder(reference, -MAX_RELATIVE_REMINDER_MINUTES).is_some());
+        assert_eq!(
+            relative_reminder(reference, MAX_RELATIVE_REMINDER_MINUTES + 1),
+            None
+        );
+        assert_eq!(relative_reminder(reference, i32::MIN), None);
     }
 
     #[test]
