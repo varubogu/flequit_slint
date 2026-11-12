@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2026-10-24 01:18+0000\n"
+"POT-Creation-Date: 2026-11-10 23:16+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -962,6 +962,13 @@ msgstr ""
 
 #: crates/flequit-ui/ui/views/settings/basic-settings.slint
 msgctxt "Settings"
+msgid ""
+"Type a name to call a filter what you usually call it. Leave it empty to use "
+"the default name."
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint
+msgctxt "Settings"
 msgid "Show Overdue due filter"
 msgstr ""
 
@@ -1016,6 +1023,11 @@ msgid "Remove the {0} filter"
 msgstr ""
 
 #: crates/flequit-ui/ui/views/settings/basic-settings.slint
+msgctxt "Settings"
+msgid "Add due filter"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint
 #: crates/flequit-ui/ui/views/settings/basic-settings.slint
 #: crates/flequit-ui/ui/views/settings/basic-settings.slint
 msgctxt "Settings"
@@ -1043,7 +1055,12 @@ msgstr ""
 
 #: crates/flequit-ui/ui/views/settings/basic-settings.slint
 msgctxt "Settings"
-msgid "Add due filter"
+msgid "Due filter name"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint
+msgctxt "Settings"
+msgid "Save due filter"
 msgstr ""
 
 #: crates/flequit-ui/ui/views/settings/basic-settings.slint
@@ -1054,6 +1071,11 @@ msgstr ""
 #: crates/flequit-ui/ui/views/settings/basic-settings.slint
 msgctxt "Settings"
 msgid "Remove the {0} preset"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint
+msgctxt "Settings"
+msgid "Add recurrence preset"
 msgstr ""
 
 #: crates/flequit-ui/ui/views/settings/basic-settings.slint
@@ -1083,7 +1105,12 @@ msgstr ""
 
 #: crates/flequit-ui/ui/views/settings/basic-settings.slint
 msgctxt "Settings"
-msgid "Add recurrence preset"
+msgid "Recurrence preset name"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/basic-settings.slint
+msgctxt "Settings"
+msgid "Save recurrence preset"
 msgstr ""
 
 #: crates/flequit-ui/ui/views/settings/basic-settings.slint
@@ -1348,12 +1375,22 @@ msgstr ""
 
 #: crates/flequit-ui/ui/views/settings/reminder-settings.slint
 msgctxt "Settings"
+msgid "Add reminder preset"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/reminder-settings.slint
+msgctxt "Settings"
 msgid "Reminder amount"
 msgstr ""
 
 #: crates/flequit-ui/ui/views/settings/reminder-settings.slint
 msgctxt "Settings"
-msgid "Add reminder preset"
+msgid "Reminder preset name"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/reminder-settings.slint
+msgctxt "Settings"
+msgid "Save reminder preset"
 msgstr ""
 
 #: crates/flequit-ui/ui/views/settings/settings-categories.slint
@@ -1427,6 +1464,11 @@ msgstr ""
 #: crates/flequit-ui/ui/views/settings/settings-categories.slint
 msgctxt "Settings"
 msgid "Sync history status and failed changes"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/settings/settings-controls.slint
+msgctxt "Settings"
+msgid "Name for {0}"
 msgstr ""
 
 #: crates/flequit-ui/ui/views/settings/settings-controls.slint
@@ -1848,14 +1890,14 @@ msgid "Number of times"
 msgstr ""
 
 #: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint
-msgctxt "Recurrence"
-msgid "Next dates"
-msgstr ""
-
-#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint
 #: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint
 msgctxt "Recurrence"
 msgid "Preview count"
+msgstr ""
+
+#: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint
+msgctxt "Recurrence"
+msgid "Next dates"
 msgstr ""
 
 #: crates/flequit-ui/ui/views/task-detail/recurrence-editor.slint

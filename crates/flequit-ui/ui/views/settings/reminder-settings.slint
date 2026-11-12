@@ -1,4 +1,4 @@
-import { SpinBox } from "std-widgets.slint";
+import { LineEdit, SpinBox } from "std-widgets.slint";
 import { Theme } from "../../globals/theme.slint";
 import { Layout } from "../../globals/layout.slint";
 import { Actions } from "../../globals/actions.slint";
@@ -8,9 +8,11 @@ import { I18n } from "../../globals/i18n.slint";
 import { DialogButton } from "../../components/dialog-button.slint";
 import { IconButton } from "../../components/icon-button.slint";
 import { IconName } from "../../components/icon.slint";
-import { ChoiceButton, FieldLabel } from "settings-controls.slint";
+import { ChoiceButton, FieldLabel, NameField } from "settings-controls.slint";
 
 export component ReminderSettings inherits VerticalLayout {
+    // Adding a choice is rare, so the form stays folded away until asked for.
+    private property <bool> adding: false;
     private property <ReminderUnit> new-reminder-unit: ReminderUnit.minute;
     vertical-stretch: 0;
     spacing: Theme.space-sm;
@@ -26,39 +28,51 @@ export component ReminderSettings inherits VerticalLayout {
             horizontal-stretch: 1;
             overflow: elide;
         }
+        NameField {
+            horizontal-stretch: 1;
+            name: preset.name;
+            default-label: I18n.reminder-offset-label(preset.value, preset.unit);
+            committed(name) => {
+                Actions.rename-reminder-preset(preset.value, preset.unit, name);
+            }
+        }
         IconButton {
             icon: IconName.close;
             tooltip: @tr("Settings" => "Remove the {0} reminder preset",
-                I18n.reminder-offset-label(preset.value, preset.unit));
+                preset.name != "" ? preset.name : I18n.reminder-offset-label(preset.value, preset.unit));
             clicked => {
                 Actions.remove-reminder-preset(preset.value, preset.unit);
             }
         }
     }
-    HorizontalLayout {
-        height: Layout.touch-target;
-        vertical-stretch: 0;
-        spacing: Theme.space-sm;
-        ChoiceButton {
-            label: @tr("Settings" => "Minutes");
-            selected: root.new-reminder-unit == ReminderUnit.minute;
-            clicked => { root.new-reminder-unit = ReminderUnit.minute; }
-        }
-        ChoiceButton {
-            label: @tr("Settings" => "Hours");
-            selected: root.new-reminder-unit == ReminderUnit.hour;
-            clicked => { root.new-reminder-unit = ReminderUnit.hour; }
-        }
-        ChoiceButton {
-            label: @tr("Settings" => "Days");
-            selected: root.new-reminder-unit == ReminderUnit.day;
-            clicked => { root.new-reminder-unit = ReminderUnit.day; }
-        }
+    DialogButton {
+        label: @tr("Settings" => "Add reminder preset");
+        primary: !root.adding;
+        clicked => { root.adding = !root.adding; }
     }
-    HorizontalLayout {
-        height: Layout.touch-target;
+    if root.adding: VerticalLayout {
         vertical-stretch: 0;
         spacing: Theme.space-sm;
+        HorizontalLayout {
+            height: Layout.touch-target;
+            vertical-stretch: 0;
+            spacing: Theme.space-sm;
+            ChoiceButton {
+                label: @tr("Settings" => "Minutes");
+                selected: root.new-reminder-unit == ReminderUnit.minute;
+                clicked => { root.new-reminder-unit = ReminderUnit.minute; }
+            }
+            ChoiceButton {
+                label: @tr("Settings" => "Hours");
+                selected: root.new-reminder-unit == ReminderUnit.hour;
+                clicked => { root.new-reminder-unit = ReminderUnit.hour; }
+            }
+            ChoiceButton {
+                label: @tr("Settings" => "Days");
+                selected: root.new-reminder-unit == ReminderUnit.day;
+                clicked => { root.new-reminder-unit = ReminderUnit.day; }
+            }
+        }
         reminder-value := SpinBox {
             height: Layout.touch-target;
             vertical-stretch: 0;
@@ -68,12 +82,18 @@ export component ReminderSettings inherits VerticalLayout {
                 : root.new-reminder-unit == ReminderUnit.hour ? 8760 : 3650;
             accessible-label: @tr("Settings" => "Reminder amount");
         }
+        reminder-name := LineEdit {
+            placeholder-text: I18n.reminder-offset-label(reminder-value.value, root.new-reminder-unit);
+            accessible-label: @tr("Settings" => "Reminder preset name");
+        }
         DialogButton {
-            label: @tr("Settings" => "Add reminder preset");
+            label: @tr("Settings" => "Save reminder preset");
             primary: true;
             clicked => {
                 Actions.add-reminder-preset(reminder-value.value,
-                                           root.new-reminder-unit);
+                                           root.new-reminder-unit,
+                                           reminder-name.text);
+                root.adding = false;
             }
         }
     }

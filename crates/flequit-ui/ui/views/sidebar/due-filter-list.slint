@@ -37,7 +37,8 @@ export component DueFilterList inherits VerticalLayout {
                 }
 
                 if !root.collapsed: Text {
-                    text: I18n.due-filter-label(filter.key, filter.custom-value, filter.custom-unit);
+                    text: filter.name != "" ? filter.name
+                        : I18n.due-filter-label(filter.key, filter.custom-value, filter.custom-unit);
                     color: Theme.text;
                     font-size: Theme.font-size-base;
                     vertical-alignment: center;
@@ -55,7 +56,8 @@ export component DueFilterList inherits VerticalLayout {
         }
 
         accessible-role: button;
-        accessible-label: I18n.due-filter-label(filter.key, filter.custom-value, filter.custom-unit);
+        accessible-label: filter.name != "" ? filter.name
+            : I18n.due-filter-label(filter.key, filter.custom-value, filter.custom-unit);
         accessible-action-default => { Actions.apply-filter(FilterKind.due, filter.key, QueryEdit.click); }
     }
 }
