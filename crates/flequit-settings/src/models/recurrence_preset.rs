@@ -23,16 +23,27 @@ pub enum RecurrenceUnit {
 }
 
 /// ユーザーが登録した繰り返しパターン 1 件
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecurrencePreset {
     /// 間隔（1 以上）
     pub interval: i32,
     pub unit: RecurrenceUnit,
+    /// ユーザーが付けた呼び名（「隔週」など）。空なら既定の表示名を使う。
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub name: String,
 }
 
 impl RecurrencePreset {
     pub fn new(interval: i32, unit: RecurrenceUnit) -> Self {
-        Self { interval, unit }
+        Self::named(interval, unit, String::new())
+    }
+
+    pub fn named(interval: i32, unit: RecurrenceUnit, name: String) -> Self {
+        Self {
+            interval,
+            unit,
+            name,
+        }
     }
 }
 
@@ -44,7 +55,7 @@ mod tests {
     fn a_preset_round_trips_through_yaml() {
         let presets = vec![
             RecurrencePreset::new(2, RecurrenceUnit::Week),
-            RecurrencePreset::new(6, RecurrenceUnit::Month),
+            RecurrencePreset::named(6, RecurrenceUnit::Month, "半期".to_string()),
         ];
 
         let yaml = serde_yaml::to_string(&presets).unwrap();
